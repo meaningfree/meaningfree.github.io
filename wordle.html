@@ -10,6 +10,7 @@
     --correct-bg:#2C4B8C; --correct-fg:#FFFFFF;
     --present-bg:#E0A52F; --present-fg:#2A1D00;
     --absent-bg:#8B92A2; --absent-fg:#FFFFFF;
+    --near-bg:#F2E4C4; --near-fg:#4A3A12; --near-line:#D9A02A;
     --accent:#2C4B8C; --shadow:0 8px 28px rgba(21,24,33,.16);
     --sans:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
     --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
@@ -22,6 +23,7 @@
       --correct-bg:#3E6DC4; --correct-fg:#FFFFFF;
       --present-bg:#D6A03A; --present-fg:#17130A;
       --absent-bg:#3E4552; --absent-fg:#C9CFDC;
+      --near-bg:#3B3324; --near-fg:#EADCB8; --near-line:#B98E33;
       --accent:#7EA6EC; --shadow:0 8px 28px rgba(0,0,0,.5);
     }
   }
@@ -32,6 +34,7 @@
     --correct-bg:#3E6DC4; --correct-fg:#FFFFFF;
     --present-bg:#D6A03A; --present-fg:#17130A;
     --absent-bg:#3E4552; --absent-fg:#C9CFDC;
+    --near-bg:#3B3324; --near-fg:#EADCB8; --near-line:#B98E33;
     --accent:#7EA6EC; --shadow:0 8px 28px rgba(0,0,0,.5);
   }
 
@@ -67,8 +70,8 @@
   .board-wrap{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:0; position:relative}
   .meta{font-size:11.5px; color:var(--ink-soft); letter-spacing:.09em; text-transform:uppercase; font-weight:500}
   .board{
-    --tile:min(56px, 15vw); --gap:6px;
-    display:grid; grid-template-rows:repeat(6, var(--tile)); gap:var(--gap);
+    --tile:min(56px, 15vw); --gap:6px; --rows:6;
+    display:grid; grid-template-rows:repeat(var(--rows), var(--tile)); gap:var(--gap);
   }
   .row{display:grid; grid-template-columns:repeat(5, var(--tile)); gap:var(--gap)}
   .tile{
@@ -81,6 +84,7 @@
   .tile.correct{background:var(--correct-bg); border-color:var(--correct-bg); color:var(--correct-fg)}
   .tile.present{background:var(--present-bg); border-color:var(--present-bg); color:var(--present-fg)}
   .tile.absent{background:var(--absent-bg); border-color:var(--absent-bg); color:var(--absent-fg)}
+  .tile.near{background:var(--near-bg); border-color:var(--near-line); color:var(--near-fg)}
   .tile.pop{animation:pop .1s ease-out}
   .tile.flip{animation:flip .5s ease forwards}
   .tile.jump{animation:jump .5s ease}
@@ -128,6 +132,8 @@
   .k.correct{background:var(--correct-bg); color:var(--correct-fg)}
   .k.present{background:var(--present-bg); color:var(--present-fg)}
   .k.absent{background:var(--absent-bg); color:var(--absent-fg)}
+  .k.near{background:var(--near-bg); color:var(--near-fg); box-shadow:inset 0 0 0 1.5px var(--near-line)}
+  .dot.near{background:var(--near-line)}
   .k:active{transform:translateY(1px)}
 
   /* ---- panels ---- */
@@ -237,6 +243,7 @@
     ["お","こ","そ","と","の","ほ","も","よ","ろ",""]
   ];
   var QWERTY = ["qwertyuiop","asdfghjkl","zxcvbnm"];
+  var ROWS = { jp: 8, en: 6 };   // かなは文字の種類が多いので回数を増やす
 
   /* ---------- storage ---------- */
   var KEY = "mugen-wordle-v1";
@@ -244,11 +251,15 @@
     mode: "jp",
     hard: false,
     listVer: 3,
-    stats: { jp: blankStats(), en: blankStats() },
+    stats: { jp: blankStats(ROWS.jp), en: blankStats(ROWS.en) },
     games: { jp: null, en: null },
     recent: { jp: [], en: [] }
   };
-  function blankStats(){ return { played:0, wins:0, streak:0, best:0, dist:[0,0,0,0,0,0] }; }
+  function blankStats(n){
+    var dist = [];
+    for (var i = 0; i < (n || 6); i++) dist.push(0);
+    return { played:0, wins:0, streak:0, best:0, dist:dist };
+  }
   function load(){
     try {
       var raw = localStorage.getItem(KEY);
@@ -259,7 +270,13 @@
         store.hard = !!got.hard;
         store.listVer = got.listVer || 1;
         ["jp","en"].forEach(function(m){
-          if (got.stats && got.stats[m]) store.stats[m] = Object.assign(blankStats(), got.stats[m]);
+          if (got.stats && got.stats[m]){
+            var st = Object.assign(blankStats(ROWS[m]), got.stats[m]);
+            var d = [];
+            for (var i = 0; i < ROWS[m]; i++) d.push((st.dist && st.dist[i]) || 0);
+            st.dist = d;
+            store.stats[m] = st;
+          }
           if (got.games && got.games[m]) store.games[m] = got.games[m];
           if (got.recent && Array.isArray(got.recent[m])) store.recent[m] = got.recent[m];
         });
@@ -316,7 +333,9 @@
   }
 
   /* ---------- scoring ---------- */
-  function score(guess, answer){
+  function baseOf(c){ return BASE[c] || c; }
+
+  function score(guess, answer, kana){
     var res = ["absent","absent","absent","absent","absent"];
     var left = {};
     var i;
@@ -328,20 +347,34 @@
       if (res[i] === "correct") continue;
       if (left[guess[i]] > 0){ res[i] = "present"; left[guess[i]]--; }
     }
+    if (kana){
+      // だくてん・ちいさいもじの ちがいだけ なら「おしい」
+      var leftBase = {};
+      Object.keys(left).forEach(function(ch){
+        if (left[ch] > 0) leftBase[baseOf(ch)] = (leftBase[baseOf(ch)] || 0) + left[ch];
+      });
+      for (i = 0; i < 5; i++){
+        if (res[i] !== "absent") continue;
+        var b = baseOf(guess[i]);
+        if (leftBase[b] > 0){ res[i] = "near"; leftBase[b]--; }
+      }
+    }
     return res;
   }
 
   /* ---------- rendering ---------- */
   function render(){
     var isEn = game.mode === "en";
-    meta.textContent = isEn ? "GUESS THE 5-LETTER WORD" : "5もじの ことば　6かいまで";
+    var rows = ROWS[game.mode];
+    meta.textContent = isEn ? "GUESS THE 5-LETTER WORD" : "5もじの ことば　" + rows + "かいまで";
     board.innerHTML = "";
-    for (var r = 0; r < 6; r++){
+    board.style.setProperty("--rows", rows);
+    for (var r = 0; r < rows; r++){
       var row = document.createElement("div");
       row.className = "row";
       row.dataset.row = String(r);
       var guess = game.rows[r];
-      var marks = guess ? score(guess, game.answer) : null;
+      var marks = guess ? score(guess, game.answer, game.mode === "jp") : null;
       for (var c = 0; c < 5; c++){
         var t = document.createElement("div");
         t.className = "tile" + (isEn ? " en" : "");
@@ -408,9 +441,9 @@
 
   function paintKeys(){
     var best = {};
-    var rank = { absent:1, present:2, correct:3 };
+    var rank = { absent:1, near:2, present:3, correct:4 };
     game.rows.forEach(function(guess){
-      var marks = score(guess, game.answer);
+      var marks = score(guess, game.answer, game.mode === "jp");
       for (var i = 0; i < 5; i++){
         var ch = guess[i];
         if (!best[ch] || rank[marks[i]] > rank[best[ch]]) best[ch] = marks[i];
@@ -418,7 +451,7 @@
     });
     Array.prototype.forEach.call(kb.querySelectorAll(".k[data-key]"), function(b){
       var base = b.dataset.key;
-      b.classList.remove("correct","present","absent");
+      b.classList.remove("correct","present","absent","near");
       var s = best[base];
       if (s) b.classList.add(s);
       var old = b.querySelector(".dot");
@@ -481,8 +514,9 @@
       var avail = wrap.clientHeight - over - meta.offsetHeight
                 - (result.hidden ? 0 : result.offsetHeight)
                 - (result.hidden ? 12 : 24);
-      tile = Math.floor(Math.min((avail - 5 * 6) / 6, tileW, 56));
-      if (tile >= 34 || i === steps.length - 1) break;
+      var rows = ROWS[game.mode];
+      tile = Math.floor(Math.min((avail - (rows - 1) * 6) / rows, tileW, 56));
+      if (tile >= (ROWS[game.mode] > 6 ? 30 : 34) || i === steps.length - 1) break;
     }
     board.style.setProperty("--tile", Math.max(20, tile) + "px");
   }
@@ -556,7 +590,7 @@
   function hardModeIssue(guess){
     if (!store.hard || !game.rows.length) return null;
     var last = game.rows[game.rows.length - 1];
-    var marks = score(last, game.answer);
+    var marks = score(last, game.answer, game.mode === "jp");
     for (var i = 0; i < 5; i++){
       if (marks[i] === "correct" && guess[i] !== last[i]){
         return (game.mode === "jp")
@@ -588,7 +622,7 @@
     var issue = hardModeIssue(guess);
     if (issue){ shake(issue); return; }
 
-    var marks = score(guess, game.answer);
+    var marks = score(guess, game.answer, game.mode === "jp");
     var row = currentRowEl();
     game.rows.push(guess);
     game.cur = "";
@@ -608,7 +642,7 @@
       busy = false;
       paintKeys();
       var won = guess === game.answer;
-      if (won || game.rows.length === 6){
+      if (won || game.rows.length === ROWS[game.mode]){
         finish(won, row);
       }
       save();
@@ -629,7 +663,7 @@
           setTimeout(function(){ row.children[i].classList.remove("jump"); }, 520);
         }, i * 90); })(i);
       }
-      toast(["さすが！","すごい！","おみごと！","やったね！","ナイス！","セーフ！"][game.rows.length - 1]);
+      toast(["さすが！","すごい！","おみごと！","やったね！","ナイス！","いいね！","おしかった！","セーフ！"][Math.min(game.rows.length, 8) - 1]);
     } else {
       st.streak = 0;
     }
@@ -699,6 +733,7 @@
     d.className = "chip " + cls; d.textContent = ch;
     d.style.background = "var(--" + cls + "-bg)";
     d.style.color = "var(--" + cls + "-fg)";
+    if (cls === "near") d.style.boxShadow = "inset 0 0 0 2px var(--near-line)";
     return d;
   }
   function legendRow(cls, ch, text){
@@ -713,12 +748,13 @@
     openPanel(function(panel){
       var h = document.createElement("h2"); h.textContent = "あそびかた"; panel.appendChild(h);
       var p = document.createElement("p");
-      p.textContent = "5もじの ことばを 6かいいないで あてます。よそうを いれて「こたえる」を おすと、1もじずつ ヒントが でます。";
+      p.textContent = "5もじの ことばを あてます。かなは 8かい、ABC は 6かい までです。よそうを いれて「こたえる」を おすと、1もじずつ ヒントが でます。";
       panel.appendChild(p);
       var legend = document.createElement("div");
       legend.className = "legend";
       legend.appendChild(legendRow("correct","ら","その もじが、その いちに ある"));
       legend.appendChild(legendRow("present","ん","その もじは あるが、いちが ちがう"));
+      legend.appendChild(legendRow("near","は","だくてん・ちいさいもじの ちがいだけ（＝「ば」や「ぱ」が ある）"));
       legend.appendChild(legendRow("absent","き","その もじは つかわれていない"));
       panel.appendChild(legend);
 
@@ -727,6 +763,7 @@
       [ "「゛゜小」キーで、いま いれた もじに だくてん・はんだくてん・ちいさい もじを つけられます（は→ば→ぱ→は、つ→っ→づ→つ）。",
         "こたえは ひょうきの とおり。「ー」（のばすおと）だけは でてきません。",
         "キーの みぎうえの まるは、その キーの だくてん・ちいさい もじの ヒントです。",
+        "「おしい」が でたら、その もじに だくてん（゛゜）か ちいさい もじを つけて ためしてみてください。",
         "こたえは ぜんぶで " + jpWords.length + "こ。えいごモードは " + enAnswers.length + "こ。なんかいでも あそべます。"
       ].forEach(function(t){ var li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
       panel.appendChild(ul);
