@@ -41,7 +41,7 @@
     font-family:var(--sans); -webkit-text-size-adjust:100%;
     overscroll-behavior:none;
   }
-  #app{height:100%; display:flex; flex-direction:column; padding:0 16px; box-sizing:border-box; max-width:520px; margin:0 auto}
+  #app{height:100%; display:flex; flex-direction:column; padding:0 16px; box-sizing:border-box; max-width:520px; margin:0 auto; overflow:hidden}
   button{font-family:inherit; color:inherit; cursor:pointer}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
@@ -67,7 +67,7 @@
   .board-wrap{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; min-height:0; position:relative}
   .meta{font-size:11.5px; color:var(--ink-soft); letter-spacing:.09em; text-transform:uppercase; font-weight:500}
   .board{
-    --tile:min(60px, 16.5vw, 8.4vh); --gap:6px;
+    --tile:min(56px, 15vw); --gap:6px;
     display:grid; grid-template-rows:repeat(6, var(--tile)); gap:var(--gap);
   }
   .row{display:grid; grid-template-columns:repeat(5, var(--tile)); gap:var(--gap)}
@@ -108,16 +108,16 @@
   .next{border:0; background:var(--accent); color:#fff; font-weight:700; font-size:13.5px; padding:8px 14px; border-radius:9px}
 
   /* ---- keyboard ---- */
-  .kb{display:flex; flex-direction:column; gap:5px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); padding-top:8px}
+  .kb{display:flex; flex-direction:column; gap:5px; padding-bottom:calc(8px + env(safe-area-inset-bottom, 0px)); padding-top:8px; flex:none}
   .kb-row{display:flex; gap:4px; justify-content:center}
   .kb.kana .kb-grid{display:grid; grid-template-columns:repeat(10, 1fr); gap:4px}
   .k{
     border:0; border-radius:7px; background:var(--key); color:var(--key-ink);
-    font-weight:700; font-size:15px; padding:0; height:38px; flex:1; min-width:0;
+    font-weight:700; font-size:15px; padding:0; height:var(--kh,38px); flex:1; min-width:0;
     display:grid; place-items:center; touch-action:manipulation;
   }
-  .kb.kana .k{height:34px; font-size:14.5px}
-  .k.wide{flex:1.6; font-size:12px; background:var(--key-alt); letter-spacing:.04em}
+  .kb.kana .k{height:var(--kh,34px); font-size:clamp(12.5px,calc(var(--kh,34px)*.44),15px)}
+  .k.wide{flex:1.6; height:var(--kha,38px); font-size:12px; background:var(--key-alt); letter-spacing:.04em}
   .k.blank{background:transparent; pointer-events:none}
   .k.correct{background:var(--correct-bg); color:var(--correct-fg)}
   .k.present{background:var(--present-bg); color:var(--present-fg)}
@@ -335,6 +335,7 @@
     buildKeyboard();
     paintKeys();
     showResult();
+    scheduleFit();
   }
 
   function buildKeyboard(){
@@ -400,7 +401,7 @@
   }
 
   function showResult(){
-    if (game.status === "playing"){ result.hidden = true; result.innerHTML = ""; return; }
+    if (game.status === "playing"){ result.hidden = true; result.innerHTML = ""; scheduleFit(); return; }
     result.hidden = false;
     result.innerHTML = "";
     var word = document.createElement("div");
@@ -419,7 +420,44 @@
     btn.addEventListener("click", function(){ newGame(game.mode); });
     result.appendChild(word);
     result.appendChild(btn);
+    scheduleFit();
   }
+
+  /* ---------- fit to the real visible area ---------- */
+  var app = document.getElementById("app");
+  var header = document.querySelector("header");
+  var fitScheduled = false;
+
+  function fit(){
+    fitScheduled = false;
+    if (!game) return;
+    var root = document.documentElement;
+    var vv = window.visualViewport ? window.visualViewport.height : 0;
+    var over = (vv && app.clientHeight > vv) ? (app.clientHeight - vv) : 0;
+    var kana = game.mode === "jp";
+    var steps = kana ? [34,32,30,28,26,24,22] : [38,36,34,32,30,28,26];
+    var inner = Math.max(200, app.clientWidth - 32);
+    var tileW = Math.floor((Math.min(336, inner) - 4 * 6) / 5);
+    var tile = 0;
+    for (var i = 0; i < steps.length; i++){
+      root.style.setProperty("--kh", steps[i] + "px");
+      root.style.setProperty("--kha", Math.max(30, steps[i] + (kana ? 4 : 0)) + "px");
+      var avail = wrap.clientHeight - over - meta.offsetHeight
+                - (result.hidden ? 0 : result.offsetHeight)
+                - (result.hidden ? 12 : 24);
+      tile = Math.floor(Math.min((avail - 5 * 6) / 6, tileW, 56));
+      if (tile >= 34 || i === steps.length - 1) break;
+    }
+    board.style.setProperty("--tile", Math.max(20, tile) + "px");
+  }
+  function scheduleFit(){
+    if (fitScheduled) return;
+    fitScheduled = true;
+    requestAnimationFrame(fit);
+  }
+  window.addEventListener("resize", scheduleFit);
+  window.addEventListener("orientationchange", scheduleFit);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", scheduleFit);
 
   /* ---------- toast ---------- */
   var toastTimer = null;
