@@ -48,6 +48,17 @@
   button{font-family:inherit; color:inherit; cursor:pointer}
   :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
 
+  /* 横向き: 盤面とキーボードを よこに ならべる */
+  #app.land{
+    display:grid; max-width:900px; column-gap:16px;
+    grid-template-columns:1fr 1fr; grid-template-rows:auto minmax(0,1fr);
+    grid-template-areas:"head head" "board kb";
+  }
+  #app.land header{grid-area:head; padding-block:6px 2px}
+  #app.land .board-wrap{grid-area:board; min-height:0}
+  #app.land .kb{grid-area:kb; min-height:0; justify-content:center; padding-top:0; padding-bottom:calc(4px + env(safe-area-inset-bottom, 0px))}
+  #app.land .meta{display:none}
+
   /* ---- header ---- */
   header{display:flex; align-items:center; gap:8px; padding-block:10px 6px}
   .wordmark{font-family:var(--serif); font-size:clamp(15px,4.3vw,19px); letter-spacing:.04em; margin:0; white-space:nowrap}
@@ -243,7 +254,7 @@
     ["お","こ","そ","と","の","ほ","も","よ","ろ",""]
   ];
   var QWERTY = ["qwertyuiop","asdfghjkl","zxcvbnm"];
-  var ROWS = { jp: 8, en: 6 };   // かなは文字の種類が多いので回数を増やす
+  var ROWS = { jp: 6, en: 6 };
 
   /* ---------- storage ---------- */
   var KEY = "mugen-wordle-v1";
@@ -503,22 +514,28 @@
     var root = document.documentElement;
     var vv = window.visualViewport ? window.visualViewport.height : 0;
     var over = (vv && app.clientHeight > vv) ? (app.clientHeight - vv) : 0;
+    var land = app.clientWidth > app.clientHeight && app.clientHeight < 560;
+    app.classList.toggle("land", land);
     var kana = game.mode === "jp";
-    var steps = kana ? [34,32,30,28,26,24,22] : [38,36,34,32,30,28,26];
+    var steps = kana ? [34,32,30,28,26,24,22,20] : [38,36,34,32,30,28,26,24];
     var inner = Math.max(200, app.clientWidth - 32);
-    var tileW = Math.floor((Math.min(336, inner) - 4 * 6) / 5);
+    var boardW = land ? (inner - 16) * 0.5 : Math.min(336, inner);
+    var tileW = Math.floor((boardW - 4 * 6) / 5);
+    var rows = ROWS[game.mode];
     var tile = 0;
     for (var i = 0; i < steps.length; i++){
       root.style.setProperty("--kh", steps[i] + "px");
       root.style.setProperty("--kha", Math.max(30, steps[i] + (kana ? 4 : 0)) + "px");
-      var avail = wrap.clientHeight - over - meta.offsetHeight
+      var avail = wrap.clientHeight - over
+                - (land ? 0 : meta.offsetHeight)
                 - (result.hidden ? 0 : result.offsetHeight)
                 - (result.hidden ? 12 : 24);
-      var rows = ROWS[game.mode];
       tile = Math.floor(Math.min((avail - (rows - 1) * 6) / rows, tileW, 56));
-      if (tile >= (ROWS[game.mode] > 6 ? 30 : 34) || i === steps.length - 1) break;
+      // 横向きは キーボードも おなじ たかさに おさめる
+      var kbFits = !land || kb.scrollHeight <= wrap.clientHeight + 1;
+      if ((tile >= 30 && kbFits) || i === steps.length - 1) break;
     }
-    board.style.setProperty("--tile", Math.max(20, tile) + "px");
+    board.style.setProperty("--tile", Math.max(18, tile) + "px");
   }
   function scheduleFit(){
     if (fitScheduled) return;
@@ -663,7 +680,8 @@
           setTimeout(function(){ row.children[i].classList.remove("jump"); }, 520);
         }, i * 90); })(i);
       }
-      toast(["さすが！","すごい！","おみごと！","やったね！","ナイス！","いいね！","おしかった！","セーフ！"][Math.min(game.rows.length, 8) - 1]);
+      toast(game.rows.length === ROWS[game.mode] ? "セーフ！"
+            : ["さすが！","すごい！","おみごと！","やったね！","ナイス！","いいね！","おしかった！"][game.rows.length - 1]);
     } else {
       st.streak = 0;
     }
@@ -748,7 +766,7 @@
     openPanel(function(panel){
       var h = document.createElement("h2"); h.textContent = "あそびかた"; panel.appendChild(h);
       var p = document.createElement("p");
-      p.textContent = "5もじの ことばを あてます。かなは 8かい、ABC は 6かい までです。よそうを いれて「こたえる」を おすと、1もじずつ ヒントが でます。";
+      p.textContent = "5もじの ことばを 6かいいないで あてます。よそうを いれて「こたえる」を おすと、1もじずつ ヒントが でます。";
       panel.appendChild(p);
       var legend = document.createElement("div");
       legend.className = "legend";
