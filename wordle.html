@@ -53,7 +53,7 @@
   }
   #app.land header{grid-area:head; padding-block:6px 2px}
   #app.land .board-wrap{grid-area:board; min-height:0}
-  #app.land .kb{grid-area:kb; min-height:0; justify-content:center; padding-top:0; padding-bottom:calc(4px + env(safe-area-inset-bottom, 0px))}
+  #app.land .kb{grid-area:kb; min-height:0; justify-content:center; padding-top:0; padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px))}
   #app.land .meta{display:none}
 
   /* ---- header ---- */
@@ -119,7 +119,7 @@
   .next{border:0; background:var(--accent); color:#fff; font-weight:700; font-size:13.5px; padding:8px 14px; border-radius:9px}
 
   /* ---- keyboard ---- */
-  .kb{display:flex; flex-direction:column; gap:5px; padding-bottom:calc(8px + env(safe-area-inset-bottom, 0px)); padding-top:8px; flex:none}
+  .kb{display:flex; flex-direction:column; gap:6px; padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px)); padding-top:8px; flex:none}
   .kb-row{display:flex; gap:4px; justify-content:center}
   .kb.kana .kb-grid{display:grid; grid-template-columns:repeat(10, 1fr); gap:4px}
   .k{
@@ -469,7 +469,7 @@
       var avail = wrap.clientHeight - over
                 - (land ? 0 : meta.offsetHeight)
                 - (result.hidden ? 0 : result.offsetHeight)
-                - (result.hidden ? 12 : 24);
+                - (result.hidden ? 22 : 34);   // 盤面と キーボードの あいだに よゆうを のこす
       tile = Math.floor(Math.min((avail - (rows - 1) * 6) / rows, tileW, 56));
       // 横向きは キーボードも おなじ たかさに おさめる
       var kbFits = !land || kb.scrollHeight <= wrap.clientHeight + 1;
