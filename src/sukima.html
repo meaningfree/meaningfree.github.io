@@ -35,6 +35,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .chip{border:1px solid rgba(247,232,205,.25);background:rgba(247,232,205,.07);border-radius:999px;
   padding:4px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:4px;min-height:34px;white-space:nowrap}
 .chip:active{background:rgba(247,232,205,.18)}
+.chip svg{width:16px;height:16px}
+.chip.pause{background:rgba(242,179,61,.18);border-color:rgba(242,179,61,.55)}
 
 .tray{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:8px 8px 8px;border-radius:14px;
   background:
@@ -66,7 +68,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn:active{transform:translateY(1px)}
 
 .nextrow{display:flex;align-items:center;gap:8px;padding-inline:6px;font-weight:900;font-size:12px;letter-spacing:.08em}
-#next{display:block;height:30px;flex:1;min-width:0}
+#next{display:block;height:50px;flex:1;min-width:0}
 .left{font-variant-numeric:tabular-nums;font-size:13px;letter-spacing:0}
 
 .toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(34,21,12,.92);color:var(--cream);
@@ -86,8 +88,7 @@ button{font:inherit;color:inherit;cursor:pointer}
   <div class="top">
     <h1>すきまブロック</h1>
     <button class="chip" id="soundBtn" type="button" aria-label="効果音の切りかえ">音 ON</button>
-    <button class="chip" id="retryBtn" type="button" aria-label="はじめからやりなおす">やりなおし</button>
-    <button class="chip" id="helpBtn" type="button" aria-label="あそびかた">？</button>
+    <button class="chip pause" id="pauseBtn" type="button" aria-label="一時停止"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>一時停止</button>
   </div>
 
   <div class="tray">
@@ -305,6 +306,7 @@ function makeStream(rnd = Math.random) {
       stream, board, ids, cur: null, next: [], bag: [],
       score: 0, lines: 0, level: 1, phase: 'ready',
       gAcc: 0, lockT: 0, resets: 0, soft: false, clearing: null, riseT: 0,
+      chain: 0, fallT: 0, fell: false, resume: 'play',
     };
     while (G.next.length < 3) G.next.push(pickPiece(G.next.length + 1));
     particles.length = 0;
@@ -380,14 +382,30 @@ function makeStream(rnd = Math.random) {
     }
     const full = [];
     for (let y = 0; y < H; y++) if (G.board[y].every(v => v)) full.push(y);
-    if (full.length) {
-      G.phase = 'clearing'; G.clearing = { rows: full, t: 0 };
-      SND.clear(full.length);
-      if (!reduceMotion) for (const y of full) for (let x = 0; x < W; x++) {
-        particles.push({ x: (x + .5) * cs, y: (y + .5) * cs, vx: (Math.random() - .5) * cs * 9, vy: -Math.random() * cs * 10, life: .9, s: cs * (.18 + Math.random() * .22), rot: Math.random() * 6 });
-      }
-    } else spawnNext();
+    G.chain = 0;
+    if (!startClear()) spawnNext();
     hud();
+  }
+  // Start clearing any full rows. Returns false when there are none.
+  function startClear() {
+    const full = [];
+    for (let y = 0; y < H; y++) if (G.board[y].every(v => v)) full.push(y);
+    if (!full.length) return false;
+    G.chain++;
+    G.phase = 'clearing'; G.clearing = { rows: full, t: 0 };
+    SND.clear(full.length + G.chain - 1);
+    if (!reduceMotion) for (const y of full) for (let x = 0; x < W; x++) {
+      particles.push({ x: (x + .5) * cs, y: (y + .5) * cs, vx: (Math.random() - .5) * cs * 9, vy: -Math.random() * cs * 10, life: .9, s: cs * (.18 + Math.random() * .22), rot: Math.random() * 6 });
+    }
+    return true;
+  }
+  // Placed blocks (not the wooden wall) drop one row into any empty cell below.
+  function fallStep() {
+    let moved = false;
+    for (let y = H - 2; y >= 0; y--) for (let x = 0; x < W; x++) {
+      if (G.board[y][x] === 2 && !G.board[y + 1][x]) { G.board[y + 1][x] = 2; G.board[y][x] = 0; moved = true; }
+    }
+    return moved;
   }
   function finishClear() {
     const rows = G.clearing.rows; G.clearing = null;
@@ -395,16 +413,25 @@ function makeStream(rnd = Math.random) {
     for (let y = 0; y < H; y++) if (!rows.includes(y)) { keep.push(G.board[y]); keepIds.push(G.ids[y]); }
     while (keep.length < H) { keep.unshift(new Array(W).fill(0)); keepIds.unshift(new Array(W).fill(0)); }
     G.board = keep; G.ids = keepIds;
-    G.score += LINE_PTS[Math.min(4, rows.length)] * G.level;
+    G.score += LINE_PTS[Math.min(4, rows.length)] * G.level * G.chain;
     G.lines += rows.length;
     const lv = 1 + Math.floor(G.lines / LINES_PER_LEVEL);
     if (lv > G.level) { G.level = lv; toast('レベル ' + lv + '！'); SND.level(); }
+    else if (G.chain >= 2) toast(G.chain + '連鎖！');
     else if (rows.length >= 3) toast(rows.length + '段消し！');
     if (rows.length >= 3 && !reduceMotion) {
       cv.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-4px,3px)' }, { transform: 'translate(4px,-2px)' }, { transform: 'translate(-2px,1px)' }, { transform: 'translate(0,0)' }], { duration: 260 });
     }
-    G.phase = 'play';
-    spawnNext();
+    G.phase = 'falling'; G.fallT = 0; G.fell = false;
+    hud();
+  }
+  function tickFall(dt) {
+    G.fallT += dt;
+    if (G.fallT < 45) return;
+    G.fallT = 0;
+    if (fallStep()) { G.fell = true; return; }
+    if (G.fell) SND.lock();
+    if (!startClear()) { G.phase = 'play'; spawnNext(); }
     hud();
   }
 
@@ -457,13 +484,19 @@ function makeStream(rnd = Math.random) {
   const HELP = `<p>下から木の壁がどんどんせり上がってくる。すきまにピースをはめて、横一列そろえると消える。上までつみあがったらおしまい。</p>
     <ul><li>キーボード: ← → で移動、スペースで回転、↓ で速く落とす</li>
     <li>スマホ: 盤面タップで回転、左右になぞって移動、下のボタンでも操作できる</li>
-    <li>上のバーがたまると壁が1段上がる。${LINES_PER_LEVEL}段消すごとにレベルアップ</li></ul>`;
+    <li>消えたあと、置いたブロックの下が空いていたら落ちる。また列がそろえば連鎖</li>
+    <li>上のバーがたまると壁が1段上がる。${LINES_PER_LEVEL}段消すごとにレベルアップ</li>
+    <li>P か Esc キーで一時停止</li></ul>`;
   function showStart() { showOverlay('すきまブロック', HELP, [['スタート', () => { setup(); begin(); }]]); }
-  function pause(title) {
-    if (!G || G.phase !== 'play') return;
-    G.phase = 'paused'; G.soft = false;
-    showOverlay(title, title === 'あそびかた' ? HELP : '<p>ゲームを止めています。</p>', [['つづける', () => { G.phase = 'play'; hideOverlay(); }]]);
+  function pause() {
+    if (!G || !['play', 'clearing', 'falling'].includes(G.phase)) return;
+    G.resume = G.phase; G.phase = 'paused'; G.soft = false;
+    showOverlay('一時停止', HELP, [
+      ['つづける', resume],
+      ['はじめから', () => { setup(); begin(); }, true],
+    ]);
   }
+  function resume() { if (G && G.phase === 'paused') { G.phase = G.resume; hideOverlay(); } }
 
   function hud() {
     $('lv').textContent = G.level;
@@ -591,24 +624,31 @@ function makeStream(rnd = Math.random) {
     }
   }
 
+  // The very next piece sits big in a dark box; the two after it follow smaller.
   function drawNext() {
     const w = nv.width / dpr, h = nv.height / dpr;
     nctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     nctx.clearRect(0, 0, w, h);
     if (!tiles) return;
-    const m = Math.max(5, Math.floor(h / 2.6));
-    let x = 4;
+    const big = Math.max(6, Math.floor((h - 10) / 2)), small = Math.max(5, Math.floor(big * .7));
+    let x = 0;
     G.next.forEach((t, i) => {
+      const m = i === 0 ? big : small;
       const cells = ROT[t][0];
       const minY = Math.min(...cells.map(c => c[1])), maxY = Math.max(...cells.map(c => c[1]));
       const maxX = Math.max(...cells.map(c => c[0])), minX = Math.min(...cells.map(c => c[0]));
-      const oy = (h - (maxY - minY + 1) * m) / 2;
-      if (x + (maxX - minX + 1) * m > w) return;
-      nctx.globalAlpha = i === 0 ? 1 : .6;
-      for (const [cx, cy] of cells) nctx.drawImage(tiles.base[1], x + (cx - minX) * m, oy + (cy - minY) * m, m, m);
-      x += (maxX - minX + 1) * m + m * 1.6;
+      const pw = (maxX - minX + 1) * m, ph = (maxY - minY + 1) * m;
+      const boxW = i === 0 ? Math.max(pw, 4 * m) + 12 : pw;
+      if (x + boxW > w) return;
+      let px = x, py = (h - ph) / 2;
+      if (i === 0) {
+        nctx.fillStyle = 'rgba(58,32,14,.9)';
+        nctx.beginPath(); nctx.roundRect(x, 0, boxW, h, 8); nctx.fill();
+        px = x + (boxW - pw) / 2;
+      }
+      for (const [cx, cy] of cells) nctx.drawImage(i === 0 ? tiles.active : tiles.base[1], px + (cx - minX) * m, py + (cy - minY) * m, m, m);
+      x += boxW + (i === 0 ? 14 : m * 1.4);
     });
-    nctx.globalAlpha = 1;
   }
 
   // ---------- loop ----------
@@ -630,7 +670,7 @@ function makeStream(rnd = Math.random) {
     } else if (G.phase === 'clearing') {
       G.clearing.t += dt;
       if (G.clearing.t >= CLEAR_MS) finishClear();
-    }
+    } else if (G.phase === 'falling') tickFall(dt);
     $('riseBar').style.width = (G.phase === 'ready' ? 0 : Math.min(100, G.riseT / riseMs() * 100)) + '%';
     for (let i = particles.length - 1; i >= 0; i--) {
       const q = particles[i], s = dt / 1000;
@@ -685,8 +725,13 @@ function makeStream(rnd = Math.random) {
   cv.addEventListener('pointercancel', () => { gest = null; });
 
   addEventListener('keydown', e => {
-    if (!G || G.phase !== 'play') return;
+    if (!G) return;
     const k = e.key;
+    if (k === 'p' || k === 'P' || k === 'Escape') {
+      if (G.phase === 'paused') resume(); else pause();
+      e.preventDefault(); return;
+    }
+    if (G.phase !== 'play') return;
     // keep Space from also pressing whichever button has focus
     if (k === ' ' && document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
     if (k === 'ArrowLeft') move(-1);
@@ -703,13 +748,8 @@ function makeStream(rnd = Math.random) {
     if (e.key === ' ' && G.phase === 'play') e.preventDefault();
   });
 
-  $('retryBtn').addEventListener('click', () => {
-    $('retryBtn').blur();
-    if (!G || G.phase === 'ready') return;
-    setup(); begin(); toast('はじめから');
-  });
-  $('helpBtn').addEventListener('click', () => { $('helpBtn').blur(); pause('あそびかた'); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) pause('一時停止'); });
+  $('pauseBtn').addEventListener('click', () => { $('pauseBtn').blur(); if (G && G.phase === 'paused') resume(); else pause(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
   function start() {
     resize();
