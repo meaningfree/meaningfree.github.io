@@ -114,6 +114,7 @@
     background:var(--panel); border:1px solid var(--line); border-radius:12px;
     padding:9px 12px; box-shadow:var(--shadow); max-width:100%;
   }
+  .result[hidden]{display:none}
   .result .word{font-family:var(--serif); font-size:17px}
   .result .word small{font-family:var(--sans); font-size:12px; color:var(--ink-soft); margin-left:6px; letter-spacing:.02em}
   .next{border:0; background:var(--accent); color:#fff; font-weight:700; font-size:13.5px; padding:8px 14px; border-radius:9px}
@@ -469,7 +470,7 @@
       var avail = wrap.clientHeight - over
                 - (land ? 0 : meta.offsetHeight)
                 - (result.hidden ? 0 : result.offsetHeight)
-                - (result.hidden ? 22 : 34);   // 盤面と キーボードの あいだに よゆうを のこす
+                - (result.hidden ? 32 : 44);   // 盤面と キーボードの あいだに よゆうを のこす
       tile = Math.floor(Math.min((avail - (rows - 1) * 6) / rows, tileW, 56));
       // 横向きは キーボードも おなじ たかさに おさめる
       var kbFits = !land || kb.scrollHeight <= wrap.clientHeight + 1;
