@@ -9,6 +9,7 @@
 | `index.html` | <https://meaningfree.github.io/> |
 | `wordle/index.html` | <https://meaningfree.github.io/wordle/> |
 | `matchstick/index.html` | <https://meaningfree.github.io/matchstick/> |
+| `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
 
 ## むげんワードル
 
@@ -50,6 +51,29 @@ python3 tools/make-standalone.py wordle/index.html
 
 ```sh
 python3 tools/make-matchstick.py matchstick/index.html
+```
+
+## すきまブロック
+
+木のブロックで埋まった盤面のすきまに、落ちてくるテトリス型のピースをはめるパズル。
+横一列がそろうと消え、もとからあった段をぜんぶ消すとクリア。
+
+- 盤面は毎回自動生成。木で埋めた盤面から、出現位置から届く形でピースを1つずつくり抜いて作る。
+  NEXT の順にはめれば必ず埋まる（ライン消去込みで自動検証済み）
+- レベルが上がるとピース数が増え、落下が速くなる
+- 「ヒント」で今のピースをはめる場所が光る
+- 操作: ボタン / 盤面タップで回転・ドラッグで移動・下にはじくと落下 / キーボード（← → ↓、↑/X 回転、Z 逆回転、Space 落下、H ヒント）
+
+### ファイル
+
+- `src/sukima.html` — 生成元（Artifact 用の断片形式）
+- `sukima/index.html` — 公開用のスタンドアロン版
+- `tools/make-sukima.py` — 変換スクリプト
+
+`src/sukima.html` を編集したら、公開版を作り直す:
+
+```sh
+python3 tools/make-sukima.py sukima/index.html
 ```
 
 ## GitHub Pages

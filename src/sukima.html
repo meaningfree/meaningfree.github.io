@@ -1,0 +1,708 @@
+<title>すきまブロック</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+/* Layout: one-screen game on a dark walnut table — a light-wood tray holds the HUD, the well and the NEXT strip; big touch controls sit underneath. Single wooden look on purpose. */
+:root{
+  --table:#22150C; --table-2:#2E1D10;
+  --tray:#E2BC82; --tray-edge:#B4844A; --tray-ink:#4A2A12;
+  --cream:#F7E8CD; --muted:#C8A67B;
+  --amber:#F2B33D; --amber-ink:#3A2200;
+  --hint:#A6F08E; --alarm:#E5482F;
+  --font-display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --font-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0;background:radial-gradient(120% 80% at 50% 0%,var(--table-2),var(--table));color:var(--cream);
+  font-family:var(--font-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:8px;
+  -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+.app{max-width:460px;height:100%;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+
+.top{display:flex;align-items:center;gap:8px}
+.top h1{margin:0;font-family:var(--font-display);font-weight:400;font-size:17px;letter-spacing:.04em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--cream)}
+.chip{border:1px solid rgba(247,232,205,.25);background:rgba(247,232,205,.07);border-radius:999px;
+  padding:4px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:4px;min-height:34px;white-space:nowrap}
+.chip:active{background:rgba(247,232,205,.18)}
+
+.tray{flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:8px 8px 8px;border-radius:14px;
+  background:
+    repeating-linear-gradient(92deg,rgba(120,70,20,.07) 0 2px,transparent 2px 9px),
+    repeating-linear-gradient(88deg,rgba(255,240,200,.10) 0 1px,transparent 1px 23px),
+    var(--tray);
+  box-shadow:inset 0 0 0 2px var(--tray-edge),0 10px 30px rgba(0,0,0,.45);color:var(--tray-ink)}
+.hud{display:flex;justify-content:space-between;align-items:baseline;padding-inline:6px;font-family:var(--font-display);
+  font-variant-numeric:tabular-nums;line-height:1.1}
+.hud .lv,.hud .tm{font-size:17px}
+.hud .sc{font-size:26px;letter-spacing:.02em}
+.hud .tm.low{color:var(--alarm)}
+.hud small{font-family:var(--font-body);font-weight:900;font-size:11px;letter-spacing:.08em;margin-right:4px;opacity:.75}
+
+.well{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
+#board{display:block;border-radius:6px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4),0 0 0 3px #9C6E38,0 0 0 5px #7A5228;touch-action:none}
+
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:12px}
+.card{background:rgba(34,21,12,.93);color:var(--cream);border-radius:14px;padding:20px 20px 18px;max-width:320px;width:100%;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);border:1px solid rgba(242,179,61,.35);display:flex;flex-direction:column;gap:10px}
+.card h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:26px;letter-spacing:.04em;text-wrap:balance;color:var(--amber)}
+.card p{margin:0;font-size:14px}
+.card ul{margin:0;padding-left:1.2em;font-size:13.5px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.card .big{font-family:var(--font-display);font-size:30px;color:var(--cream);font-variant-numeric:tabular-nums}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.btn{flex:1;min-width:120px;border:0;border-radius:10px;padding:11px 14px;font-weight:900;font-size:16px;background:var(--amber);color:var(--amber-ink)}
+.btn.sub{background:rgba(247,232,205,.12);color:var(--cream)}
+.btn:active{transform:translateY(1px)}
+
+.nextrow{display:flex;align-items:center;gap:8px;padding-inline:6px;font-weight:900;font-size:12px;letter-spacing:.08em}
+#next{display:block;height:30px;flex:1;min-width:0}
+.left{font-variant-numeric:tabular-nums;font-size:13px;letter-spacing:0}
+
+.toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(34,21,12,.92);color:var(--cream);
+  padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;pointer-events:none;white-space:nowrap}
+
+.pad{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding-bottom:4px}
+.pad button{height:58px;border-radius:12px;border:0;touch-action:none;
+  background:linear-gradient(#5A3A1F,#40280F);box-shadow:inset 0 1px 0 rgba(255,220,170,.18),0 3px 0 #1A0E05;color:var(--cream);
+  display:flex;align-items:center;justify-content:center}
+.pad button.on,.pad button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,220,170,.18),0 1px 0 #1A0E05}
+.pad button.drop{background:linear-gradient(#F6C35A,#D99A22);color:var(--amber-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 0 #7A5210}
+.pad svg{width:26px;height:26px}
+@media (max-height:640px){.pad button{height:48px}.hud .sc{font-size:22px}}
+</style>
+
+<div class="app">
+  <div class="top">
+    <h1>すきまブロック</h1>
+    <button class="chip" id="hintBtn" type="button" aria-label="ヒントを見る">ヒント</button>
+    <button class="chip" id="retryBtn" type="button" aria-label="この盤面をやりなおす">やりなおし</button>
+    <button class="chip" id="helpBtn" type="button" aria-label="あそびかた">？</button>
+  </div>
+
+  <div class="tray">
+    <div class="hud">
+      <span class="lv"><small>LEVEL</small><span id="lv">1</span></span>
+      <span class="sc" id="score">0</span>
+      <span class="tm" id="tmBox"><small>TIME</small><span id="time">60</span></span>
+    </div>
+    <div class="well" id="well">
+      <canvas id="board" aria-label="ゲーム盤面"></canvas>
+      <div class="toast" id="toast" hidden></div>
+      <div class="overlay" id="overlay">
+        <div class="card" role="dialog" aria-live="polite">
+          <h2 id="ovTitle">すきまブロック</h2>
+          <div id="ovBody"></div>
+          <div class="btns" id="ovBtns"></div>
+        </div>
+      </div>
+    </div>
+    <div class="nextrow">
+      <span>NEXT</span>
+      <canvas id="next"></canvas>
+      <span class="left">のこり <b id="left">0</b></span>
+    </div>
+  </div>
+
+  <div class="pad" id="pad">
+    <button type="button" id="bL" aria-label="左へ"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" id="bRot" aria-label="回転"><svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M18.5 3.5v4.5H14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" id="bR" aria-label="右へ"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" id="bD" aria-label="はやく落とす"><svg viewBox="0 0 24 24"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button type="button" id="bDrop" class="drop" aria-label="一気に落とす"><svg viewBox="0 0 24 24"><path d="m6 5 6 6 6-6M6 11l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20.5h14" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/></svg></button>
+  </div>
+</div>
+
+<script>
+/*CORE*/
+const W = 10, H = 20;
+const TYPES = ['I','O','T','S','Z','J','L'];
+const SHAPES = {
+  I:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  O:[[1,1],[1,1]],
+  T:[[0,1,0],[1,1,1],[0,0,0]],
+  S:[[0,1,1],[1,1,0],[0,0,0]],
+  Z:[[1,1,0],[0,1,1],[0,0,0]],
+  J:[[1,0,0],[1,1,1],[0,0,0]],
+  L:[[0,0,1],[1,1,1],[0,0,0]],
+};
+const rotCW = m => m.map((row, y) => row.map((_, x) => m[m.length - 1 - x][y]));
+const ROT = {};
+for (const t of TYPES) {
+  let m = SHAPES[t]; ROT[t] = [];
+  for (let r = 0; r < 4; r++) {
+    const c = [];
+    m.forEach((row, y) => row.forEach((v, x) => { if (v) c.push([x, y]); }));
+    ROT[t].push(c); m = rotCW(m);
+  }
+}
+// No upward kicks: a piece can never climb, which keeps the solver honest.
+const KICKS = [[0,0],[-1,0],[1,0],[-2,0],[2,0]];
+
+function fits(b, t, r, x, y) {
+  for (const [dx, dy] of ROT[t][r]) {
+    const X = x + dx, Y = y + dy;
+    if (X < 0 || X >= W || Y >= H) return false;
+    if (Y >= 0 && b[Y][X]) return false;
+  }
+  return true;
+}
+const spawnState = t => ({ t, r: 0, x: t === 'O' ? 4 : 3, y: t === 'I' ? -1 : 0 });
+function rotated(b, p, dir) {
+  const r = (p.r + dir + 4) % 4;
+  for (const [kx, ky] of KICKS) if (fits(b, p.t, r, p.x + kx, p.y + ky)) return { t: p.t, r, x: p.x + kx, y: p.y + ky };
+  return null;
+}
+
+// Can a piece of type t, starting at spawn, be steered onto exactly the cells in target?
+function reachable(b, t, target) {
+  const s = spawnState(t);
+  if (!fits(b, t, s.r, s.x, s.y)) return false;
+  const seen = new Set(), stack = [s];
+  const key = p => (p.r * 40 + p.x + 5) * 40 + p.y + 5;
+  seen.add(key(s));
+  while (stack.length) {
+    const p = stack.pop();
+    let hit = true;
+    for (const [dx, dy] of ROT[t][p.r]) {
+      const Y = p.y + dy;
+      if (Y < 0 || !target.has(Y * W + p.x + dx)) { hit = false; break; }
+    }
+    if (hit) return true;
+    const nb = [];
+    if (fits(b, t, p.r, p.x - 1, p.y)) nb.push({ t, r: p.r, x: p.x - 1, y: p.y });
+    if (fits(b, t, p.r, p.x + 1, p.y)) nb.push({ t, r: p.r, x: p.x + 1, y: p.y });
+    if (fits(b, t, p.r, p.x, p.y + 1)) nb.push({ t, r: p.r, x: p.x, y: p.y + 1 });
+    for (const d of [1, -1]) { const n = rotated(b, p, d); if (n) nb.push(n); }
+    for (const n of nb) { const k = key(n); if (!seen.has(k)) { seen.add(k); stack.push(n); } }
+  }
+  return false;
+}
+
+function floodTop(b) {
+  const r = Array.from({ length: H }, () => new Array(W).fill(false));
+  const st = [];
+  for (let x = 0; x < W; x++) if (!b[0][x]) { r[0][x] = true; st.push([x, 0]); }
+  while (st.length) {
+    const [x, y] = st.pop();
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const X = x + dx, Y = y + dy;
+      if (X < 0 || X >= W || Y < 0 || Y >= H || r[Y][X] || b[Y][X]) continue;
+      r[Y][X] = true; st.push([X, Y]);
+    }
+  }
+  return r;
+}
+
+// Fill the bottom with wood, then carve pieces out one by one. Each carve must be
+// reachable from the spawn point at that moment, so filling them back in the
+// reverse order always works. Solid rows left under the deepest carve are trimmed.
+function generate(level, rnd = Math.random) {
+  const want = Math.min(5 + level, 16);
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const top = 4;
+    const b = Array.from({ length: H }, (_, y) => new Array(W).fill(y >= top ? 1 : 0));
+    if (level >= 2) {
+      const maxSh = Math.min(3, 1 + Math.floor(level / 3));
+      const L = 1 + Math.floor(rnd() * maxSh), R = 1 + Math.floor(rnd() * maxSh);
+      for (let i = 0; i < L; i++) for (let k = 1; k <= L - i; k++) b[top - k][i] = 1;
+      for (let i = 0; i < R; i++) for (let k = 1; k <= R - i; k++) b[top - k][W - 1 - i] = 1;
+    }
+    const carved = [];
+    let last = null;
+    while (carved.length < want) {
+      const reach = floodTop(b);
+      const cands = [], dedupe = new Set();
+      for (const t of TYPES) for (let r = 0; r < 4; r++) for (let x = -2; x < W; x++) for (let y = top - 3; y < H; y++) {
+        const cells = [];
+        let ok = true, adj = 0;
+        for (const [dx, dy] of ROT[t][r]) {
+          const X = x + dx, Y = y + dy;
+          if (X < 0 || X >= W || Y < top || Y >= H || b[Y][X] !== 1) { ok = false; break; }
+          cells.push([X, Y]);
+        }
+        if (!ok) continue;
+        for (const [X, Y] of cells) {
+          if (Y > 0 && reach[Y - 1][X]) adj++;
+          if (X > 0 && reach[Y][X - 1]) adj++;
+          if (X < W - 1 && reach[Y][X + 1]) adj++;
+        }
+        if (!adj) continue;
+        const k = t + cells.map(([X, Y]) => Y * W + X).sort((a, c) => a - c).join(',');
+        if (dedupe.has(k)) continue;
+        dedupe.add(k);
+        const maxY = Math.max(...cells.map(c => c[1]));
+        // deeper is better, hugging the open space less keeps the channel narrow
+        const score = (maxY - top) * 0.55 - adj * 0.7 + rnd() * 3 - (t === last ? 2 : 0) - (t === "I" ? 1 : 0);
+        cands.push({ t, cells, score });
+      }
+      cands.sort((a, c) => c.score - a.score);
+      // the best few first, then a random spread so a dead-end shaft can't stall us
+      const rest = cands.slice(12);
+      for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
+      let picked = null;
+      for (const c of cands.slice(0, 12).concat(rest.slice(0, 30))) {
+        for (const [X, Y] of c.cells) b[Y][X] = 0;
+        const supported = c.cells.some(([X, Y]) => Y === H - 1 || b[Y + 1][X]);
+        if (supported && reachable(b, c.t, new Set(c.cells.map(([X, Y]) => Y * W + X)))) { picked = c; break; }
+        for (const [X, Y] of c.cells) b[Y][X] = 1;
+      }
+      if (!picked) break;
+      carved.push({ t: picked.t, cells: picked.cells });
+      last = picked.t;
+    }
+    if (carved.length < Math.min(want, 4)) continue;
+    // trim solid rows below the deepest carve by sliding everything down
+    let deep = 0;
+    for (const c of carved) for (const [, Y] of c.cells) deep = Math.max(deep, Y);
+    const shift = H - 1 - deep;
+    const nb = Array.from({ length: H }, (_, y) => y - shift >= 0 ? b[y - shift].slice() : new Array(W).fill(0));
+    for (const c of carved) for (const cell of c.cells) cell[1] += shift;
+    return {
+      board: nb,
+      rowTag: Array.from({ length: H }, (_, y) => y >= top + shift),
+      queue: carved.reverse(),
+    };
+  }
+  return null;
+}
+/*END CORE*/
+
+(() => {
+  const $ = id => document.getElementById(id);
+  const cv = $('board'), ctx = cv.getContext('2d');
+  const nv = $('next'), nctx = nv.getContext('2d');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const LINE_PTS = [0, 100, 300, 500, 800];
+  const LOCK_MS = 650, MAX_RESETS = 15, CLEAR_MS = 320;
+
+  let best = 1;
+  try { best = Math.max(1, parseInt(localStorage.getItem('sukima-best') || '1', 10) || 1); } catch (e) {}
+  const saveBest = () => { try { localStorage.setItem('sukima-best', String(best)); } catch (e) {} };
+
+  let G = null;
+  let cs = 24, dpr = 1, tiles = null, bgImg = null;
+  const particles = [];
+
+  const clone = p => ({ board: p.board.map(r => r.slice()), rowTag: p.rowTag.slice(), queue: p.queue.map(q => ({ t: q.t, cells: q.cells.map(c => c.slice()) })) });
+
+  function setup(level, score, puzzle) {
+    puzzle = puzzle || generate(level);
+    const s = clone(puzzle);
+    G = {
+      level, puzzle, startScore: score, score,
+      board: s.board, rowTag: s.rowTag, queue: s.queue, qi: 0, curIdx: -1, cur: null,
+      time: 25 + s.queue.length * 8, phase: 'ready', gAcc: 0, lockT: 0, resets: 0,
+      soft: false, clearing: null, hintT: 0,
+      grav: Math.max(320, 950 - (level - 1) * 45),
+    };
+    particles.length = 0;
+    hud();
+  }
+  function begin() { G.phase = 'play'; spawnNext(); hideOverlay(); }
+
+  function spawnNext() {
+    if (G.qi >= G.queue.length) { lose('ピースがなくなりました', 'すきまが残っています。順番どおりにはめると、かならず埋まります。'); return; }
+    G.curIdx = G.qi;
+    const p = spawnState(G.queue[G.qi++].t);
+    G.cur = p; G.gAcc = 0; G.lockT = 0; G.resets = 0;
+    if (!fits(G.board, p.t, p.r, p.x, p.y)) { G.cur = null; lose('つみあがりました', '入口がふさがってしまいました。'); }
+    hud();
+  }
+
+  const canPlay = () => G && G.phase === 'play' && G.cur;
+  const resting = () => !fits(G.board, G.cur.t, G.cur.r, G.cur.x, G.cur.y + 1);
+  function touched() { if (resting() && G.resets < MAX_RESETS) { G.lockT = 0; G.resets++; } }
+  function move(dx) {
+    if (!canPlay()) return;
+    const p = G.cur;
+    if (fits(G.board, p.t, p.r, p.x + dx, p.y)) { p.x += dx; touched(); }
+  }
+  function rotate(dir) {
+    if (!canPlay()) return;
+    const n = rotated(G.board, G.cur, dir);
+    if (n) { G.cur = n; touched(); }
+  }
+  function stepDown() {
+    if (!canPlay()) return false;
+    const p = G.cur;
+    if (fits(G.board, p.t, p.r, p.x, p.y + 1)) { p.y++; G.lockT = 0; return true; }
+    return false;
+  }
+  function hardDrop() {
+    if (!canPlay()) return;
+    let n = 0;
+    while (fits(G.board, G.cur.t, G.cur.r, G.cur.x, G.cur.y + 1)) { G.cur.y++; n++; }
+    G.score += n * 2;
+    lock();
+  }
+
+  function lock() {
+    const p = G.cur; G.cur = null;
+    for (const [dx, dy] of ROT[p.t][p.r]) {
+      const X = p.x + dx, Y = p.y + dy;
+      if (Y < 0) { lose('つみあがりました', '盤面の上まで届いてしまいました。'); return; }
+      G.board[Y][X] = 2;
+    }
+    const full = [];
+    for (let y = 0; y < H; y++) if (G.board[y].every(v => v)) full.push(y);
+    if (full.length) {
+      G.phase = 'clearing'; G.clearing = { rows: full, t: 0 };
+      if (!reduceMotion) for (const y of full) for (let x = 0; x < W; x++) {
+        particles.push({ x: (x + .5) * cs, y: (y + .5) * cs, vx: (Math.random() - .5) * cs * 9, vy: -Math.random() * cs * 10, life: 0.9, s: cs * (.18 + Math.random() * .22), rot: Math.random() * 6 });
+      }
+    } else afterLock();
+    hud();
+  }
+  function finishClear() {
+    const rows = G.clearing.rows; G.clearing = null;
+    const keep = [], tags = [];
+    for (let y = 0; y < H; y++) if (!rows.includes(y)) { keep.push(G.board[y]); tags.push(G.rowTag[y]); }
+    while (keep.length < H) { keep.unshift(new Array(W).fill(0)); tags.unshift(false); }
+    G.board = keep; G.rowTag = tags;
+    // Planned spots slide down with the rows above a cleared line.
+    for (let i = G.qi; i < G.queue.length; i++) for (const c of G.queue[i].cells) c[1] += rows.filter(r => r > c[1]).length;
+    G.score += LINE_PTS[Math.min(4, rows.length)] * G.level;
+    if (rows.length >= 2) toast(rows.length + '段まとめて消えた！');
+    G.phase = 'play';
+    afterLock();
+    hud();
+  }
+  function afterLock() {
+    if (!G.rowTag.includes(true)) win(); else spawnNext();
+  }
+
+  function win() {
+    G.phase = 'won';
+    const bonus = Math.ceil(G.time) * 20;
+    G.score += bonus;
+    if (G.level + 1 > best) { best = G.level + 1; saveBest(); }
+    hud();
+    showOverlay('クリア！',
+      `<p>すきまを全部埋めました。</p><div class="big">${G.score.toLocaleString()}</div><p>のこり時間ボーナス +${bonus.toLocaleString()}</p>`,
+      [['つぎのレベルへ', () => { setup(G.level + 1, G.score); begin(); }]]);
+  }
+  function lose(title, msg) {
+    G.phase = 'lost'; G.cur = null;
+    hud();
+    showOverlay(title, `<p>${msg}</p>`, [
+      ['もういちど', () => { setup(G.level, G.startScore, G.puzzle); begin(); }],
+      ['べつの盤面', () => { setup(G.level, G.startScore); begin(); }, true],
+    ]);
+  }
+
+  // ---------- overlay / hud ----------
+  function showOverlay(title, html, buttons) {
+    $('ovTitle').textContent = title;
+    $('ovBody').innerHTML = html;
+    const box = $('ovBtns'); box.innerHTML = '';
+    for (const [label, fn, sub] of buttons) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn' + (sub ? ' sub' : ''); b.textContent = label;
+      b.addEventListener('click', fn);
+      box.appendChild(b);
+    }
+    $('overlay').hidden = false;
+    box.firstChild && box.firstChild.focus({ preventScroll: true });
+  }
+  const hideOverlay = () => { $('overlay').hidden = true; };
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 1600);
+  }
+  const HELP = `<p>木のブロックのすきまに、落ちてくるピースをぴったりはめよう。横一列がそろうと消えます。もとからあった段をぜんぶ消したらクリア。</p>
+    <ul><li>ピースはすきまをくり抜いた形。NEXT の順にはめれば、かならず埋まる</li>
+    <li>盤面をタップで回転、左右にドラッグで移動、下にはじくと一気に落ちる</li>
+    <li>こまったら「ヒント」ではめる場所が光る</li></ul>`;
+  function showStart() {
+    const btns = [['レベル1からあそぶ', () => { setup(1, 0, G.level === 1 ? G.puzzle : null); begin(); }]];
+    if (best > 1) btns.unshift([`レベル${best}からつづける`, () => { setup(best, 0); begin(); }]);
+    if (best > 1) btns[1][2] = true;
+    showOverlay('すきまブロック', HELP, btns);
+  }
+  function pause(title) {
+    if (!G || G.phase !== 'play') return;
+    G.phase = 'paused';
+    showOverlay(title, title === 'あそびかた' ? HELP : '<p>ゲームを止めています。</p>', [['つづける', () => { G.phase = 'play'; hideOverlay(); }]]);
+  }
+
+  function hud() {
+    $('lv').textContent = G.level;
+    $('score').textContent = G.score.toLocaleString();
+    const t = Math.max(0, Math.ceil(G.time));
+    $('time').textContent = t;
+    $('tmBox').classList.toggle('low', t <= 10 && G.phase === 'play');
+    $('left').textContent = Math.max(0, G.queue.length - G.qi);
+    drawNext();
+  }
+
+  // ---------- drawing ----------
+  function studTile(size, h, s, l, seed) {
+    const c = document.createElement('canvas');
+    c.width = c.height = Math.round(size * dpr);
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    const m = size / 2;
+    const tri = (pts, light) => {
+      g.beginPath(); g.moveTo(pts[0], pts[1]); g.lineTo(pts[2], pts[3]); g.lineTo(m, m); g.closePath();
+      g.fillStyle = `hsl(${h} ${s}% ${light}%)`; g.fill();
+    };
+    tri([0, 0, size, 0], l + 13);
+    tri([size, 0, size, size], l - 7);
+    tri([size, size, 0, size], l - 15);
+    tri([0, size, 0, 0], l + 4);
+    let r = seed * 9301 + 49297;
+    const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
+    g.strokeStyle = `hsla(${h} 60% 25% / .10)`; g.lineWidth = Math.max(.6, size / 30);
+    for (let i = 0; i < 4; i++) {
+      const y0 = rnd() * size;
+      g.beginPath(); g.moveTo(0, y0); g.bezierCurveTo(size * .3, y0 + rnd() * 4 - 2, size * .7, y0 + rnd() * 4 - 2, size, y0 + rnd() * 3 - 1.5); g.stroke();
+    }
+    g.strokeStyle = 'rgba(255,240,210,.35)'; g.lineWidth = Math.max(.5, size / 40);
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(m, m); g.stroke();
+    g.strokeStyle = 'rgba(70,35,10,.55)'; g.lineWidth = Math.max(1, size / 22);
+    g.strokeRect(g.lineWidth / 2, g.lineWidth / 2, size - g.lineWidth, size - g.lineWidth);
+    return c;
+  }
+  function buildTiles() {
+    tiles = { base: [], placed: [], active: null };
+    for (let i = 0; i < 4; i++) tiles.base.push(studTile(cs, 33, 52, 60 + (i - 1.5) * 1.6, i + 1));
+    for (let i = 0; i < 2; i++) tiles.placed.push(studTile(cs, 30, 64, 63 + i * 1.5, i + 7));
+    tiles.active = studTile(cs, 38, 80, 70, 11);
+    bgImg = document.createElement('canvas');
+    bgImg.width = Math.round(cs * W * dpr); bgImg.height = Math.round(cs * H * dpr);
+    const g = bgImg.getContext('2d'); g.scale(dpr, dpr);
+    const grd = g.createLinearGradient(0, 0, cs * W, 0);
+    grd.addColorStop(0, '#4A2410'); grd.addColorStop(.5, '#6A3518'); grd.addColorStop(1, '#4A2410');
+    g.fillStyle = grd; g.fillRect(0, 0, cs * W, cs * H);
+    for (let i = 0; i < 70; i++) {
+      const x = Math.random() * cs * W;
+      g.strokeStyle = `rgba(${Math.random() < .5 ? '20,8,2' : '140,80,40'},${.08 + Math.random() * .12})`;
+      g.lineWidth = .5 + Math.random() * 1.6;
+      g.beginPath(); g.moveTo(x, 0);
+      for (let y = 0; y <= cs * H; y += cs * 2) g.lineTo(x + Math.sin(y / (cs * 3) + i) * 3, y);
+      g.stroke();
+    }
+    const vg = g.createLinearGradient(0, 0, 0, cs * H);
+    vg.addColorStop(0, 'rgba(0,0,0,.35)'); vg.addColorStop(.25, 'rgba(0,0,0,0)');
+    g.fillStyle = vg; g.fillRect(0, 0, cs * W, cs * H);
+  }
+  function resize() {
+    const r = $('well').getBoundingClientRect();
+    cs = Math.max(10, Math.floor(Math.min((r.width - 10) / W, (r.height - 10) / H)));
+    dpr = Math.min(3, window.devicePixelRatio || 1);
+    cv.style.width = cs * W + 'px'; cv.style.height = cs * H + 'px';
+    cv.width = Math.round(cs * W * dpr); cv.height = Math.round(cs * H * dpr);
+    const nr = nv.getBoundingClientRect();
+    nv.width = Math.round(nr.width * dpr); nv.height = Math.round(nr.height * dpr);
+    buildTiles();
+    if (G) hud();
+  }
+
+  function draw(now) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.drawImage(bgImg, 0, 0, cs * W, cs * H);
+    const b = G.board;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = b[y][x];
+      if (!v) continue;
+      const img = v === 1 ? tiles.base[(x * 7 + y * 13) % 4] : tiles.placed[(x + y) % 2];
+      ctx.drawImage(img, x * cs, y * cs, cs, cs);
+    }
+    if (G.clearing) {
+      const k = G.clearing.t / CLEAR_MS;
+      ctx.fillStyle = `rgba(255,244,214,${.85 * Math.sin(Math.PI * Math.min(1, k))})`;
+      for (const y of G.clearing.rows) ctx.fillRect(0, y * cs, cs * W, cs);
+    }
+    // hint
+    if (G.hintT > 0 && G.cur) {
+      const plan = G.queue[G.curIdx];
+      ctx.save();
+      ctx.strokeStyle = '#A6F08E'; ctx.lineWidth = Math.max(2, cs / 9);
+      ctx.globalAlpha = .55 + .45 * Math.sin(now / 120);
+      ctx.fillStyle = 'rgba(166,240,142,.22)';
+      for (const [X, Y] of plan.cells) {
+        ctx.fillRect(X * cs, Y * cs, cs, cs);
+        ctx.strokeRect(X * cs + 2, Y * cs + 2, cs - 4, cs - 4);
+      }
+      ctx.restore();
+    }
+    const p = G.cur;
+    if (p) {
+      let gy = p.y;
+      while (fits(b, p.t, p.r, p.x, gy + 1)) gy++;
+      if (gy !== p.y) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(255,225,170,.12)'; ctx.strokeStyle = 'rgba(255,225,170,.55)';
+        ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+        for (const [dx, dy] of ROT[p.t][p.r]) {
+          const Y = gy + dy; if (Y < 0) continue;
+          ctx.fillRect((p.x + dx) * cs, Y * cs, cs, cs);
+          ctx.strokeRect((p.x + dx) * cs + 1.5, Y * cs + 1.5, cs - 3, cs - 3);
+        }
+        ctx.restore();
+      }
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = cs * .5; ctx.shadowOffsetY = cs * .15;
+      for (const [dx, dy] of ROT[p.t][p.r]) {
+        const Y = p.y + dy; if (Y < 0) continue;
+        ctx.drawImage(tiles.active, (p.x + dx) * cs, Y * cs, cs, cs);
+      }
+      ctx.restore();
+    }
+    for (const q of particles) {
+      ctx.save(); ctx.globalAlpha = Math.max(0, q.life);
+      ctx.translate(q.x, q.y); ctx.rotate(q.rot);
+      ctx.fillStyle = '#E2B575'; ctx.fillRect(-q.s / 2, -q.s / 2, q.s, q.s * .6);
+      ctx.restore();
+    }
+  }
+
+  function drawNext() {
+    const w = nv.width / dpr, h = nv.height / dpr;
+    nctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    nctx.clearRect(0, 0, w, h);
+    const m = Math.max(5, Math.floor(h / 2.6));
+    let x = 4;
+    for (let i = G.qi; i < Math.min(G.queue.length, G.qi + 4); i++) {
+      const t = G.queue[i].t, cells = ROT[t][0];
+      const minY = Math.min(...cells.map(c => c[1])), maxY = Math.max(...cells.map(c => c[1]));
+      const maxX = Math.max(...cells.map(c => c[0])), minX = Math.min(...cells.map(c => c[0]));
+      const oy = (h - (maxY - minY + 1) * m) / 2;
+      if (x + (maxX - minX + 1) * m > w) break;
+      nctx.globalAlpha = i === G.qi ? 1 : .6;
+      for (const [cx, cy] of cells) nctx.drawImage(tiles.base[1], x + (cx - minX) * m, oy + (cy - minY) * m, m, m);
+      x += (maxX - minX + 1) * m + m * 1.6;
+    }
+    nctx.globalAlpha = 1;
+  }
+
+  // ---------- loop ----------
+  let lastT = performance.now();
+  function frame(now) {
+    const dt = Math.min(100, now - lastT); lastT = now;
+    if (G.phase === 'play') {
+      G.time -= dt / 1000;
+      if (G.time <= 0) { G.time = 0; lose('時間ぎれ', 'すきまを埋めきれませんでした。'); }
+      else if (G.cur) {
+        const iv = G.soft ? 35 : G.grav;
+        G.gAcc += dt;
+        while (G.gAcc >= iv && G.cur) {
+          G.gAcc -= iv;
+          if (stepDown()) { if (G.soft) G.score += 1; } else { G.gAcc = 0; break; }
+        }
+        if (G.cur && resting()) { G.lockT += dt; if (G.lockT >= LOCK_MS) lock(); }
+      }
+      if (G.hintT > 0) G.hintT -= dt;
+      const t = Math.ceil(G.time);
+      if (String(t) !== $('time').textContent) hud();
+    } else if (G.phase === 'clearing') {
+      G.clearing.t += dt;
+      if (G.clearing.t >= CLEAR_MS) finishClear();
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const q = particles[i], s = dt / 1000;
+      q.vy += cs * 30 * s; q.x += q.vx * s; q.y += q.vy * s; q.rot += 6 * s; q.life -= s * 1.1;
+      if (q.life <= 0) particles.splice(i, 1);
+    }
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- input ----------
+  function bindHold(el, fn) {
+    let t1 = null, t2 = null;
+    const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; el.classList.remove('on'); };
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      el.classList.add('on'); fn();
+      t1 = setTimeout(() => { t2 = setInterval(fn, 55); }, 170);
+    });
+    for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, stop);
+  }
+  bindHold($('bL'), () => move(-1));
+  bindHold($('bR'), () => move(1));
+  $('bRot').addEventListener('pointerdown', e => { e.preventDefault(); rotate(1); });
+  $('bDrop').addEventListener('pointerdown', e => { e.preventDefault(); hardDrop(); });
+  const bD = $('bD');
+  bD.addEventListener('pointerdown', e => { e.preventDefault(); try { bD.setPointerCapture(e.pointerId); } catch (_) {} if (G) { G.soft = true; G.gAcc = 9999; } bD.classList.add('on'); });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) bD.addEventListener(ev, () => { if (G) G.soft = false; bD.classList.remove('on'); });
+  for (const b of $('pad').querySelectorAll('button')) b.addEventListener('click', e => e.preventDefault());
+
+  let gest = null;
+  cv.addEventListener('pointerdown', e => {
+    if (!canPlay()) return;
+    gest = { x0: e.clientX, y0: e.clientY, t0: performance.now(), sx: 0, sy: 0, moved: false };
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  cv.addEventListener('pointermove', e => {
+    if (!gest || !canPlay()) return;
+    const dx = e.clientX - gest.x0, dy = e.clientY - gest.y0, step = cs * .85;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) gest.moved = true;
+    const tx = Math.trunc(dx / step);
+    while (gest.sx < tx) { move(1); gest.sx++; }
+    while (gest.sx > tx) { move(-1); gest.sx--; }
+    const ty = Math.trunc(dy / step);
+    while (gest.sy < ty) { stepDown(); gest.sy++; }
+  });
+  cv.addEventListener('pointerup', e => {
+    if (!gest) return;
+    const dt = performance.now() - gest.t0, dx = e.clientX - gest.x0, dy = e.clientY - gest.y0;
+    if (!gest.moved && dt < 320) rotate(1);
+    else if (dy > cs * 2.5 && dt < 260 && dy > Math.abs(dx) * 2) hardDrop();
+    gest = null;
+  });
+  cv.addEventListener('pointercancel', () => { gest = null; });
+
+  addEventListener('keydown', e => {
+    if (!G) return;
+    const k = e.key;
+    if (G.phase !== 'play') return;
+    if (k === 'ArrowLeft') move(-1);
+    else if (k === 'ArrowRight') move(1);
+    else if (k === 'ArrowDown') { G.soft = true; }
+    else if (k === 'ArrowUp' || k === 'x' || k === 'X') rotate(1);
+    else if (k === 'z' || k === 'Z') rotate(-1);
+    else if (k === ' ') hardDrop();
+    else if (k === 'h' || k === 'H') hint();
+    else return;
+    e.preventDefault();
+  });
+  addEventListener('keyup', e => { if (e.key === 'ArrowDown' && G) G.soft = false; });
+
+  function hint() {
+    if (!canPlay()) return;
+    const plan = G.queue[G.curIdx];
+    if (plan.cells.some(([X, Y]) => Y < 0 || G.board[Y][X])) { toast('この盤面ではヒントが出せません'); return; }
+    G.hintT = 2600;
+  }
+  $('hintBtn').addEventListener('click', hint);
+  $('retryBtn').addEventListener('click', () => {
+    if (!G || G.phase === 'ready') return;
+    setup(G.level, G.startScore, G.puzzle); begin(); toast('はじめからやりなおし');
+  });
+  $('helpBtn').addEventListener('click', () => { if (G && G.phase === 'play') pause('あそびかた'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause('一時停止'); });
+
+  window.claude?.hot?.snapshot?.(() => ({ level: G && G.level, score: G && G.startScore }));
+  function start(data) {
+    resize();
+    new ResizeObserver(resize).observe($('well'));
+    if (data && data.level) { setup(data.level, data.score || 0); begin(); }
+    else { setup(1, 0); showStart(); }
+    requestAnimationFrame(t => { lastT = t; frame(t); });
+  }
+  const hot = window.claude?.hot;
+  hot?.ready ? hot.ready(start) : start(hot?.data ?? {});
+})();
+</script>
