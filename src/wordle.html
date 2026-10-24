@@ -10,6 +10,7 @@
     --correct-bg:#2C4B8C; --correct-fg:#FFFFFF;
     --present-bg:#E0A52F; --present-fg:#2A1D00;
     --absent-bg:#8B92A2; --absent-fg:#FFFFFF;
+    --key-absent-bg:#8B92A2; --key-absent-fg:#FFFFFF;
     --accent:#2C4B8C; --shadow:0 8px 28px rgba(21,24,33,.16);
     --sans:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
     --serif:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
@@ -22,6 +23,7 @@
       --correct-bg:#3E6DC4; --correct-fg:#FFFFFF;
       --present-bg:#D6A03A; --present-fg:#17130A;
       --absent-bg:#3E4552; --absent-fg:#C9CFDC;
+      --key-absent-bg:#1E222C; --key-absent-fg:#6E7789;
       --accent:#7EA6EC; --shadow:0 8px 28px rgba(0,0,0,.5);
     }
   }
@@ -32,6 +34,7 @@
     --correct-bg:#3E6DC4; --correct-fg:#FFFFFF;
     --present-bg:#D6A03A; --present-fg:#17130A;
     --absent-bg:#3E4552; --absent-fg:#C9CFDC;
+    --key-absent-bg:#1E222C; --key-absent-fg:#6E7789;
     --accent:#7EA6EC; --shadow:0 8px 28px rgba(0,0,0,.5);
   }
 
@@ -133,7 +136,7 @@
   .k.blank{background:transparent; pointer-events:none}
   .k.correct{background:var(--correct-bg); color:var(--correct-fg)}
   .k.present{background:var(--present-bg); color:var(--present-fg)}
-  .k.absent{background:var(--absent-bg); color:var(--absent-fg)}
+  .k.absent{background:var(--key-absent-bg); color:var(--key-absent-fg)}
   .k:active{transform:translateY(1px)}
 
   /* ---- panels ---- */
