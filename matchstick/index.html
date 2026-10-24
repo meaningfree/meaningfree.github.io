@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>マッチぼうパズル</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<style>
+/* Layout: one-column play screen — instruction, felt board with matches, hand tray, big buttons. Level list and help open as sheets. */
+:root{
+  --bg:#E6F0EC; --surface:#FFFFFF; --ink:#16323A; --muted:#587078; --line:rgba(22,50,58,.13);
+  --board:#1C4753; --board-edge:#123540; --wood:#F3C97F; --wood-edge:#C08A42; --head:#E0402E;
+  --sun:#FFC23D; --sun-ink:#4A3300; --ghost:rgba(255,255,255,.26); --ghost-hot:#FFD66B; --ok:#25965A; --bad:#D2452F;
+  --font-display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --font-body:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D1A1F; --surface:#14272E; --ink:#E5EFEC; --muted:#93AAB0; --line:rgba(229,239,236,.13);
+  --board:#17404B; --board-edge:#0B252D; --ghost:rgba(255,255,255,.22); color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0D1A1F; --surface:#14272E; --ink:#E5EFEC; --muted:#93AAB0; --line:rgba(229,239,236,.13);
+  --board:#17404B; --board-edge:#0B252D; --ghost:rgba(255,255,255,.22); color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 32px;
+  -webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit}
+.wrap{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+
+header{display:flex;align-items:center;gap:8px}
+.logo{display:flex;align-items:center;gap:6px;margin-right:auto;min-width:0}
+.logo h1{font-family:var(--font-display);font-weight:400;font-size:clamp(15px,4.2vw,28px);margin:0;letter-spacing:.02em;line-height:1.2;white-space:nowrap}
+.logo svg{width:26px;height:26px;flex:none}
+.chip{flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 10px;font-weight:700;font-size:14px;cursor:pointer;min-height:40px}
+.chip:focus-visible,.btn:focus-visible,.tile:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+.chip .star{color:var(--sun);font-size:16px}
+.icon-btn{width:40px;justify-content:center;padding:0}
+
+.level-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.level-no{font-family:var(--font-display);font-size:22px}
+.stage-name{color:var(--muted);font-weight:700;font-size:14px}
+.found{margin-left:auto;font-size:14px;color:var(--muted);font-weight:700}
+
+.task{background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:12px 16px;font-size:clamp(16px,4.4vw,20px);font-weight:800;text-wrap:balance}
+.task b{color:var(--head);font-family:var(--font-display);font-weight:400;font-size:1.25em;padding:0 2px}
+
+.board{display:flex;justify-content:center;background:radial-gradient(120% 140% at 30% 0%,color-mix(in srgb,var(--board) 82%,white) 0%,var(--board) 55%,var(--board-edge) 100%);
+  border-radius:22px;padding:18px 10px;box-shadow:inset 0 2px 0 rgba(255,255,255,.08),0 10px 24px -14px rgba(0,0,0,.5);position:relative}
+.board svg{display:block;width:100%;height:auto;max-height:46vh;overflow:visible}
+.board.shake{animation:shake .45s}
+@keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+
+.stick{transform-box:fill-box;transform-origin:center;transition:transform .22s cubic-bezier(.3,1.6,.5,1),opacity .18s}
+.slot.off .stick{transform:scale(.4) rotate(25deg);opacity:0}
+.slot.added .stick .body{fill:color-mix(in srgb,var(--wood) 80%,white)}
+.ghost{fill:none;stroke:var(--ghost);stroke-width:2;stroke-dasharray:5 6;opacity:0;transition:opacity .2s}
+.slot.off .ghost{opacity:.55}
+.slot.off.orig .ghost{stroke:color-mix(in srgb,var(--ghost-hot) 55%,transparent);opacity:.7}
+.board.holding .slot.off.can .ghost{stroke:var(--ghost-hot);opacity:1;animation:pulse 1.2s ease-in-out infinite}
+.board.removeonly .slot.off:not(.orig) .ghost{opacity:.25}
+@keyframes pulse{50%{stroke-opacity:.35}}
+.hit{fill:transparent;cursor:pointer}
+.body{fill:var(--wood);stroke:var(--wood-edge);stroke-width:1.2}
+.head{fill:var(--head)}
+.shine{fill:#fff;opacity:.4}
+.fixed .body{fill:color-mix(in srgb,var(--wood) 88%,var(--board))}
+.slot.hint .ghost{stroke:var(--sun);opacity:1;stroke-width:4;stroke-dasharray:none;animation:pulse .6s infinite}
+.slot.hint .stick{filter:drop-shadow(0 0 6px var(--sun)) drop-shadow(0 0 2px var(--sun))}
+.slot.hint:not(.off) .stick{animation:wiggle .5s ease-in-out 4}
+@keyframes wiggle{25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
+
+.tray{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:10px 14px}
+.tray-label{font-weight:800;font-size:14px;color:var(--muted)}
+.hand{display:flex;gap:6px;min-height:46px;align-items:center;flex:1;min-width:0}
+.hand svg{width:22px;height:46px;animation:pop .25s cubic-bezier(.3,1.6,.5,1)}
+.hand .empty{color:var(--muted);font-size:14px}
+@keyframes pop{from{transform:scale(.3)}}
+.count{font-family:var(--font-display);font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.count small{font-family:var(--font-body);font-size:13px;color:var(--muted);font-weight:700;margin-right:4px}
+
+.msg{min-height:1.6em;text-align:center;font-weight:800;font-size:16px;color:var(--muted)}
+.msg.bad{color:var(--bad)} .msg.ok{color:var(--ok)}
+
+.actions{display:grid;grid-template-columns:1fr 1fr 1.6fr;gap:10px}
+.btn{border:none;border-radius:16px;padding:14px 10px;font-weight:800;font-size:16px;cursor:pointer;background:var(--surface);border:1.5px solid var(--line);box-shadow:0 3px 0 var(--line);min-height:54px;transition:transform .08s}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
+.btn.primary{background:var(--head);color:#fff;border-color:transparent;box-shadow:0 4px 0 color-mix(in srgb,var(--head) 60%,black)}
+.btn.primary:disabled{background:color-mix(in srgb,var(--muted) 35%,var(--surface));color:var(--muted);box-shadow:none;cursor:default}
+.btn.sun{background:var(--sun);color:var(--sun-ink);border-color:transparent;box-shadow:0 4px 0 color-mix(in srgb,var(--sun) 60%,black)}
+
+/* sheets */
+.sheet{position:fixed;inset:0;z-index:20;background:rgba(5,15,18,.55);display:flex;align-items:flex-end;justify-content:center;padding-top:env(safe-area-inset-top,0px)}
+.sheet-card{background:var(--bg);width:100%;max-width:760px;max-height:88vh;overflow:auto;border-radius:24px 24px 0 0;
+  padding:20px max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-direction:column;gap:16px;animation:up .25s ease-out}
+@keyframes up{from{transform:translateY(30px);opacity:0}}
+.sheet-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sheet h2{font-family:var(--font-display);font-weight:400;font-size:22px;margin:0}
+.stage{display:flex;flex-direction:column;gap:8px}
+.stage h3{margin:0;font-size:17px;font-weight:800}
+.stage p{margin:0;color:var(--muted);font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px}
+.tile{aspect-ratio:1;max-width:100%;border-radius:14px;border:1.5px solid var(--line);background:var(--surface);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;font-family:var(--font-display);font-size:20px;line-height:1.1}
+.tile .st{font-size:14px;color:var(--line)}
+.tile.done .st{color:var(--sun)}
+.tile.current{border-color:var(--head);border-width:3px}
+.tile .dots{font-family:var(--font-body);font-size:10px;color:var(--muted);font-weight:700}
+.digits{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.digit{background:var(--board);border-radius:12px;padding:6px 4px 2px;display:flex;flex-direction:column;align-items:center;color:#fff;font-weight:800;font-size:12px}
+.digit svg{width:100%;max-width:56px;height:auto}
+.help ol{margin:0;padding-left:1.3em;display:flex;flex-direction:column;gap:6px}
+
+/* clear overlay */
+.clear-card{align-self:center;margin:auto;border-radius:26px;max-width:420px;text-align:center;align-items:center}
+.clear-title{font-family:var(--font-display);font-size:44px;color:var(--head);line-height:1.1;margin:0}
+.clear-eq{font-family:var(--font-display);font-size:34px;letter-spacing:.06em;background:var(--board);color:var(--wood);border-radius:14px;padding:6px 18px;font-variant-numeric:tabular-nums}
+.clear-more{font-weight:800;color:var(--muted);margin:0}
+.clear-btns{display:flex;flex-direction:column;gap:10px;width:100%}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:30;width:100%;height:100%}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:420px){.actions{grid-template-columns:1fr 1fr}.actions .primary{grid-column:1 / -1;order:-1}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 30 30" aria-hidden="true"><rect x="13" y="7" width="5" height="21" rx="2.5" fill="var(--wood)" stroke="var(--wood-edge)"/><ellipse cx="15.5" cy="7" rx="4.6" ry="5" fill="var(--head)"/></svg>
+      <h1>マッチぼうパズル</h1>
+    </div>
+    <button class="chip" id="btnLevels" type="button"><span class="star">★</span><span><span id="starCount">0</span>/<span id="levelTotal">24</span></span></button>
+    <button class="chip icon-btn" id="btnHelp" type="button" aria-label="あそびかた">？</button>
+    <button class="chip icon-btn" id="btnSound" type="button" aria-label="おと">♪</button>
+  </header>
+
+  <div class="level-head">
+    <span class="level-no" id="levelNo">もんだい 1</span>
+    <span class="stage-name" id="stageName"></span>
+    <span class="found" id="found"></span>
+  </div>
+  <div class="task" id="task"></div>
+  <div class="board" id="board"><svg id="svg" role="group" aria-label="マッチぼうの しき"></svg></div>
+  <div class="tray">
+    <span class="tray-label">てもち</span>
+    <div class="hand" id="hand"></div>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="msg" id="msg" aria-live="polite"></div>
+  <div class="actions">
+    <button class="btn" id="btnReset" type="button">↺ もとにもどす</button>
+    <button class="btn sun" id="btnHint" type="button">ヒント</button>
+    <button class="btn primary" id="btnCheck" type="button" disabled>こたえあわせ</button>
+  </div>
+</div>
+
+<div class="sheet" id="sheetLevels" hidden>
+  <div class="sheet-card">
+    <div class="sheet-top"><h2>もんだいを えらぶ</h2><button class="chip icon-btn" data-close type="button" aria-label="とじる">✕</button></div>
+    <div id="stages" style="display:flex;flex-direction:column;gap:18px"></div>
+  </div>
+</div>
+
+<div class="sheet" id="sheetHelp" hidden>
+  <div class="sheet-card help">
+    <div class="sheet-top"><h2>あそびかた</h2><button class="chip icon-btn" data-close type="button" aria-label="とじる">✕</button></div>
+    <ol>
+      <li>マッチぼうで できた しきが <b>まちがって</b> いるよ。</li>
+      <li>マッチぼうを <b>タップ</b> すると、てもちに とれるよ。</li>
+      <li>てもちが あるときに、ひかっている <b>てんせん</b> を タップすると おけるよ。</li>
+      <li>きめられた かずだけ うごかしたら「こたえあわせ」！</li>
+      <li>こたえが いくつも ある もんだいも あるよ。ぜんぶ さがしてみよう。</li>
+    </ol>
+    <h3 style="margin:0;font-size:17px">すうじの かたち</h3>
+    <div class="digits" id="digits"></div>
+    <p style="margin:0;color:var(--muted);font-size:14px">「＋」は 2本、「−」は 1本。「＝」は うごかせないよ。</p>
+  </div>
+</div>
+
+<div class="sheet" id="sheetClear" hidden>
+  <div class="sheet-card clear-card">
+    <p class="clear-title">せいかい！</p>
+    <div class="clear-eq" id="clearEq"></div>
+    <p class="clear-more" id="clearMore"></p>
+    <div class="clear-btns">
+      <button class="btn primary" id="btnNext" type="button">つぎの もんだいへ</button>
+      <button class="btn" id="btnAgain" type="button">ほかの こたえを さがす</button>
+    </div>
+  </div>
+</div>
+<canvas id="confetti" hidden></canvas>
+
+<script>
+(() => {
+// ---------- puzzle data (each one checked with a solver) ----------
+const STAGES = [
+  {name:'ステージ1　ふやす・とる', desc:'マッチぼうを たしたり、とったり するだけ。', levels:[
+    {eq:'3+3=5',mode:'add',n:1},{eq:'7-1=8',mode:'add',n:1},{eq:'5-1=6',mode:'add',n:1},
+    {eq:'9+1=8',mode:'remove',n:1},{eq:'8+3=9',mode:'remove',n:1},{eq:'9-3=0',mode:'remove',n:1}]},
+  {name:'ステージ2　1本 うごかす', desc:'とった マッチぼうを べつの ばしょへ。', levels:[
+    {eq:'1+2=4',mode:'move',n:1},{eq:'2+3=3',mode:'move',n:1},{eq:'6+4=4',mode:'move',n:1},
+    {eq:'5+7=2',mode:'move',n:1},{eq:'7+1=0',mode:'move',n:1},{eq:'4-1=5',mode:'move',n:1},
+    {eq:'5+5=4',mode:'move',n:1},{eq:'6-2=7',mode:'move',n:1},{eq:'9+0=1',mode:'move',n:1}]},
+  {name:'ステージ3　チャレンジ', desc:'2けたの すうじや、2本 うごかす もんだい。', levels:[
+    {eq:'10+10=8',mode:'move',n:1},{eq:'11+7=10',mode:'move',n:1},{eq:'13+3=10',mode:'move',n:1},
+    {eq:'9+8=8',mode:'remove',n:2},{eq:'4+4=1',mode:'move',n:2},{eq:'5+3=2',mode:'move',n:2},
+    {eq:'8+8=4',mode:'move',n:2},{eq:'9-8=7',mode:'move',n:2},{eq:'17+3=16',mode:'move',n:2}]},
+];
+const LEVELS = STAGES.flatMap((s,si) => s.levels.map(l => ({...l, stage:si})));
+
+// ---------- seven-segment model ----------
+const DIG = {'0':'abcdef','1':'bc','2':'abdeg','3':'abcdg','4':'bcfg','5':'acdfg','6':'acdefg','7':'abc','8':'abcdefg','9':'abcdfg'};
+const SEGS = 'abcdefg';
+const sortKey = s => [...s].sort().join('');
+const FROM_SEGS = {}; for (const k in DIG) FROM_SEGS[sortKey(DIG[k])] = k;
+
+function buildModel(eq){
+  const groups = [], slots = [];
+  for (const ch of eq){
+    if (/\d/.test(ch)){ groups.push({t:'d'}); for (const s of SEGS) slots.push({g:groups.length-1, s, on:DIG[ch].includes(s)}); }
+    else if (ch==='+'||ch==='-'){ groups.push({t:'o'}); slots.push({g:groups.length-1,s:'h',on:true}); slots.push({g:groups.length-1,s:'v',on:ch==='+'}); }
+    else groups.push({t:'='});
+  }
+  return {groups, slots};
+}
+function readEq(model, on){
+  return model.groups.map((g,gi) => {
+    if (g.t==='=') return '=';
+    const segs = model.slots.map((s,i)=>(s.g===gi&&on[i])?s.s:'').join('');
+    if (g.t==='o') return segs==='h'?'-':segs==='hv'?'+':'?';
+    return segs===''?' ':(FROM_SEGS[sortKey(segs)] ?? '?');
+  }).join('');
+}
+function parseEq(text){
+  const m = text.match(/^ *(\d+) *([+-]) *(\d+) *= *(\d+) *$/);
+  if (!m) return null;
+  if ([m[1],m[3],m[4]].some(n => n.length>1 && n[0]==='0')) return null;
+  return {a:+m[1], op:m[2], b:+m[3], c:+m[4]};
+}
+const isValid = text => { const p = parseEq(text); return !!p && (p.op==='+'?p.a+p.b:p.a-p.b)===p.c; };
+function combos(arr,k){ if(!k) return [[]]; const r=[]; arr.forEach((x,i)=>combos(arr.slice(i+1),k-1).forEach(c=>r.push([x,...c]))); return r; }
+function solve(model, mode, n){
+  const on0 = model.slots.map(s=>s.on);
+  const onI = [], offI = []; on0.forEach((v,i)=>(v?onI:offI).push(i));
+  const rem = mode==='add'?[[]]:combos(onI,n), add = mode==='remove'?[[]]:combos(offI,n);
+  const out = new Map();
+  for (const r of rem) for (const a of add){
+    const on=[...on0]; r.forEach(i=>on[i]=false); a.forEach(i=>on[i]=true);
+    const t = readEq(model,on);
+    if (isValid(t)){ const key=t.trim().replace(/ /g,''); if(!out.has(key)) out.set(key,{text:key,remove:r,add:a}); }
+  }
+  return [...out.values()];
+}
+
+// ---------- geometry ----------
+const L=60, T=10, PAD=14, CW=L+2*PAD+6, OW=80, H=2*L+2*PAD, SL=L-8, OL=52;
+function segPos(s){ const ox=PAD+3, oy=PAD;
+  return {a:[ox+L/2,oy,0], g:[ox+L/2,oy+L,0], d:[ox+L/2,oy+2*L,0], f:[ox,oy+L/2,90], b:[ox+L,oy+L/2,90], e:[ox,oy+1.5*L,90], c:[ox+L,oy+1.5*L,90]}[s]; }
+const NS='http://www.w3.org/2000/svg';
+const el = (tag, attrs={}, parent) => { const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; };
+function drawStick(parent, len){
+  const g = el('g',{class:'stick'},parent);
+  el('rect',{class:'body',x:-len/2,y:-T/2,width:len,height:T,rx:T/2},g);
+  el('ellipse',{class:'head',cx:-len/2+7,cy:0,rx:8.5,ry:7.2},g);
+  el('circle',{class:'shine',cx:-len/2+5,cy:-2.5,r:2.2},g);
+  return g;
+}
+
+// ---------- state ----------
+const STORE='matchstick-progress-v1';
+let progress = {cleared:{}, found:{}, last:0, sound:true};
+try { const s=JSON.parse(localStorage.getItem(STORE)); if(s) progress={...progress,...s}; } catch(e){}
+const save = () => { try{ localStorage.setItem(STORE, JSON.stringify(progress)); }catch(e){} };
+
+let idx=0, lvl, model, orig, on, slotEls, solutions, hintUsed=false, hintTimer;
+const $ = id => document.getElementById(id);
+
+function loadLevel(i){
+  idx = (i+LEVELS.length)%LEVELS.length; lvl = LEVELS[idx];
+  progress.last = idx; save();
+  model = buildModel(lvl.eq); orig = model.slots.map(s=>s.on); on=[...orig];
+  solutions = solve(model, lvl.mode, lvl.n); hintUsed=false;
+  $('levelNo').textContent = `もんだい ${idx+1}`;
+  $('stageName').textContent = STAGES[lvl.stage].name.split('　')[1];
+  const verb = {move:'うごかして',add:'ふやして',remove:'とって'}[lvl.mode];
+  $('task').innerHTML = `マッチぼうを <b>${lvl.n}</b>本 ${verb}、しきを ただしく しよう`;
+  $('board').classList.toggle('removeonly', lvl.mode==='remove');
+  drawBoard(); setMsg(''); update();
+}
+
+function drawBoard(){
+  const svg=$('svg'); svg.innerHTML=''; slotEls=[];
+  let x=0; const gx=[];
+  model.groups.forEach(g=>{ gx.push(x); x += g.t==='d'?CW:OW; });
+  svg.setAttribute('viewBox',`-6 -6 ${x+12} ${H+12}`); svg.setAttribute('width',x+12); svg.setAttribute('height',H+12);
+  model.groups.forEach((g,gi)=>{
+    if (g.t==='='){
+      const fx=el('g',{class:'fixed',transform:`translate(${gx[gi]+OW/2},0)`},svg);
+      [-13,13].forEach(dy=>drawStick(el('g',{transform:`translate(0,${PAD+L+dy})`},fx),OL));
+    }
+  });
+  model.slots.forEach((s,i)=>{
+    let cx,cy,rot,len;
+    if (model.groups[s.g].t==='d'){ const p=segPos(s.s); cx=gx[s.g]+p[0]; cy=p[1]; rot=p[2]; len=SL; }
+    else { cx=gx[s.g]+OW/2; cy=PAD+L; rot=s.s==='v'?90:0; len=OL; }
+    const g=el('g',{class:'slot',transform:`translate(${cx},${cy}) rotate(${rot})`,tabindex:'0',role:'button'},svg);
+    el('rect',{class:'ghost',x:-len/2,y:-T/2,width:len,height:T,rx:T/2},g);
+    drawStick(g,len);
+    el('rect',{class:'hit',x:-len/2-2,y:-17,width:len+4,height:34,rx:8},g);
+    g.addEventListener('click',()=>tap(i));
+    g.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tap(i);} });
+    slotEls.push(g);
+  });
+}
+
+function counts(){
+  let removed=0, added=0;
+  on.forEach((v,i)=>{ if(orig[i]&&!v) removed++; if(!orig[i]&&v) added++; });
+  const hand = lvl.mode==='move'?removed-added : lvl.mode==='add'?lvl.n-added : removed;
+  const done = lvl.mode==='move'?(removed===lvl.n&&added===lvl.n) : lvl.mode==='add'?added===lvl.n : removed===lvl.n;
+  return {removed, added, hand, done};
+}
+
+function tap(i){
+  clearHint();
+  const c=counts();
+  if (on[i]){
+    if (orig[i]){
+      if (lvl.mode==='add') return setMsg('この もんだいは ふやす だけ。とれないよ', 'bad');
+      if (c.removed>=lvl.n) return setMsg(`とれるのは ${lvl.n}本 まで。おいた マッチを もどしてね`, 'bad');
+    }
+    on[i]=false; sfx('pick');
+  } else {
+    if (lvl.mode==='remove' && !orig[i]) return setMsg('この もんだいは とる だけ。ここには おけないよ', 'bad');
+    if (c.hand<=0) return setMsg(lvl.mode==='add'?'てもちを ぜんぶ つかったよ':'まず マッチぼうを 1本 タップして とってね', 'bad');
+    on[i]=true; sfx('place');
+  }
+  setMsg(''); update();
+}
+
+function update(){
+  const c=counts();
+  slotEls.forEach((g,i)=>{
+    g.classList.toggle('off',!on[i]); g.classList.toggle('orig',orig[i]); g.classList.toggle('added',on[i]&&!orig[i]);
+    g.classList.toggle('can', !on[i] && (lvl.mode!=='remove'||orig[i]));
+    g.setAttribute('aria-label', on[i]?'マッチぼう（タップで とる）':'あいている ばしょ（タップで おく）');
+  });
+  $('board').classList.toggle('holding', c.hand>0);
+  const hand=$('hand'); hand.innerHTML='';
+  if (c.hand>0){ for(let k=0;k<c.hand;k++){ const s=el('svg',{viewBox:'-12 -30 24 60'},hand); drawStick(el('g',{transform:'rotate(90)'},s),48); } }
+  else hand.innerHTML = `<span class="empty">${lvl.mode==='add'?'ぜんぶ おいたよ':'マッチぼうを タップして とろう'}</span>`;
+  const label = {move:'うごかした',add:'ふやした',remove:'とった'}[lvl.mode];
+  const v = lvl.mode==='move'?c.added:lvl.mode==='add'?c.added:c.removed;
+  $('count').innerHTML = `<small>${label}</small>${v}/${lvl.n}`;
+  $('btnCheck').disabled = !c.done;
+  const f = progress.found[idx]||[];
+  $('found').textContent = solutions.length>1 ? `みつけた こたえ ${f.length}/${solutions.length}` : '';
+  $('starCount').textContent = Object.keys(progress.cleared).length;
+  $('levelTotal').textContent = LEVELS.length;
+}
+
+function setMsg(t, kind=''){ const m=$('msg'); m.textContent=t; m.className='msg '+kind; }
+const pretty = t => t.replace(/-/g,'−').replace(/\+/g,'＋').replace(/=/g,'＝');
+
+function check(){
+  const text = readEq(model,on);
+  if (isValid(text)){
+    const key=text.trim().replace(/ /g,'');
+    const f = progress.found[idx] = progress.found[idx]||[];
+    const isNew = !f.includes(key); if (isNew) f.push(key);
+    progress.cleared[idx]=true; save(); update(); sfx('win'); confetti();
+    $('clearEq').textContent = pretty(key);
+    const left = solutions.length - f.length;
+    $('clearMore').textContent = !isNew ? 'この こたえは もう みつけていたね！'
+      : left>0 ? `ほかの こたえも あと ${left}こ あるよ！` : solutions.length>1 ? 'こたえを ぜんぶ みつけた！すごい！' : '';
+    $('btnAgain').hidden = left<=0;
+    $('btnNext').textContent = idx===LEVELS.length-1 ? 'さいしょの もんだいへ' : 'つぎの もんだいへ';
+    openSheet('sheetClear');
+    return;
+  }
+  sfx('miss');
+  const b=$('board'); b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake');
+  if (text.includes('?')) return setMsg('すうじに みえない かたちが あるよ', 'bad');
+  const p = parseEq(text);
+  if (!p) return setMsg('しきの かたちに なっていないよ', 'bad');
+  const r = p.op==='+'?p.a+p.b:p.a-p.b;
+  setMsg(r<0 ? `${p.a}−${p.b} は ひけないね。もういちど！` : `おしい！ ${p.a}${p.op==='+'?'＋':'−'}${p.b} は ${r} だよ`, 'bad');
+}
+
+function hint(){
+  clearHint(); hintUsed=true;
+  const curRem=[], curAdd=[];
+  on.forEach((v,i)=>{ if(orig[i]&&!v) curRem.push(i); if(!orig[i]&&v) curAdd.push(i); });
+  const sol = solutions.find(s => curRem.every(i=>s.remove.includes(i)) && curAdd.every(i=>s.add.includes(i)));
+  if (!sol){ setMsg('この ままだと こたえに ならないかも。「もとにもどす」で やりなおそう', 'bad'); return; }
+  const c=counts();
+  const nextRem = sol.remove.find(i=>on[i]);
+  const nextAdd = sol.add.find(i=>!on[i]);
+  let target, text;
+  if (lvl.mode!=='add' && nextRem!==undefined && (c.hand===0 || nextAdd===undefined || lvl.mode==='remove')){ target=nextRem; text='ひかっている マッチぼうを とってみよう'; }
+  else if (nextAdd!==undefined){ target=nextAdd; text='ひかっている ばしょに おいてみよう'; }
+  else { target=nextRem; text='ひかっている マッチぼうを とってみよう'; }
+  slotEls[target].classList.add('hint'); setMsg(text,'ok');
+  hintTimer = setTimeout(clearHint, 3200);
+}
+function clearHint(){ clearTimeout(hintTimer); slotEls && slotEls.forEach(g=>g.classList.remove('hint')); }
+
+// ---------- sheets ----------
+function openSheet(id){ $(id).hidden=false; }
+function closeSheets(){ document.querySelectorAll('.sheet').forEach(s=>s.hidden=true); }
+document.querySelectorAll('.sheet').forEach(s=>{
+  s.addEventListener('click',e=>{ if(e.target===s && s.id!=='sheetClear') closeSheets(); });
+  s.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',closeSheets));
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheets(); });
+
+function renderLevels(){
+  const root=$('stages'); root.innerHTML='';
+  let n=0;
+  STAGES.forEach(st=>{
+    const d=document.createElement('div'); d.className='stage';
+    d.innerHTML=`<h3>${st.name}</h3><p>${st.desc}</p>`;
+    const tiles=document.createElement('div'); tiles.className='tiles';
+    st.levels.forEach(()=>{
+      const i=n++; const t=document.createElement('button'); t.type='button';
+      const total = solve(buildModel(LEVELS[i].eq),LEVELS[i].mode,LEVELS[i].n).length;
+      const f=(progress.found[i]||[]).length;
+      t.className='tile'+(progress.cleared[i]?' done':'')+(i===idx?' current':'');
+      t.innerHTML=`<span class="st">★</span>${i+1}${total>1?`<span class="dots">${f}/${total}</span>`:''}`;
+      t.setAttribute('aria-label',`もんだい ${i+1}${progress.cleared[i]?' クリア':''}`);
+      t.addEventListener('click',()=>{ closeSheets(); loadLevel(i); });
+      tiles.appendChild(t);
+    });
+    d.appendChild(tiles); root.appendChild(d);
+  });
+}
+function renderDigits(){
+  const root=$('digits');
+  for (const ch of '0123456789'){
+    const box=document.createElement('div'); box.className='digit';
+    const s=el('svg',{viewBox:`0 0 ${CW} ${H}`},box);
+    for (const seg of SEGS){ const p=segPos(seg); const g=el('g',{transform:`translate(${p[0]},${p[1]}) rotate(${p[2]})`},s);
+      if (DIG[ch].includes(seg)) drawStick(g,SL); else el('rect',{class:'ghost',x:-SL/2,y:-T/2,width:SL,height:T,rx:T/2,style:'opacity:.5'},g); }
+    const lab=document.createElement('span'); lab.textContent=`${ch}（${DIG[ch].length}本）`; box.appendChild(lab);
+    root.appendChild(box);
+  }
+}
+
+// ---------- sound ----------
+let actx;
+function sfx(kind){
+  if (!progress.sound) return;
+  try{
+    actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+    const notes = {pick:[[520,.06]],place:[[700,.07]],miss:[[220,.12],[180,.16]],win:[[523,.1],[659,.1],[784,.1],[1047,.25]]}[kind];
+    let t=actx.currentTime;
+    notes.forEach(([f,d])=>{ const o=actx.createOscillator(), g=actx.createGain(); o.type='triangle'; o.frequency.value=f;
+      g.gain.setValueAtTime(.18,t); g.gain.exponentialRampToValueAtTime(.001,t+d+.08); o.connect(g).connect(actx.destination); o.start(t); o.stop(t+d+.1); t+=d; });
+  }catch(e){}
+}
+function renderSound(){ $('btnSound').style.opacity = progress.sound?1:.4; $('btnSound').setAttribute('aria-pressed', progress.sound); }
+
+// ---------- confetti ----------
+function confetti(){
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv=$('confetti'); cv.hidden=false; const ctx=cv.getContext('2d');
+  const w=cv.width=innerWidth*devicePixelRatio, h=cv.height=innerHeight*devicePixelRatio;
+  const cs=getComputedStyle(document.documentElement);
+  const cols=['--head','--sun','--wood','--ok'].map(v=>cs.getPropertyValue(v).trim());
+  const ps=Array.from({length:90},()=>({x:w/2,y:h*.45,vx:(Math.random()-.5)*w*.025,vy:-Math.random()*h*.03-h*.008,r:Math.random()*6,vr:(Math.random()-.5)*.3,c:cols[Math.random()*4|0],s:devicePixelRatio*(6+Math.random()*6)}));
+  let f=0; (function step(){ ctx.clearRect(0,0,w,h);
+    ps.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.vy+=h*.0009; p.r+=p.vr; ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r); ctx.fillStyle=p.c; ctx.fillRect(-p.s/2,-p.s/5,p.s,p.s/2.5); ctx.restore(); });
+    if (++f<110) requestAnimationFrame(step); else { ctx.clearRect(0,0,w,h); cv.hidden=true; } })();
+}
+
+// ---------- wiring ----------
+$('btnReset').addEventListener('click',()=>{ clearHint(); on=[...orig]; setMsg(''); update(); });
+$('btnHint').addEventListener('click',hint);
+$('btnCheck').addEventListener('click',check);
+$('btnLevels').addEventListener('click',()=>{ renderLevels(); openSheet('sheetLevels'); });
+$('btnHelp').addEventListener('click',()=>openSheet('sheetHelp'));
+$('btnSound').addEventListener('click',()=>{ progress.sound=!progress.sound; save(); renderSound(); sfx('place'); });
+$('btnNext').addEventListener('click',()=>{ closeSheets(); loadLevel(idx+1); });
+$('btnAgain').addEventListener('click',()=>{ closeSheets(); on=[...orig]; setMsg('ちがう こたえを さがしてみよう'); update(); });
+
+renderDigits(); renderSound();
+loadLevel(Math.min(progress.last||0, LEVELS.length-1));
+})();
+</script>
+</body>
+</html>
