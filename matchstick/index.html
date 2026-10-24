@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="マッチ棒を動かして式を正しくする、子ども向けのパズル。">
 <title>マッチぼうパズル</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -629,5 +630,6 @@ const lastIdx = LEVELS.findIndex(l=>l.eq===progress.last);
 loadLevel(lastIdx>=0 ? lastIdx : Math.max(0, LEVELS.findIndex(l=>!progress.cleared[l.eq])));
 })();
 </script>
+
 </body>
 </html>
