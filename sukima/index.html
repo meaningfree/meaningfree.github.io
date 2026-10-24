@@ -164,7 +164,8 @@ function fits(b, t, r, x, y) {
   }
   return true;
 }
-const spawnState = t => ({ t, r: 0, x: t === 'O' ? 4 : 3, y: t === 'I' ? -1 : 0 });
+// I spawns standing up, ready to drop into a one-wide shaft.
+const spawnState = t => t === 'I' ? { t, r: 1, x: 2, y: 0 } : { t, r: 0, x: t === 'O' ? 4 : 3, y: 0 };
 function rotated(b, p, dir) {
   const r = (p.r + dir + 4) % 4;
   for (const [kx, ky] of KICKS) if (fits(b, p.t, r, p.x + kx, p.y + ky)) return { t: p.t, r, x: p.x + kx, y: p.y + ky };
@@ -196,90 +197,62 @@ function reachable(b, t, target) {
   return false;
 }
 
-function floodTop(b) {
-  const r = Array.from({ length: H }, () => new Array(W).fill(false));
-  const st = [];
-  for (let x = 0; x < W; x++) if (!b[0][x]) { r[0][x] = true; st.push([x, 0]); }
-  while (st.length) {
-    const [x, y] = st.pop();
-    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-      const X = x + dx, Y = y + dy;
-      if (X < 0 || X >= W || Y < 0 || Y >= H || r[Y][X] || b[Y][X]) continue;
-      r[Y][X] = true; st.push([X, Y]);
-    }
-  }
-  return r;
+function shapeOf(cells) {
+  const norm = cs => { const mx = Math.min(...cs.map(c => c[0])), my = Math.min(...cs.map(c => c[1])); return cs.map(([x, y]) => (y - my) * 10 + x - mx).sort((a, b) => a - b).join(','); };
+  const k = norm(cells);
+  for (const t of TYPES) for (let r = 0; r < 4; r++) if (norm(ROT[t][r]) === k) return t;
+  return null;
 }
 
-// Fill the bottom with wood, then carve pieces out one by one. Each carve must be
-// reachable from the spawn point at that moment, so filling them back in the
-// reverse order always works. Solid rows left under the deepest carve are trimmed.
+// The wall has one narrow shaft that steps sideways now and then, like a crack.
+// A "region" is a sideways step (the connector) plus the straight shaft under it.
+// Fill order: each shaft from the bottom up with standing I pieces, then its
+// connector. Every row then fills completely and clears, opening the next region.
 function generate(level, rnd = Math.random) {
-  const want = Math.min(5 + level, 16);
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const top = 4;
-    const b = Array.from({ length: H }, (_, y) => new Array(W).fill(y >= top ? 1 : 0));
-    if (level >= 2) {
-      const maxSh = Math.min(3, 1 + Math.floor(level / 3));
-      const L = 1 + Math.floor(rnd() * maxSh), R = 1 + Math.floor(rnd() * maxSh);
-      for (let i = 0; i < L; i++) for (let k = 1; k <= L - i; k++) b[top - k][i] = 1;
-      for (let i = 0; i < R; i++) for (let k = 1; k <= R - i; k++) b[top - k][W - 1 - i] = 1;
-    }
-    const carved = [];
-    let last = null;
-    while (carved.length < want) {
-      const reach = floodTop(b);
-      const cands = [], dedupe = new Set();
-      for (const t of TYPES) for (let r = 0; r < 4; r++) for (let x = -2; x < W; x++) for (let y = top - 3; y < H; y++) {
-        const cells = [];
-        let ok = true, adj = 0;
-        for (const [dx, dy] of ROT[t][r]) {
-          const X = x + dx, Y = y + dy;
-          if (X < 0 || X >= W || Y < top || Y >= H || b[Y][X] !== 1) { ok = false; break; }
-          cells.push([X, Y]);
-        }
-        if (!ok) continue;
-        for (const [X, Y] of cells) {
-          if (Y > 0 && reach[Y - 1][X]) adj++;
-          if (X > 0 && reach[Y][X - 1]) adj++;
-          if (X < W - 1 && reach[Y][X + 1]) adj++;
-        }
-        if (!adj) continue;
-        const k = t + cells.map(([X, Y]) => Y * W + X).sort((a, c) => a - c).join(',');
-        if (dedupe.has(k)) continue;
-        dedupe.add(k);
-        const maxY = Math.max(...cells.map(c => c[1]));
-        // deeper is better, hugging the open space less keeps the channel narrow
-        const score = (maxY - top) * 0.55 - adj * 0.7 + rnd() * 3 - (t === last ? 2 : 0) - (t === "I" ? 1 : 0);
-        cands.push({ t, cells, score });
+  const minH = Math.min(15, 7 + level), maxH = 15;
+  for (let attempt = 0; attempt < 500; attempt++) {
+    const regions = [];
+    let c = 2 + Math.floor(rnd() * 6);
+    let k = 1 + (rnd() < .3 ? 1 : 0);
+    regions.push({ conn: null, col: c, top: 0, k });
+    let bottom = 4 * k - 1;
+    while (bottom + 1 < minH) {
+      const R = bottom, opts = [];
+      for (let d = 1; d <= 4; d++) for (const dir of [-1, 1]) {
+        const c2 = c + dir * d;
+        if (c2 < 0 || c2 >= W) continue;
+        for (let w = 0; w < (d === 1 ? 4 : 1); w++) opts.push([d, dir, c2]);
       }
-      cands.sort((a, c) => c.score - a.score);
-      // the best few first, then a random spread so a dead-end shaft can't stall us
-      const rest = cands.slice(12);
-      for (let i = rest.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [rest[i], rest[j]] = [rest[j], rest[i]]; }
-      let picked = null;
-      for (const c of cands.slice(0, 12).concat(rest.slice(0, 30))) {
-        for (const [X, Y] of c.cells) b[Y][X] = 0;
-        const supported = c.cells.some(([X, Y]) => Y === H - 1 || b[Y + 1][X]);
-        if (supported && reachable(b, c.t, new Set(c.cells.map(([X, Y]) => Y * W + X)))) { picked = c; break; }
-        for (const [X, Y] of c.cells) b[Y][X] = 1;
+      const [d, dir, c2] = opts[Math.floor(rnd() * opts.length)];
+      let conn = null, start = R;
+      if (d >= 2) {
+        conn = [];
+        for (let i = 1; i <= d; i++) conn.push([c + dir * i, R]);
+        for (let j = 1; j <= 4 - d; j++) conn.push([c2, R + j]);
+        start = R + 1 + (4 - d);
       }
-      if (!picked) break;
-      carved.push({ t: picked.t, cells: picked.cells });
-      last = picked.t;
+      k = 1 + (rnd() < (level > 4 ? .4 : .25) ? 1 : 0);
+      regions.push({ conn, col: c2, top: start, k });
+      bottom = start + 4 * k - 1;
+      c = c2;
     }
-    if (carved.length < Math.min(want, 4)) continue;
-    // trim solid rows below the deepest carve by sliding everything down
-    let deep = 0;
-    for (const c of carved) for (const [, Y] of c.cells) deep = Math.max(deep, Y);
-    const shift = H - 1 - deep;
-    const nb = Array.from({ length: H }, (_, y) => y - shift >= 0 ? b[y - shift].slice() : new Array(W).fill(0));
-    for (const c of carved) for (const cell of c.cells) cell[1] += shift;
-    return {
-      board: nb,
-      rowTag: Array.from({ length: H }, (_, y) => y >= top + shift),
-      queue: carved.reverse(),
-    };
+    const h = bottom + 1;
+    if (h > maxH) continue;
+    const T = H - h;
+    const board = Array.from({ length: H }, (_, y) => new Array(W).fill(y >= T ? 1 : 0));
+    const queue = [];
+    for (const g of regions) {
+      for (let i = g.k - 1; i >= 0; i--) {
+        const cells = [0, 1, 2, 3].map(j => [g.col, T + g.top + 4 * i + j]);
+        queue.push({ t: 'I', cells });
+      }
+      if (g.conn) {
+        const cells = g.conn.map(([x, y]) => [x, y + T]);
+        queue.push({ t: shapeOf(cells), cells });
+      }
+    }
+    for (const q of queue) for (const [x, y] of q.cells) board[y][x] = 0;
+    return { board, rowTag: Array.from({ length: H }, (_, y) => y >= T), queue };
   }
   return null;
 }
@@ -303,18 +276,25 @@ function generate(level, rnd = Math.random) {
 
   const clone = p => ({ board: p.board.map(r => r.slice()), rowTag: p.rowTag.slice(), queue: p.queue.map(q => ({ t: q.t, cells: q.cells.map(c => c.slice()) })) });
 
+  // A level is a run of walls (Level 3-1, 3-2, ...). Each wall is cleared in turn.
   function setup(level, score, puzzle) {
-    puzzle = puzzle || generate(level);
-    const s = clone(puzzle);
+    const waves = Math.min(4, 2 + Math.floor((level - 1) / 3));
+    puzzle = puzzle || { waves: Array.from({ length: waves }, () => generate(level)) };
+    const total = puzzle.waves.reduce((n, w) => n + w.queue.length, 0);
     G = {
-      level, puzzle, startScore: score, score,
-      board: s.board, rowTag: s.rowTag, queue: s.queue, qi: 0, curIdx: -1, cur: null,
-      time: 25 + s.queue.length * 8, phase: 'ready', gAcc: 0, lockT: 0, resets: 0,
+      level, puzzle, startScore: score, score, wave: -1,
+      board: null, rowTag: null, queue: null, qi: 0, curIdx: -1, cur: null,
+      time: 15 + total * 6, phase: 'ready', gAcc: 0, lockT: 0, resets: 0,
       soft: false, clearing: null, hintT: 0,
-      grav: Math.max(320, 950 - (level - 1) * 45),
+      grav: Math.max(320, 900 - (level - 1) * 45),
     };
+    loadWave();
     particles.length = 0;
     hud();
+  }
+  function loadWave() {
+    const s = clone(G.puzzle.waves[++G.wave]);
+    G.board = s.board; G.rowTag = s.rowTag; G.queue = s.queue; G.qi = 0; G.curIdx = -1;
   }
   function begin() { G.phase = 'play'; spawnNext(); hideOverlay(); }
 
@@ -380,13 +360,18 @@ function generate(level, rnd = Math.random) {
     // Planned spots slide down with the rows above a cleared line.
     for (let i = G.qi; i < G.queue.length; i++) for (const c of G.queue[i].cells) c[1] += rows.filter(r => r > c[1]).length;
     G.score += LINE_PTS[Math.min(4, rows.length)] * G.level;
-    if (rows.length >= 2) toast(rows.length + '段まとめて消えた！');
+    if (rows.length >= 3) toast(rows.length + '段消し！');
+    if (rows.length >= 3 && !reduceMotion) {
+      cv.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-4px,3px)' }, { transform: 'translate(4px,-2px)' }, { transform: 'translate(-2px,1px)' }, { transform: 'translate(0,0)' }], { duration: 260 });
+    }
     G.phase = 'play';
     afterLock();
     hud();
   }
   function afterLock() {
-    if (!G.rowTag.includes(true)) win(); else spawnNext();
+    if (G.rowTag.includes(true)) spawnNext();
+    else if (G.wave + 1 < G.puzzle.waves.length) { loadWave(); toast('つぎの壁！'); spawnNext(); }
+    else win();
   }
 
   function win() {
@@ -396,7 +381,7 @@ function generate(level, rnd = Math.random) {
     if (G.level + 1 > best) { best = G.level + 1; saveBest(); }
     hud();
     showOverlay('クリア！',
-      `<p>すきまを全部埋めました。</p><div class="big">${G.score.toLocaleString()}</div><p>のこり時間ボーナス +${bonus.toLocaleString()}</p>`,
+      `<p>ぜんぶの壁を消しました。</p><div class="big">${G.score.toLocaleString()}</div><p>のこり時間ボーナス +${bonus.toLocaleString()}</p>`,
       [['つぎのレベルへ', () => { setup(G.level + 1, G.score); begin(); }]]);
   }
   function lose(title, msg) {
@@ -428,9 +413,10 @@ function generate(level, rnd = Math.random) {
     const t = $('toast'); t.textContent = msg; t.hidden = false;
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 1600);
   }
-  const HELP = `<p>木のブロックのすきまに、落ちてくるピースをぴったりはめよう。横一列がそろうと消えます。もとからあった段をぜんぶ消したらクリア。</p>
-    <ul><li>ピースはすきまをくり抜いた形。NEXT の順にはめれば、かならず埋まる</li>
-    <li>盤面をタップで回転、左右にドラッグで移動、下にはじくと一気に落ちる</li>
+  const HELP = `<p>木のブロックのすきまに、落ちてくるピースをぴったりはめよう。横一列がそろうと消えます。壁をぜんぶ消したら、つぎの壁へ。最後の壁まで消したらクリア。</p>
+    <ul><li>すきまは1列の縦穴。ときどき横にずれる。NEXT の順にはめれば、かならず埋まる</li>
+    <li>キーボード: ← → で移動、スペースで回転、↓ で速く落とす</li>
+    <li>スマホ: 盤面タップで回転、左右になぞって移動、下ボタンで速く落とす</li>
     <li>こまったら「ヒント」ではめる場所が光る</li></ul>`;
   function showStart() {
     const btns = [['レベル1からあそぶ', () => { setup(1, 0, G.level === 1 ? G.puzzle : null); begin(); }]];
@@ -445,7 +431,7 @@ function generate(level, rnd = Math.random) {
   }
 
   function hud() {
-    $('lv').textContent = G.level;
+    $('lv').textContent = G.level + '-' + (G.wave + 1);
     $('score').textContent = G.score.toLocaleString();
     const t = Math.max(0, Math.ceil(G.time));
     $('time').textContent = t;
@@ -667,7 +653,6 @@ function generate(level, rnd = Math.random) {
     if (!gest) return;
     const dt = performance.now() - gest.t0, dx = e.clientX - gest.x0, dy = e.clientY - gest.y0;
     if (!gest.moved && dt < 320) rotate(1);
-    else if (dy > cs * 2.5 && dt < 260 && dy > Math.abs(dx) * 2) hardDrop();
     gest = null;
   });
   cv.addEventListener('pointercancel', () => { gest = null; });
@@ -676,17 +661,23 @@ function generate(level, rnd = Math.random) {
     if (!G) return;
     const k = e.key;
     if (G.phase !== 'play') return;
+    // keep Space from also pressing whichever button has focus
+    if (k === ' ' && document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
     if (k === 'ArrowLeft') move(-1);
     else if (k === 'ArrowRight') move(1);
-    else if (k === 'ArrowDown') { G.soft = true; }
-    else if (k === 'ArrowUp' || k === 'x' || k === 'X') rotate(1);
-    else if (k === 'z' || k === 'Z') rotate(-1);
-    else if (k === ' ') hardDrop();
+    else if (k === 'ArrowDown') { if (!G.soft) G.gAcc = 9999; G.soft = true; }
+    else if (k === ' ' || k === 'ArrowUp' || k === 'x' || k === 'X') { if (!e.repeat) rotate(1); }
+    else if (k === 'z' || k === 'Z') { if (!e.repeat) rotate(-1); }
     else if (k === 'h' || k === 'H') hint();
     else return;
     e.preventDefault();
   });
-  addEventListener('keyup', e => { if (e.key === 'ArrowDown' && G) G.soft = false; });
+  addEventListener('keyup', e => {
+    if (!G) return;
+    if (e.key === 'ArrowDown') G.soft = false;
+    if (e.key === ' ' && G.phase === 'play') e.preventDefault();
+  });
+  for (const b of document.querySelectorAll('.top button')) b.addEventListener('click', () => b.blur());
 
   function hint() {
     if (!canPlay()) return;
