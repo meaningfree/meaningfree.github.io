@@ -1,0 +1,748 @@
+<title>まんまるどうぶつ</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+/* Layout: one-screen game on a calm oatmeal ground — HUD (score / best / next) on top, a cream box with a light wood frame fills the middle, the animal picture book (zukan) strip sits underneath. The animals carry the cuteness; the screen stays quiet. Single light look on purpose. */
+:root{
+  --bg:#ECE4D6; --bg-2:#F6F1E8;
+  --box:#FFFCF6; --box-edge:#CDB596; --box-ink:#5B4636;
+  --ink:#5B4636; --cream:#FFFDF8;
+  --accent:#D9805F; --accent-ink:#FFFFFF; --accent-deep:#B5644A;
+  --line:#E0604A;
+  --font-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --font-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0;color:var(--ink);
+  background:linear-gradient(var(--bg-2),var(--bg)) fixed;
+  font-family:var(--font-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:max(8px,env(safe-area-inset-top,0px));padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
+  -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.app{max-width:460px;height:100%;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+
+.top{display:flex;align-items:center;gap:8px}
+.top h1{margin:0;font-family:var(--font-display);font-weight:900;font-size:18px;letter-spacing:.04em;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top h1 a{color:inherit;text-decoration:none}
+.chip{border:1.5px solid rgba(91,70,54,.35);background:rgba(255,255,255,.55);border-radius:999px;
+  padding:4px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:4px;min-height:34px;white-space:nowrap}
+.chip:active{background:rgba(255,255,255,.9)}
+.chip svg{width:16px;height:16px}
+
+.hud{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:14px;background:rgba(255,255,255,.6);
+  box-shadow:inset 0 0 0 1.5px rgba(205,181,150,.55)}
+.hud .sc{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.05}
+.hud small{font-weight:900;font-size:11px;letter-spacing:.08em;opacity:.7}
+.hud .score{font-family:var(--font-display);font-weight:900;font-size:28px;font-variant-numeric:tabular-nums}
+.hud .best{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.hud .best b{font-family:var(--font-display);font-weight:900;font-size:17px;font-variant-numeric:tabular-nums}
+.hud .nx{display:flex;flex-direction:column;align-items:center;line-height:1}
+.hud .nx canvas{width:44px;height:44px;margin-top:2px;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1.5px rgba(205,181,150,.6)}
+
+.well{flex:1;min-height:0;position:relative;display:flex;align-items:flex-end;justify-content:center}
+#board{display:block;touch-action:none;border-radius:4px 4px 18px 18px;
+  box-shadow:0 0 0 4px var(--box-edge),0 8px 22px rgba(91,70,54,.18)}
+
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;
+  background:rgba(91,70,54,.35);border-radius:4px 4px 18px 18px}
+.card{background:var(--cream);color:var(--ink);border-radius:18px;padding:20px 18px 16px;max-width:320px;width:100%;
+  box-shadow:0 12px 30px rgba(91,70,54,.3);text-align:center}
+.card h2{margin:0 0 6px;font-family:var(--font-display);font-weight:900;font-size:24px;letter-spacing:.04em}
+.card p{margin:4px 0;font-size:14px}
+.card ul{margin:8px 0;padding:0 0 0 1.1em;text-align:left;font-size:13.5px}
+.card .big{font-family:var(--font-display);font-weight:900;font-size:40px;line-height:1.2;margin:4px 0}
+.card .new{display:inline-block;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:0 10px;font-weight:900;font-size:13px}
+.btns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.btn{border:0;border-radius:14px;padding:12px;font-weight:900;font-size:17px;background:var(--accent);color:var(--accent-ink);
+  box-shadow:0 4px 0 var(--accent-deep)}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--accent-deep)}
+.btn.sub{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 2px rgba(91,70,54,.35)}
+
+.ring{display:flex;flex-direction:column;align-items:center;gap:0}
+.ring small{font-weight:900;font-size:11px;letter-spacing:.08em;opacity:.75}
+#ring{display:block;width:100%;height:40px}
+.hint{text-align:center;font-size:12px;opacity:.8;margin:0}
+</style>
+
+<div class="app">
+  <div class="top">
+    <h1><a href="../">まんまるどうぶつ</a></h1>
+    <button class="chip" id="soundBtn" type="button" aria-label="効果音の切りかえ">音 ON</button>
+    <button class="chip" id="pauseBtn" type="button" aria-label="一時停止"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>一時停止</button>
+  </div>
+
+  <div class="hud">
+    <div class="sc"><small>SCORE</small><span class="score" id="score">0</span></div>
+    <div class="best"><small>BEST</small><b id="best">0</b></div>
+    <div class="nx"><small>NEXT</small><canvas id="next" width="88" height="88"></canvas></div>
+  </div>
+
+  <div class="well" id="well">
+    <canvas id="board" aria-label="どうぶつの柵。左右になぞって位置をきめ、はなすと落ちます"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="card" role="dialog" aria-live="polite">
+        <h2 id="ovTitle">まんまるどうぶつ</h2>
+        <div id="ovBody"></div>
+        <div class="btns" id="ovBtns"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ring">
+    <small id="zkLabel">どうぶつずかん</small>
+    <canvas id="ring"></canvas>
+  </div>
+  <p class="hint">なぞって位置をきめ、はなすと落ちる（キー: ← → と スペース）</p>
+</div>
+
+<script>
+/*CORE*/
+// World units. The box is W wide and H tall; animals above DEAD_Y for too long end the game.
+const W = 400, H = 560, DEAD_Y = 105, DROP_Y = 56;
+const GRAVITY = 1700, SUBSTEPS = 8, STEP = 1 / 60;
+const OVER_LIMIT = 2.0;   // seconds a settled animal may stay above the line
+const SPAWN_KINDS = 4;    // only the 4 smallest animals are dropped
+const KINDS = [
+  { name:'ひよこ',     r:15, col:'#FFE57F' },
+  { name:'ハムスター', r:20, col:'#F7C68E' },
+  { name:'うさぎ',     r:26, col:'#FFFCFA' },
+  { name:'みけねこ',   r:32, col:'#FFFCF6' },
+  { name:'しばいぬ',   r:39, col:'#F2AE6B' },
+  { name:'ぶた',       r:47, col:'#FFC9D5' },
+  { name:'ひつじ',     r:56, col:'#FFFAF0' },
+  { name:'パンダ',     r:66, col:'#FFFFFF' },
+  { name:'ライオン',   r:77, col:'#F7B56B' },
+  { name:'ゾウ',       r:92, col:'#C9D5EC' },
+];
+const LAST = KINDS.length - 1;
+// Points for making animal t: 2, 6, 12, ... 90. Two elephants hug and go home for 120.
+const points = t => t > LAST ? 120 : t * (t + 1);
+
+function newWorld() { return { bodies: [], nextId: 1, time: 0 }; }
+
+function addBody(w, t, x, y, opts = {}) {
+  const b = { id: w.nextId++, t, x, y, px: x, py: y, vx: opts.vx || 0, vy: opts.vy || 0,
+    r: opts.r0 || KINDS[t].r, R: KINDS[t].r, ang: opts.ang || 0, spin: 0, born: w.time, dead: false };
+  w.bodies.push(b);
+  return b;
+}
+
+// One fixed 1/60 s step: position-based circles with substeps.
+// Returns the merges that happened: [{t, x, y}] (t = new type, or LAST+1 for vanished watermelons).
+function stepWorld(w, dt = STEP) {
+  const h = dt / SUBSTEPS, events = [];
+  const B = w.bodies;
+  for (let s = 0; s < SUBSTEPS; s++) {
+    w.time += h;
+    for (const b of B) {
+      if (b.r < b.R) b.r = Math.min(b.R, b.r + b.R * h / 0.18);  // freshly merged animal grows in
+      b.vy += GRAVITY * h;
+      b.px = b.x; b.py = b.y;
+      b.x += b.vx * h; b.y += b.vy * h;
+      b.touch = false;
+    }
+    for (let i = 0; i < B.length; i++) {
+      const a = B[i];
+      if (a.dead) continue;
+      for (let j = i + 1; j < B.length; j++) {
+        const c = B[j];
+        if (c.dead) continue;
+        const dx = c.x - a.x, dy = c.y - a.y, rr = a.r + c.r;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= rr * rr) continue;
+        if (a.t === c.t) {   // same animal touching: merge
+          a.dead = c.dead = true;
+          events.push({ t: a.t + 1, x: (a.x + c.x) / 2, y: (a.y + c.y) / 2,
+            vx: (a.vx + c.vx) / 2, vy: (a.vy + c.vy) / 2 });
+          break;
+        }
+        const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d, pen = rr - d;
+        const ma = a.R * a.R, mc = c.R * c.R, wa = mc / (ma + mc), wc = ma / (ma + mc);
+        a.x -= nx * pen * wa; a.y -= ny * pen * wa;
+        c.x += nx * pen * wc; c.y += ny * pen * wc;
+        a.touch = c.touch = true;
+      }
+    }
+    for (const b of B) {
+      if (b.x - b.r < 0) { b.x = b.r; b.touch = true; }
+      if (b.x + b.r > W) { b.x = W - b.r; b.touch = true; }
+      if (b.y + b.r > H) { b.y = H - b.r; b.touch = true; b.floor = true; } else b.floor = false;
+    }
+    for (const b of B) {
+      b.vx = (b.x - b.px) / h; b.vy = (b.y - b.py) / h;
+      if (b.touch) { b.vx *= 0.9985; b.vy *= 0.9985; }
+      if (b.floor) b.vx *= 0.993;
+      const sp = Math.hypot(b.vx, b.vy);
+      if (sp > 1400) { b.vx *= 1400 / sp; b.vy *= 1400 / sp; }
+      if (b.touch) b.spin += (b.vx / b.r - b.spin) * 0.08;
+      b.ang += b.spin * h;
+    }
+    if (events.length && events.some(e => !e.done)) {
+      for (const e of events) {
+        if (e.done) continue;
+        e.done = true;
+        if (e.t <= LAST) addBody(w, e.t, e.x, e.y, { vx: e.vx * 0.5, vy: Math.min(e.vy, 0) * 0.5, r0: KINDS[e.t - 1].r });
+      }
+    }
+    if (B.some(b => b.dead)) {   // drop merged animals in place (B is w.bodies)
+      let n = 0;
+      for (const b of B) if (!b.dead) B[n++] = b;
+      B.length = n;
+    }
+  }
+  return events;
+}
+
+// Seconds-based check: is any settled animal poking above the line?
+function aboveLine(w) {
+  return w.bodies.some(b => w.time - b.born > 1.0 && b.y - b.r < DEAD_Y && Math.abs(b.vy) < 120);
+}
+/*ENDCORE*/
+
+// ---------- drawing ----------
+function rng(seed) { return () => (seed = (seed * 16807) % 2147483647) / 2147483647; }
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16);
+  const f = v => Math.max(0, Math.min(255, Math.round(k > 0 ? v + (255 - v) * k : v * (1 + k))));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+function fillCircle(c, x, y, rad, col, stroke, lw) {
+  c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fillStyle = col; c.fill();
+  if (stroke) { c.lineWidth = lw; c.strokeStyle = stroke; c.stroke(); }
+}
+function fillEllipse(c, x, y, rx, ry, rot, col, stroke, lw) {
+  c.beginPath(); c.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); c.fillStyle = col; c.fill();
+  if (stroke) { c.lineWidth = lw; c.strokeStyle = stroke; c.stroke(); }
+}
+function fillPoly(c, pts, col, stroke, lw) {
+  c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath();
+  c.fillStyle = col; c.fill();
+  if (stroke) { c.lineJoin = 'round'; c.lineWidth = lw; c.strokeStyle = stroke; c.stroke(); }
+}
+
+// Paints animal t centered at (0,0) with radius r (in the current transform).
+// One shared style: flat pastel bodies, cocoa outlines, small low-set dot eyes, pink blush.
+const OUT = '#6B4A3A', EYE = '#3B2A22', PINK = '#FFB3C4', BLUSH = 'rgba(255,128,158,.5)';
+function paintAnimal(c, t, r) {
+  const A = KINDS[t], lw = Math.max(1, r * 0.045);
+  const body = (col = A.col) => {
+    const g = c.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.1, 0, 0, r);
+    g.addColorStop(0, shade(col, 0.3)); g.addColorStop(1, col);
+    fillCircle(c, 0, 0, r, g, OUT, lw);
+  };
+  const clipBody = fn => { c.save(); c.beginPath(); c.arc(0, 0, r - lw / 2, 0, Math.PI * 2); c.clip(); fn(); c.restore(); };
+  const eyes = (y, sp, sz = Math.max(0.9, r * 0.058)) => {
+    for (const s of [-1, 1]) {
+      fillEllipse(c, s * sp, y, sz, sz * 1.22, 0, EYE);
+      fillCircle(c, s * sp - sz * 0.3, y - sz * 0.45, sz * 0.36, '#FFFFFF');
+    }
+  };
+  const blush = (y, sp) => { for (const s of [-1, 1]) fillEllipse(c, s * sp, y, r * 0.12, r * 0.07, 0, BLUSH); };
+  const stroke = (pts, col = OUT, w = lw) => {
+    c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y));
+    c.lineCap = 'round'; c.lineJoin = 'round'; c.lineWidth = w; c.strokeStyle = col; c.stroke();
+  };
+  const omega = (y, w = r * 0.06) => {
+    c.beginPath(); c.arc(-w, y, w, 0.15 * Math.PI, 0.95 * Math.PI);
+    c.moveTo(w + w * Math.cos(0.05 * Math.PI), y + w * Math.sin(0.05 * Math.PI)); c.arc(w, y, w, 0.05 * Math.PI, 0.85 * Math.PI);
+    c.lineCap = 'round'; c.lineWidth = Math.max(0.8, lw * 0.8); c.strokeStyle = OUT; c.stroke();
+  };
+  const ear = (x, y, rad, col, inner) => { fillCircle(c, x, y, rad, col, OUT, lw); if (inner) fillCircle(c, x, y + rad * 0.1, rad * 0.55, inner); };
+  const triEar = (s, col, inner, base = 0.86, tip = 1.18, wdt = 1) => {
+    fillPoly(c, [[s * r * 0.18, -r * base], [s * r * 0.8 * wdt, -r * 0.5], [s * r * 0.66, -r * tip]], col, OUT, lw);
+    if (inner) fillPoly(c, [[s * r * 0.34, -r * (base - 0.04)], [s * r * 0.68 * wdt, -r * 0.6], [s * r * 0.6, -r * (tip - 0.18)]], inner);
+  };
+
+  switch (t) {
+    case 0: {   // chick
+      stroke([[-r * 0.05, -r * 0.92], [-r * 0.12, -r * 1.22]], OUT, lw * 1.2);
+      stroke([[r * 0.08, -r * 0.94], [r * 0.2, -r * 1.18]], OUT, lw * 1.2);
+      body();
+      for (const s of [-1, 1]) fillEllipse(c, s * r * 0.9, r * 0.3, r * 0.1, r * 0.17, s * 0.5, shade(A.col, -0.06), OUT, lw);
+      eyes(r * 0.02, r * 0.3);
+      fillPoly(c, [[-r * 0.11, r * 0.13], [r * 0.11, r * 0.13], [0, r * 0.27]], '#FFA34D', OUT, lw * 0.8);
+      blush(r * 0.24, r * 0.52);
+      break;
+    }
+    case 1: {   // hamster
+      for (const s of [-1, 1]) ear(s * r * 0.56, -r * 0.74, r * 0.24, A.col, PINK);
+      body();
+      clipBody(() => {
+        fillEllipse(c, 0, r * 0.42, r * 0.78, r * 0.55, 0, '#FFF7EC');
+      });
+      fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
+      eyes(r * 0.02, r * 0.32);
+      fillEllipse(c, 0, r * 0.15, r * 0.06, r * 0.045, 0, '#F48AA2');
+      omega(r * 0.21, r * 0.055);
+      blush(r * 0.26, r * 0.56);
+      break;
+    }
+    case 2: {   // rabbit
+      fillEllipse(c, -r * 0.3, -r * 1.0, r * 0.19, r * 0.5, -0.12, A.col, OUT, lw);
+      fillEllipse(c, -r * 0.3, -r * 0.98, r * 0.09, r * 0.34, -0.12, PINK);
+      fillEllipse(c, r * 0.34, -r * 0.98, r * 0.19, r * 0.5, 0.28, A.col, OUT, lw);
+      fillEllipse(c, r * 0.34, -r * 0.96, r * 0.09, r * 0.34, 0.28, PINK);
+      body();
+      eyes(r * 0.08, r * 0.3);
+      fillEllipse(c, 0, r * 0.19, r * 0.055, r * 0.04, 0, '#F48AA2');
+      omega(r * 0.25, r * 0.05);
+      blush(r * 0.3, r * 0.54);
+      break;
+    }
+    case 3: {   // calico cat
+      triEar(-1, '#F6AE6A', PINK);
+      triEar(1, '#6E5A52', PINK);
+      body();
+      clipBody(() => {
+        fillCircle(c, -r * 0.62, -r * 0.62, r * 0.52, '#F6AE6A');
+        fillCircle(c, r * 0.66, -r * 0.6, r * 0.42, '#6E5A52');
+        fillCircle(c, r * 0.8, r * 0.5, r * 0.3, '#F6AE6A');
+      });
+      fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
+      eyes(r * 0.08, r * 0.3);
+      fillPoly(c, [[-r * 0.06, r * 0.17], [r * 0.06, r * 0.17], [0, r * 0.23]], '#F48AA2');
+      omega(r * 0.26, r * 0.055);
+      for (const s of [-1, 1]) for (const k of [0, 1]) stroke([[s * r * 0.62, r * (0.16 + k * 0.1)], [s * r * 0.92, r * (0.12 + k * 0.18)]], OUT, lw * 0.6);
+      blush(r * 0.3, r * 0.5);
+      break;
+    }
+    case 4: {   // shiba
+      triEar(-1, A.col, '#FFF1DE', 0.82, 1.12, 0.95);
+      triEar(1, A.col, '#FFF1DE', 0.82, 1.12, 0.95);
+      body();
+      clipBody(() => {
+        c.beginPath(); c.moveTo(-r, r * 0.1);
+        c.quadraticCurveTo(-r * 0.45, r * 0.02, 0, r * 0.18); c.quadraticCurveTo(r * 0.45, r * 0.02, r, r * 0.1);
+        c.lineTo(r, r); c.lineTo(-r, r); c.closePath(); c.fillStyle = '#FFF7EC'; c.fill();
+      });
+      fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
+      for (const s of [-1, 1]) fillEllipse(c, s * r * 0.3, -r * 0.14, r * 0.08, r * 0.055, 0, '#FFF7EC');
+      eyes(r * 0.04, r * 0.3);
+      fillEllipse(c, 0, r * 0.2, r * 0.08, r * 0.06, 0, EYE);
+      omega(r * 0.28, r * 0.055);
+      blush(r * 0.28, r * 0.56);
+      break;
+    }
+    case 5: {   // pig
+      for (const s of [-1, 1]) fillPoly(c, [[s * r * 0.3, -r * 0.88], [s * r * 0.78, -r * 0.6], [s * r * 0.7, -r * 1.06]], A.col, OUT, lw);
+      body();
+      eyes(-r * 0.02, r * 0.34);
+      fillEllipse(c, 0, r * 0.2, r * 0.24, r * 0.16, 0, '#FFADC0', OUT, lw * 0.8);
+      for (const s of [-1, 1]) fillEllipse(c, s * r * 0.08, r * 0.2, r * 0.035, r * 0.06, 0, '#B85C76');
+      blush(r * 0.2, r * 0.6);
+      break;
+    }
+    case 6: {   // sheep
+      const N = 14, ring = (rad, sz, st) => { for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2; fillCircle(c, Math.cos(a) * rad, Math.sin(a) * rad, sz, A.col, st ? OUT : null, lw); } };
+      ring(r * 0.8, r * 0.22, true); fillCircle(c, 0, 0, r * 0.84, A.col); ring(r * 0.8, r * 0.2, false);
+      for (const s of [-1, 1]) fillEllipse(c, s * r * 0.55, r * 0.02, r * 0.2, r * 0.1, s * 0.35, '#F2D2B6', OUT, lw);
+      fillEllipse(c, 0, r * 0.12, r * 0.46, r * 0.42, 0, '#F7DEC6', OUT, lw);
+      for (let k = -1; k <= 1; k++) fillCircle(c, k * r * 0.15, -r * 0.3, r * 0.13, A.col, OUT, lw * 0.8);
+      fillCircle(c, 0, -r * 0.24, r * 0.15, A.col);
+      eyes(r * 0.1, r * 0.19);
+      omega(r * 0.25, r * 0.045);
+      blush(r * 0.26, r * 0.33);
+      break;
+    }
+    case 7: {   // panda
+      const DK = '#4F3F3A';
+      for (const s of [-1, 1]) fillCircle(c, s * r * 0.6, -r * 0.7, r * 0.25, DK, OUT, lw);
+      body();
+      for (const s of [-1, 1]) fillEllipse(c, s * r * 0.29, r * 0.06, r * 0.17, r * 0.125, s * 0.5, DK);
+      for (const s of [-1, 1]) {
+        fillCircle(c, s * r * 0.27, r * 0.04, r * 0.06, EYE);
+        fillCircle(c, s * r * 0.27 - r * 0.018, r * 0.018, r * 0.03, '#FFFFFF');
+      }
+      fillEllipse(c, 0, r * 0.2, r * 0.065, r * 0.045, 0, DK);
+      omega(r * 0.25, r * 0.045);
+      blush(r * 0.3, r * 0.56);
+      break;
+    }
+    case 8: {   // lion
+      const N = 16;
+      fillCircle(c, 0, 0, r * 0.86, A.col);
+      for (let k = 0; k < N; k++) { const a = k / N * Math.PI * 2; fillCircle(c, Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78, r * 0.22, A.col, OUT, lw); }
+      fillCircle(c, 0, 0, r * 0.84, A.col);
+      const F = '#FFE6B4';
+      for (const s of [-1, 1]) ear(s * r * 0.44, -r * 0.48, r * 0.14, F, PINK);
+      fillCircle(c, 0, 0, r * 0.62, F, OUT, lw);
+      eyes(r * 0.02, r * 0.23);
+      fillPoly(c, [[-r * 0.06, r * 0.14], [r * 0.06, r * 0.14], [0, r * 0.2]], '#B5704A');
+      omega(r * 0.23, r * 0.05);
+      blush(r * 0.22, r * 0.4);
+      break;
+    }
+    case 9: {   // elephant
+      for (const s of [-1, 1]) {
+        fillEllipse(c, s * r * 0.82, -r * 0.04, r * 0.4, r * 0.54, s * 0.18, A.col, OUT, lw);
+        fillEllipse(c, s * r * 0.86, -r * 0.02, r * 0.24, r * 0.36, s * 0.18, PINK);
+      }
+      body();
+      for (const k of [-1, 0, 1]) stroke([[k * r * 0.08, -r * 0.96], [k * r * 0.14, -r * 1.12]], OUT, lw);
+      eyes(-r * 0.02, r * 0.3);
+      const trunk = (col, w) => {
+        c.beginPath(); c.moveTo(0, r * 0.06); c.quadraticCurveTo(-r * 0.04, r * 0.44, r * 0.2, r * 0.36);
+        c.lineCap = 'round'; c.lineWidth = w; c.strokeStyle = col; c.stroke();
+      };
+      trunk(OUT, r * 0.17); trunk(A.col, r * 0.17 - lw * 2);
+      blush(r * 0.2, r * 0.52);
+      break;
+    }
+  }
+}
+
+// Pre-rendered sprites per animal at the current pixel scale.
+let SPR = [], sprScale = 0;
+function buildSprites(scale) {
+  sprScale = scale;
+  SPR = KINDS.map((F, t) => {
+    const pad = 1.7, size = Math.ceil(F.r * 2 * pad * scale);
+    const cv = document.createElement('canvas'); cv.width = cv.height = size;
+    const c = cv.getContext('2d');
+    c.translate(size / 2, size / 2); c.scale(scale, scale);
+    paintAnimal(c, t, F.r);
+    return { cv, half: F.r * pad };
+  });
+}
+function drawSprite(c, t, x, y, r, ang) {
+  const s = SPR[t], k = r / KINDS[t].r;
+  c.save(); c.translate(x, y); c.rotate(ang); c.scale(k, k);
+  c.drawImage(s.cv, -s.half, -s.half, s.half * 2, s.half * 2);
+  c.restore();
+}
+
+// ---------- app ----------
+const $ = id => document.getElementById(id);
+const board = $('board'), ctx = board.getContext('2d');
+const nextCv = $('next'), nctx = nextCv.getContext('2d');
+const ringCv = $('ring'), rctx = ringCv.getContext('2d');
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('manmaru.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('manmaru.' + k, JSON.stringify(v)); } catch {} },
+};
+
+const G = {
+  w: newWorld(), state: 'title', score: 0, best: store.get('best', 0),
+  held: 0, next: 0, seen: store.get('seen', -1), heldX: W / 2, cool: 0, overT: 0, fx: [], pops: [], keys: {}, shake: 0, endT: 0,
+};
+const randKind = () => Math.floor(Math.random() * SPAWN_KINDS);
+
+// ----- sound -----
+// Web Audio is silenced by the iPhone mute switch unless the page also plays media,
+// so the first tap marks the session as playback and starts a looping silent clip.
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+let AC = null, OUTPUT = null, silentEl = null, soundOn = store.get('sound', true);
+function ac() {
+  if (!AC) {
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = AC.createDynamicsCompressor(), master = AC.createGain();
+      master.gain.value = 0.9;
+      comp.connect(master).connect(AC.destination);
+      OUTPUT = comp;
+    } catch { AC = null; }
+  }
+  if (AC && AC.state !== 'running') AC.resume().catch(() => {});
+  return AC;
+}
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+  if (!silentEl) {
+    try {
+      silentEl = new Audio(SILENT_WAV); silentEl.loop = true; silentEl.volume = 0.01;
+      silentEl.setAttribute('playsinline', '');
+      const pr = silentEl.play(); if (pr) pr.catch(() => {});
+    } catch {}
+  }
+  ac();
+}
+['pointerdown', 'touchend', 'keydown', 'click'].forEach(ev => document.addEventListener(ev, () => { if (soundOn) unlockAudio(); }, { capture: true, passive: true }));
+function tone(f0, f1, dur, type = 'triangle', vol = 0.3, delay = 0) {
+  if (!soundOn) return;
+  const a = ac(); if (!a) return;
+  const t0 = a.currentTime + delay + 0.005, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(OUTPUT); o.start(t0); o.stop(t0 + dur + 0.03);
+}
+// Pitches stay above ~500 Hz so phone speakers can play them.
+const sfx = {
+  drop() { tone(880, 520, 0.09, 'triangle', 0.32); },
+  merge(t) {   // a bubbly "pop" that gets lower as the animals get bigger
+    const f = 1300 * Math.pow(2, -t / 9);
+    tone(f, f * 1.9, 0.11, 'triangle', 0.4); tone(f * 1.5, f * 2.6, 0.09, 'sine', 0.22, 0.05);
+  },
+  melon() { [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, f * 1.01, 0.2, 'triangle', 0.32, i * 0.08)); },
+  over() { [880, 740, 622, 523].forEach((f, i) => tone(f, f * 0.97, 0.28, 'triangle', 0.32, i * 0.16)); },
+};
+
+// ----- layout -----
+let scale = 1, dpr = 1;
+function layout() {
+  const well = $('well');
+  dpr = Math.min(window.devicePixelRatio || 1, 3);
+  const aw = well.clientWidth - 8, ah = well.clientHeight - 6;
+  scale = Math.max(0.3, Math.min(aw / W, ah / H));
+  board.style.width = Math.round(W * scale) + 'px';
+  board.style.height = Math.round(H * scale) + 'px';
+  board.width = Math.round(W * scale * dpr); board.height = Math.round(H * scale * dpr);
+  buildSprites(scale * dpr);
+  const ov = $('overlay');
+  ov.style.width = board.style.width; ov.style.height = board.style.height;
+  ov.style.inset = 'auto'; ov.style.bottom = '0';
+  ringCv.width = Math.round(ringCv.clientWidth * dpr); ringCv.height = Math.round(40 * dpr);
+  drawRing(); drawNext();
+}
+
+// Picture book: animals made at least once (ever) show in color, the rest as silhouettes.
+const tmpCv = document.createElement('canvas');
+function drawRing() {
+  const c = rctx, w = ringCv.width / dpr, hgt = 40;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, w, hgt);
+  const sizes = KINDS.map(F => 6 + Math.sqrt(F.r / 92) * 12);
+  // leave room at both ends for ears that stick out past the round body
+  const inner = w - sizes[KINDS.length - 1] * 0.5 - 4;
+  const total = sizes.reduce((s, v) => s + v * 2, 0), gap = Math.max(0, (inner - total) / (KINDS.length - 1));
+  const k = Math.min(1, inner / (total + 2));
+  let x = 4;
+  KINDS.forEach((F, t) => {
+    const r = sizes[t] * k, sz = Math.ceil(r * 2 * 1.6 * dpr);
+    x += r;
+    tmpCv.width = tmpCv.height = sz;
+    const tc = tmpCv.getContext('2d');
+    tc.translate(sz / 2, sz / 2 + r * 0.15 * dpr); tc.scale(r / F.r * dpr, r / F.r * dpr); paintAnimal(tc, t, F.r);
+    if (t > G.seen) {
+      tc.setTransform(1, 0, 0, 1, 0, 0); tc.globalCompositeOperation = 'source-in';
+      tc.fillStyle = 'rgba(91,70,54,.22)'; tc.fillRect(0, 0, sz, sz);
+    }
+    c.drawImage(tmpCv, x - sz / dpr / 2, hgt / 2 - sz / dpr / 2 + 1, sz / dpr, sz / dpr);
+    x += r + gap * k;
+  });
+  $('zkLabel').textContent = `どうぶつずかん ${Math.max(0, G.seen + 1)} / ${KINDS.length}`;
+}
+function meet(t, x, y) {   // record a newly met animal
+  if (t <= G.seen || t > LAST) return;
+  G.seen = t; store.set('seen', t); drawRing();
+  if (t >= SPAWN_KINDS && x != null) G.pops.push({ x: Math.max(110, Math.min(W - 110, x)), y: y - 34, text: 'はじめまして ' + KINDS[t].name + '！', t: -0.4, life: 1.8, small: true });
+}
+function drawNext() {
+  const c = nctx, s = nextCv.width;
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, s, s);
+  if (G.state === 'title') return;
+  const F = KINDS[G.next], k = (s * 0.3) / Math.max(F.r, 20);
+  c.translate(s / 2, s / 2 + 3); c.scale(k, k); paintAnimal(c, G.next, F.r);
+}
+
+// ----- game flow -----
+function start() {
+  ac();
+  G.w = newWorld(); G.score = 0; G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
+  G.held = randKind(); G.next = randKind(); G.heldX = W / 2;
+  G.state = 'play';
+  $('overlay').hidden = true;
+  updHud(); drawNext();
+}
+function drop() {
+  if (G.state !== 'play' || G.cool > 0 || G.held == null) return;
+  const r = KINDS[G.held].r;
+  // a tiny sideways nudge so stacks topple naturally instead of balancing in a perfect column
+  addBody(G.w, G.held, clampX(G.heldX + (Math.random() - 0.5) * 0.6, r), DROP_Y, { vy: 60 });
+  sfx.drop(); meet(G.held);
+  G.held = null; G.cool = 0.45;
+}
+const clampX = (x, r) => Math.max(r + 1, Math.min(W - r - 1, x));
+
+function onMerge(e) {
+  const t = e.t, gain = points(t);
+  G.score += gain;
+  if (t > LAST) { sfx.melon(); G.shake = 0.35; } else if (t >= 7) { sfx.merge(t); G.shake = 0.18; } else sfx.merge(t);
+  const cols = ['#F0B97E', '#E9A3A0', '#A9C8A2', '#A9BBD6'];
+  for (let k = 0; k < 10 + t * 2; k++) {
+    const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 160 + t * 15;
+    G.fx.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.6, t: 0, col: cols[k % cols.length], r: 3 + Math.random() * 3 });
+  }
+  G.pops.push({ x: e.x, y: e.y, text: '+' + gain, t: 0 });
+  meet(t, e.x, e.y);
+  updHud();
+}
+
+function gameOver() {
+  G.state = 'ending'; G.endT = 0; sfx.over();
+}
+function showOver() {
+  G.state = 'over';
+  const isBest = G.score > G.best;
+  if (isBest) { G.best = G.score; store.set('best', G.best); }
+  const top = G.w.bodies.reduce((m, b) => Math.max(m, b.t), 0);
+  $('ovTitle').textContent = 'さくから はみだした！';
+  $('ovBody').innerHTML = `<p>スコア</p><div class="big">${G.score}</div>` +
+    (isBest ? '<span class="new">ベスト更新！</span>' : `<p>ベスト ${G.best}</p>`) +
+    `<p>いちばん大きいどうぶつ：${KINDS[top].name}</p>`;
+  $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>';
+  $('again').onclick = start;
+  $('overlay').hidden = false;
+  updHud();
+  $('again').focus();
+}
+function showTitle() {
+  $('ovTitle').textContent = 'まんまるどうぶつ';
+  $('ovBody').innerHTML = `<ul>
+    <li>まるい どうぶつを上から落として、さくの中に入れよう</li>
+    <li>同じ どうぶつが くっつくと、つぎの大きな どうぶつに <b>へんしん</b></li>
+    <li>ひよこ → ハムスター → … → ゾウ。ゾウどうしは なかよく おうちへ帰る</li>
+    <li>赤い線より上に はみだしたまま2びょうたつと、おしまい</li>
+    <li>はじめて会えた どうぶつは「ずかん」にのるよ</li></ul>`;
+  $('ovBtns').innerHTML = '<button class="btn" id="go" type="button">はじめる</button>';
+  $('go').onclick = start;
+  $('overlay').hidden = false;
+}
+function setPause(p) {
+  if (p && G.state === 'play') {
+    G.state = 'pause';
+    $('ovTitle').textContent = 'ひとやすみ';
+    $('ovBody').innerHTML = `<p>スコア ${G.score}</p>`;
+    $('ovBtns').innerHTML = '<button class="btn" id="resume" type="button">つづける</button><button class="btn sub" id="restart" type="button">はじめから</button>';
+    $('resume').onclick = () => setPause(false);
+    $('restart').onclick = start;
+    $('overlay').hidden = false;
+  } else if (!p && G.state === 'pause') {
+    G.state = 'play'; $('overlay').hidden = true;
+  }
+}
+function updHud() {
+  $('score').textContent = G.score;
+  $('best').textContent = Math.max(G.best, G.score);
+}
+
+// ----- loop -----
+let acc = 0, last = performance.now();
+function frame(now) {
+  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (G.state === 'play') {
+    const sp = 260;
+    if (G.keys.ArrowLeft) G.heldX -= sp * dt;
+    if (G.keys.ArrowRight) G.heldX += sp * dt;
+    G.heldX = Math.max(0, Math.min(W, G.heldX));
+    acc += dt;
+    while (acc >= STEP) {
+      acc -= STEP;
+      for (const e of stepWorld(G.w)) onMerge(e);
+    }
+    if (G.cool > 0) {
+      G.cool -= dt;
+      if (G.cool <= 0) { G.held = G.next; G.next = randKind(); drawNext(); }
+    }
+    if (aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver(); }
+    else G.overT = Math.max(0, G.overT - dt * 2);
+  } else if (G.state === 'ending') {
+    G.endT += dt;
+    if (G.endT > 1.1) showOver();
+  } else acc = 0;
+  if (G.state !== 'pause') {
+    for (const p of G.fx) { p.t += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; }
+    G.fx = G.fx.filter(p => p.t < p.life);
+    for (const p of G.pops) p.t += dt;
+    G.pops = G.pops.filter(p => p.t < (p.life || 0.9));
+    G.shake = Math.max(0, G.shake - dt);
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+
+function render() {
+  const c = ctx, k = scale * dpr;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.fillStyle = '#FFF9F2'; c.fillRect(0, 0, board.width, board.height);
+  let sx = 0, sy = 0;
+  if (G.shake > 0) { sx = (Math.random() - 0.5) * G.shake * 18; sy = (Math.random() - 0.5) * G.shake * 18; }
+  c.setTransform(k, 0, 0, k, sx * k, sy * k);
+
+  // box floor tint and the danger line
+  const g = c.createLinearGradient(0, DEAD_Y, 0, H);
+  g.addColorStop(0, 'rgba(236,224,204,0)'); g.addColorStop(1, 'rgba(236,224,204,.55)');
+  c.fillStyle = g; c.fillRect(0, DEAD_Y, W, H - DEAD_Y);
+  const danger = G.w.bodies.some(b => G.w.time - b.born > 1.0 && b.y - b.r < DEAD_Y + 50);
+  const blink = G.overT > 0 ? (Math.sin(performance.now() / 70) > 0 ? 1 : 0.35) : 1;
+  c.save();
+  c.setLineDash([10, 8]); c.lineWidth = 3;
+  c.strokeStyle = danger || G.overT > 0 ? `rgba(229,72,47,${blink})` : 'rgba(205,181,150,.45)';
+  c.beginPath(); c.moveTo(0, DEAD_Y); c.lineTo(W, DEAD_Y); c.stroke();
+  c.restore();
+
+  // aim guide + held animal
+  if (G.state === 'play' || G.state === 'pause') {
+    const t = G.held != null ? G.held : null;
+    const r = t != null ? KINDS[t].r : 14, x = clampX(G.heldX, r);
+    c.save(); c.setLineDash([2, 9]); c.lineCap = 'round'; c.lineWidth = 3; c.strokeStyle = 'rgba(91,70,54,.25)';
+    c.beginPath(); c.moveTo(x, DROP_Y + r + 6); c.lineTo(x, H); c.stroke(); c.restore();
+    if (t != null) drawSprite(c, t, x, DROP_Y, r, 0);
+  }
+
+  for (const b of G.w.bodies) drawSprite(c, b.t, b.x, b.y, b.r, b.ang);
+
+  for (const p of G.fx) {
+    c.globalAlpha = 1 - p.t / p.life; c.fillStyle = p.col;
+    c.beginPath(); c.arc(p.x, p.y, p.r * 0.8, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+  c.font = '900 22px "Zen Maru Gothic", sans-serif'; c.textAlign = 'center';
+  for (const p of G.pops) {
+    const life = p.life || 0.9;
+    c.globalAlpha = Math.max(0, Math.min(1, 1 - p.t / life));
+    c.font = p.small ? '900 17px "Zen Maru Gothic", sans-serif' : '900 22px "Zen Maru Gothic", sans-serif';
+    c.lineWidth = 5; c.strokeStyle = '#FFF8EA'; c.strokeText(p.text, p.x, p.y - p.t * 50);
+    c.fillStyle = p.small ? '#5B4636' : '#D9805F'; c.fillText(p.text, p.x, p.y - p.t * 50);
+  }
+  c.globalAlpha = 1;
+  if (G.state === 'ending') {
+    c.fillStyle = `rgba(91,70,54,${Math.min(0.3, G.endT * 0.4)})`; c.fillRect(0, 0, W, H);
+  }
+}
+
+// ----- input -----
+function toWorldX(ev) { const rc = board.getBoundingClientRect(); return (ev.clientX - rc.left) / rc.width * W; }
+let pDown = false;
+board.addEventListener('pointerdown', ev => {
+  if (G.state !== 'play') return;
+  pDown = true; board.setPointerCapture(ev.pointerId); G.heldX = toWorldX(ev); ev.preventDefault();
+});
+board.addEventListener('pointermove', ev => {
+  if (G.state !== 'play') return;
+  if (pDown || ev.pointerType === 'mouse') G.heldX = toWorldX(ev);
+});
+board.addEventListener('pointerup', ev => {
+  if (!pDown) return;
+  pDown = false; G.heldX = toWorldX(ev); drop();
+});
+board.addEventListener('pointercancel', () => { pDown = false; });
+window.addEventListener('keydown', ev => {
+  if (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') { G.keys[ev.key] = true; ev.preventDefault(); }
+  else if ((ev.key === ' ' || ev.key === 'ArrowDown') && G.state === 'play') { drop(); ev.preventDefault(); }
+  else if (ev.key === 'p' || ev.key === 'P' || ev.key === 'Escape') setPause(G.state === 'play');
+});
+window.addEventListener('keyup', ev => { G.keys[ev.key] = false; });
+$('pauseBtn').onclick = () => setPause(G.state === 'play');
+const sb = $('soundBtn');
+sb.textContent = soundOn ? '音 ON' : '音 OFF';
+sb.onclick = () => {
+  soundOn = !soundOn; store.set('sound', soundOn); sb.textContent = soundOn ? '音 ON' : '音 OFF';
+  if (soundOn) { unlockAudio(); sfx.drop(); } else if (silentEl) silentEl.pause();
+};
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
+window.addEventListener('resize', layout);
+
+layout(); updHud(); showTitle();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawRing);
+requestAnimationFrame(t => { last = t; frame(t); });
+</script>
