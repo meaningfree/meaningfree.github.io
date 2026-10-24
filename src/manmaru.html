@@ -438,26 +438,53 @@ const G = {
 const randKind = () => Math.floor(Math.random() * SPAWN_KINDS);
 
 // ----- sound -----
-let AC = null, soundOn = store.get('sound', true);
+// Web Audio is silenced by the iPhone mute switch unless the page also plays media,
+// so the first tap marks the session as playback and starts a looping silent clip.
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+let AC = null, OUTPUT = null, silentEl = null, soundOn = store.get('sound', true);
 function ac() {
-  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch { AC = null; } }
-  if (AC && AC.state === 'suspended') AC.resume();
+  if (!AC) {
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const comp = AC.createDynamicsCompressor(), master = AC.createGain();
+      master.gain.value = 0.9;
+      comp.connect(master).connect(AC.destination);
+      OUTPUT = comp;
+    } catch { AC = null; }
+  }
+  if (AC && AC.state !== 'running') AC.resume().catch(() => {});
   return AC;
 }
-function tone(f0, f1, dur, type = 'sine', vol = 0.18, delay = 0) {
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+  if (!silentEl) {
+    try {
+      silentEl = new Audio(SILENT_WAV); silentEl.loop = true; silentEl.volume = 0.01;
+      silentEl.setAttribute('playsinline', '');
+      const pr = silentEl.play(); if (pr) pr.catch(() => {});
+    } catch {}
+  }
+  ac();
+}
+['pointerdown', 'touchend', 'keydown', 'click'].forEach(ev => document.addEventListener(ev, () => { if (soundOn) unlockAudio(); }, { capture: true, passive: true }));
+function tone(f0, f1, dur, type = 'triangle', vol = 0.3, delay = 0) {
   if (!soundOn) return;
   const a = ac(); if (!a) return;
-  const t0 = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+  const t0 = a.currentTime + delay + 0.005, o = a.createOscillator(), g = a.createGain();
   o.type = type; o.frequency.setValueAtTime(f0, t0); o.frequency.exponentialRampToValueAtTime(f1, t0 + dur);
-  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + dur + 0.02);
+  o.connect(g).connect(OUTPUT); o.start(t0); o.stop(t0 + dur + 0.03);
 }
+// Pitches stay above ~500 Hz so phone speakers can play them.
 const sfx = {
-  drop() { tone(320, 140, 0.12, 'sine', 0.14); },
-  merge(t) { const f = 300 * Math.pow(2, t / 5); tone(f, f * 1.6, 0.14, 'triangle', 0.2); tone(f * 1.5, f * 2, 0.1, 'sine', 0.08, 0.04); },
-  melon() { [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, f * 1.01, 0.22, 'triangle', 0.16, i * 0.08)); },
-  over() { [440, 370, 311, 220].forEach((f, i) => tone(f, f * 0.97, 0.3, 'triangle', 0.16, i * 0.16)); },
+  drop() { tone(880, 520, 0.09, 'triangle', 0.32); },
+  merge(t) {   // a bubbly "pop" that gets lower as the animals get bigger
+    const f = 1300 * Math.pow(2, -t / 9);
+    tone(f, f * 1.9, 0.11, 'triangle', 0.4); tone(f * 1.5, f * 2.6, 0.09, 'sine', 0.22, 0.05);
+  },
+  melon() { [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, f * 1.01, 0.2, 'triangle', 0.32, i * 0.08)); },
+  over() { [880, 740, 622, 523].forEach((f, i) => tone(f, f * 0.97, 0.28, 'triangle', 0.32, i * 0.16)); },
 };
 
 // ----- layout -----
@@ -708,7 +735,10 @@ window.addEventListener('keyup', ev => { G.keys[ev.key] = false; });
 $('pauseBtn').onclick = () => setPause(G.state === 'play');
 const sb = $('soundBtn');
 sb.textContent = soundOn ? '音 ON' : '音 OFF';
-sb.onclick = () => { soundOn = !soundOn; store.set('sound', soundOn); sb.textContent = soundOn ? '音 ON' : '音 OFF'; if (soundOn) ac(); };
+sb.onclick = () => {
+  soundOn = !soundOn; store.set('sound', soundOn); sb.textContent = soundOn ? '音 ON' : '音 OFF';
+  if (soundOn) { unlockAudio(); sfx.drop(); } else if (silentEl) silentEl.pause();
+};
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
 window.addEventListener('resize', layout);
 
