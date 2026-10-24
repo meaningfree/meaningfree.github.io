@@ -74,7 +74,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(34,21,12,.92);color:var(--cream);
   padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;pointer-events:none;white-space:nowrap}
 
-/* move pad on the left (← ↓ →), one big rotate button on the right, like a game controller */
+/* ← → side by side, then fast drop, then one big rotate button on the right */
 .pad{display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr;gap:8px;padding-bottom:4px}
 .pad button{height:62px;border-radius:12px;border:0;touch-action:none;
   background:linear-gradient(#5A3A1F,#40280F);box-shadow:inset 0 1px 0 rgba(255,220,170,.18),0 3px 0 #1A0E05;color:var(--cream);
@@ -121,8 +121,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 
   <div class="pad" id="pad">
     <button type="button" id="bL" aria-label="左へ"><svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>左</button>
-    <button type="button" id="bD" aria-label="はやく落とす"><svg viewBox="0 0 24 24"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>はやく</button>
     <button type="button" id="bR" aria-label="右へ"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>右</button>
+    <button type="button" id="bD" aria-label="はやく落とす"><svg viewBox="0 0 24 24"><path d="m5 9 7 7 7-7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>はやく</button>
     <button type="button" id="bRot" class="rot" aria-label="回転"><svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.05-4.95" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M18.5 3.5v4.5H14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>回転</button>
   </div>
 </div>
@@ -477,7 +477,7 @@ function makeStream(rnd = Math.random) {
   }
   const HELP = `<p>下から木の壁がどんどんせり上がってくる。すきまにピースをはめて、横一列そろえると消える。上までつみあがったらおしまい。</p>
     <ul><li>キーボード: ← → で移動、スペースで回転、↓ で速く落とす</li>
-    <li>スマホ: 下のボタン（左・はやく・右・回転）。盤面タップでも回転、左右になぞって移動できる</li>
+    <li>スマホ: 下のボタン（左・右・はやく・回転）。盤面タップでも回転、左右になぞって移動できる</li>
     <li>消えたあと、置いたブロックの下が空いていたら落ちる。また列がそろえば連鎖</li>
     <li>上のバーがたまると壁が1段上がる。${LINES_PER_LEVEL}段消すごとにレベルアップ</li>
     <li>P か Esc キーで一時停止</li></ul>`;
