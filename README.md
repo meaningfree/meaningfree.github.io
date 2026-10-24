@@ -10,7 +10,7 @@
 | `wordle/index.html` | <https://meaningfree.github.io/wordle/> |
 | `matchstick/index.html` | <https://meaningfree.github.io/matchstick/> |
 | `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
-| `suika/index.html` | <https://meaningfree.github.io/suika/> |
+| `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
 
 ## むげんワードル
 
@@ -82,30 +82,31 @@ python3 tools/make-matchstick.py matchstick/index.html
 python3 tools/make-sukima.py sukima/index.html
 ```
 
-## フルーツころころ
+## まんまるどうぶつ
 
-「スイカゲーム」風の落ちものパズル。上からフルーツを落として箱に入れ、同じフルーツどうしが
-くっつくと1段階大きなフルーツに進化する。
+まるいどうぶつを上から落として柵に入れていく、落ちものパズル。同じどうぶつどうしが
+くっつくと、つぎの大きなどうぶつに変身する。
 
-- フルーツは11種類: さくらんぼ → いちご → ぶどう → デコポン → かき → りんご → なし → もも →
-  パイナップル → メロン → スイカ。スイカどうしがくっつくと消える
-- 落とせるのは小さい5種類（さくらんぼ〜かき）からランダム。次のフルーツは NEXT に表示
-- 得点は進化してできたフルーツで 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66 点（スイカ2つが消えると66点）
-- 赤い線より上にフルーツが積もったまま2秒たつとゲームオーバー
+- どうぶつは10種類: ひよこ → ねずみ → うさぎ → ねこ → いぬ → ぶた → ひつじ → パンダ →
+  ライオン → ゾウ。ゾウどうしがくっつくと、なかよくおうちへ帰って消える
+- 落とせるのは小さい4種類（ひよこ〜ねこ）からランダム。次のどうぶつは NEXT に表示
+- 得点は変身してできたどうぶつで 2, 6, 12, 20, 30, 42, 56, 72, 90 点（ゾウ2頭が帰ると120点）
+- 赤い線より上にはみだしたまま2秒たつとゲームオーバー
+- どうぶつずかん: 一度でも会えたどうぶつは画面下のずかんに色つきでのる（端末に保存）
 - 物理演算は自前（円どうしの位置ベースの衝突解決、1フレーム8サブステップ）。外部ライブラリなし
 - 効果音つき（Web Audio で合成）、一時停止（P / Esc）、ベストスコアは端末に保存
 - 操作: 盤面を左右になぞって位置を決め、指をはなすと落ちる / キーボードは ← → で移動、スペースか ↓ で落とす
 
 ### ファイル
 
-- `src/suika.html` — 生成元（Artifact 用の断片形式）
-- `suika/index.html` — 公開用のスタンドアロン版
-- `tools/make-suika.py` — 変換スクリプト
+- `src/manmaru.html` — 生成元（Artifact 用の断片形式）
+- `manmaru/index.html` — 公開用のスタンドアロン版
+- `tools/make-manmaru.py` — 変換スクリプト
 
-`src/suika.html` を編集したら、公開版を作り直す:
+`src/manmaru.html` を編集したら、公開版を作り直す:
 
 ```sh
-python3 tools/make-suika.py suika/index.html
+python3 tools/make-manmaru.py manmaru/index.html
 ```
 
 ## GitHub Pages
