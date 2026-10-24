@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="木のブロックのすきまに、落ちてくるピースをぴったりはめるパズル。">
+<meta name="description" content="せり上がる木の壁のすきまにピースをはめて消していくパズル。">
 <title>すきまブロック</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <style>
-/* Layout: one-screen game on a dark walnut table — a light-wood tray holds the HUD, the well and the NEXT strip; big touch controls sit underneath. Single wooden look on purpose. */
+/* Layout: one-screen endless game on a dark walnut table — a light-wood tray holds the HUD, the well and the NEXT strip; big touch controls sit underneath. Single wooden look on purpose. */
 :root{
   --table:#22150C; --table-2:#2E1D10;
   --tray:#E2BC82; --tray-edge:#B4844A; --tray-ink:#4A2A12;
@@ -52,7 +52,8 @@ button{font:inherit;color:inherit;cursor:pointer}
   font-variant-numeric:tabular-nums;line-height:1.1}
 .hud .lv,.hud .tm{font-size:17px}
 .hud .sc{font-size:26px;letter-spacing:.02em}
-.hud .tm.low{color:var(--alarm)}
+.rise{height:6px;margin-inline:6px;border-radius:3px;background:rgba(74,42,18,.18);overflow:hidden}
+.rise i{display:block;height:100%;width:0;background:linear-gradient(90deg,#B4844A,var(--alarm));border-radius:3px}
 .hud small{font-family:var(--font-body);font-weight:900;font-size:11px;letter-spacing:.08em;margin-right:4px;opacity:.75}
 
 .well{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center}
@@ -92,8 +93,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 <div class="app">
   <div class="top">
     <h1>すきまブロック</h1>
-    <button class="chip" id="hintBtn" type="button" aria-label="ヒントを見る">ヒント</button>
-    <button class="chip" id="retryBtn" type="button" aria-label="この盤面をやりなおす">やりなおし</button>
+    <button class="chip" id="soundBtn" type="button" aria-label="効果音の切りかえ">音 ON</button>
+    <button class="chip" id="retryBtn" type="button" aria-label="はじめからやりなおす">やりなおし</button>
     <button class="chip" id="helpBtn" type="button" aria-label="あそびかた">？</button>
   </div>
 
@@ -101,8 +102,9 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="hud">
       <span class="lv"><small>LEVEL</small><span id="lv">1</span></span>
       <span class="sc" id="score">0</span>
-      <span class="tm" id="tmBox"><small>TIME</small><span id="time">60</span></span>
+      <span class="tm"><small>LINES</small><span id="lines">0</span></span>
     </div>
+    <div class="rise" aria-hidden="true"><i id="riseBar"></i></div>
     <div class="well" id="well">
       <canvas id="board" aria-label="ゲーム盤面"></canvas>
       <div class="toast" id="toast" hidden></div>
@@ -117,7 +119,7 @@ button{font:inherit;color:inherit;cursor:pointer}
     <div class="nextrow">
       <span>NEXT</span>
       <canvas id="next"></canvas>
-      <span class="left">のこり <b id="left">0</b></span>
+      <span class="left">BEST <b id="best">0</b></span>
     </div>
   </div>
 
@@ -153,7 +155,6 @@ for (const t of TYPES) {
     ROT[t].push(c); m = rotCW(m);
   }
 }
-// No upward kicks: a piece can never climb, which keeps the solver honest.
 const KICKS = [[0,0],[-1,0],[1,0],[-2,0],[2,0]];
 
 function fits(b, t, r, x, y) {
@@ -164,97 +165,71 @@ function fits(b, t, r, x, y) {
   }
   return true;
 }
-// I spawns standing up, ready to drop into a one-wide shaft.
-const spawnState = t => t === 'I' ? { t, r: 1, x: 2, y: 0 } : { t, r: 0, x: t === 'O' ? 4 : 3, y: 0 };
+const spawnState = t => ({ t, r: 0, x: t === 'O' ? 4 : 3, y: t === 'I' ? -1 : 0 });
 function rotated(b, p, dir) {
   const r = (p.r + dir + 4) % 4;
   for (const [kx, ky] of KICKS) if (fits(b, p.t, r, p.x + kx, p.y + ky)) return { t: p.t, r, x: p.x + kx, y: p.y + ky };
   return null;
 }
 
-// Can a piece of type t, starting at spawn, be steered onto exactly the cells in target?
-function reachable(b, t, target) {
-  const s = spawnState(t);
-  if (!fits(b, t, s.r, s.x, s.y)) return false;
-  const seen = new Set(), stack = [s];
-  const key = p => (p.r * 40 + p.x + 5) * 40 + p.y + 5;
-  seen.add(key(s));
-  while (stack.length) {
-    const p = stack.pop();
-    let hit = true;
-    for (const [dx, dy] of ROT[t][p.r]) {
-      const Y = p.y + dy;
-      if (Y < 0 || !target.has(Y * W + p.x + dx)) { hit = false; break; }
-    }
-    if (hit) return true;
-    const nb = [];
-    if (fits(b, t, p.r, p.x - 1, p.y)) nb.push({ t, r: p.r, x: p.x - 1, y: p.y });
-    if (fits(b, t, p.r, p.x + 1, p.y)) nb.push({ t, r: p.r, x: p.x + 1, y: p.y });
-    if (fits(b, t, p.r, p.x, p.y + 1)) nb.push({ t, r: p.r, x: p.x, y: p.y + 1 });
-    for (const d of [1, -1]) { const n = rotated(b, p, d); if (n) nb.push(n); }
-    for (const n of nb) { const k = key(n); if (!seen.has(k)) { seen.add(k); stack.push(n); } }
+// Gap shapes for the rising wall: every piece orientation that can be dropped
+// straight in, i.e. each column of the shape is open at the shape's top row.
+const SLOTS = (() => {
+  const out = [], seen = new Set();
+  for (const t of TYPES) for (let r = 0; r < 4; r++) {
+    const cs = ROT[t][r];
+    const mx = Math.min(...cs.map(c => c[0])), my = Math.min(...cs.map(c => c[1]));
+    const cells = cs.map(([x, y]) => [x - mx, y - my]);
+    const k = cells.map(([x, y]) => y * 10 + x).sort((a, b) => a - b).join(',');
+    if (seen.has(k)) continue;
+    seen.add(k);
+    let ok = true;
+    for (const x of new Set(cells.map(c => c[0]))) if (Math.min(...cells.filter(c => c[0] === x).map(c => c[1])) !== 0) ok = false;
+    if (!ok) continue;
+    const w = Math.max(...cells.map(c => c[0])) + 1, h = Math.max(...cells.map(c => c[1])) + 1;
+    out.push({ t, cells, w, h, weight: t === 'I' && h === 4 ? 0.7 : 1 });
   }
-  return false;
-}
+  return out;
+})();
 
-function shapeOf(cells) {
-  const norm = cs => { const mx = Math.min(...cs.map(c => c[0])), my = Math.min(...cs.map(c => c[1])); return cs.map(([x, y]) => (y - my) * 10 + x - mx).sort((a, b) => a - b).join(','); };
-  const k = norm(cells);
-  for (const t of TYPES) for (let r = 0; r < 4; r++) if (norm(ROT[t][r]) === k) return t;
-  return null;
-}
-
-// The wall has one narrow shaft that steps sideways now and then, like a crack.
-// A "region" is a sideways step (the connector) plus the straight shaft under it.
-// Fill order: each shaft from the bottom up with standing I pieces, then its
-// connector. Every row then fills completely and clears, opening the next region.
-function generate(level, rnd = Math.random) {
-  const minH = Math.min(15, 7 + level), maxH = 15;
-  for (let attempt = 0; attempt < 500; attempt++) {
-    const regions = [];
-    let c = 2 + Math.floor(rnd() * 6);
-    let k = 1 + (rnd() < .3 ? 1 : 0);
-    regions.push({ conn: null, col: c, top: 0, k });
-    let bottom = 4 * k - 1;
-    while (bottom + 1 < minH) {
-      const R = bottom, opts = [];
-      for (let d = 1; d <= 4; d++) for (const dir of [-1, 1]) {
-        const c2 = c + dir * d;
-        if (c2 < 0 || c2 >= W) continue;
-        for (let w = 0; w < (d === 1 ? 4 : 1); w++) opts.push([d, dir, c2]);
-      }
-      const [d, dir, c2] = opts[Math.floor(rnd() * opts.length)];
-      let conn = null, start = R;
-      if (d >= 2) {
-        conn = [];
-        for (let i = 1; i <= d; i++) conn.push([c + dir * i, R]);
-        for (let j = 1; j <= 4 - d; j++) conn.push([c2, R + j]);
-        start = R + 1 + (4 - d);
-      }
-      k = 1 + (rnd() < (level > 4 ? .4 : .25) ? 1 : 0);
-      regions.push({ conn, col: c2, top: start, k });
-      bottom = start + 4 * k - 1;
-      c = c2;
-    }
-    const h = bottom + 1;
-    if (h > maxH) continue;
-    const T = H - h;
-    const board = Array.from({ length: H }, (_, y) => new Array(W).fill(y >= T ? 1 : 0));
-    const queue = [];
-    for (const g of regions) {
-      for (let i = g.k - 1; i >= 0; i--) {
-        const cells = [0, 1, 2, 3].map(j => [g.col, T + g.top + 4 * i + j]);
-        queue.push({ t: 'I', cells });
-      }
-      if (g.conn) {
-        const cells = g.conn.map(([x, y]) => [x, y + T]);
-        queue.push({ t: shapeOf(cells), cells });
+// Endless supply of wall rows. Gaps are piece-shaped and wind down the wall:
+// each new gap starts next to (never right under) the bottom of the one above,
+// so a piece dropped into a gap rests on wood instead of sinking further.
+function makeStream(rnd = Math.random) {
+  let id = 0, blocked = [3 + Math.floor(rnd() * 4)];
+  const buf = [], types = {};
+  const total = SLOTS.reduce((n, s) => n + s.weight, 0);
+  function more() {
+    let s, opts = [];
+    // re-pick the shape until it has a spot beside the gap above
+    for (let tries = 0; tries < 30 && !opts.length; tries++) {
+      let pick = rnd() * total;
+      s = SLOTS[0];
+      for (const c of SLOTS) { pick -= c.weight; if (pick <= 0) { s = c; break; } }
+      const topCols = s.cells.filter(c => c[1] === 0).map(c => c[0]);
+      for (let x = 0; x <= W - s.w; x++) {
+        const cols = topCols.map(c => c + x);
+        if (cols.some(c => blocked.includes(c))) continue;
+        let d = 99;
+        for (const c of cols) for (const b of blocked) d = Math.min(d, Math.abs(c - b));
+        if (d <= 2) for (let k = 0; k < (d === 1 ? 4 : 1); k++) opts.push(x);
       }
     }
-    for (const q of queue) for (const [x, y] of q.cells) board[y][x] = 0;
-    return { board, rowTag: Array.from({ length: H }, (_, y) => y >= T), queue };
+    if (!opts.length) { s = SLOTS[1]; opts.push(blocked[0] > 4 ? 0 : W - 1); }
+    const x = opts[Math.floor(rnd() * opts.length)];
+    id++; types[id] = s.t;
+    for (let yy = 0; yy < s.h; yy++) {
+      const row = new Array(W).fill(1), ids = new Array(W).fill(0);
+      for (const [cx, cy] of s.cells) if (cy === yy) { row[x + cx] = 0; ids[x + cx] = id; }
+      buf.push({ row, ids });
+    }
+    blocked = s.cells.filter(c => c[1] === s.h - 1).map(c => c[0] + x);
   }
-  return null;
+  return {
+    next() { if (!buf.length) more(); return buf.shift(); },
+    upcoming() { if (buf.length < 8) { more(); more(); } return buf; },
+    types,
+  };
 }
 /*END CORE*/
 
@@ -264,46 +239,115 @@ function generate(level, rnd = Math.random) {
   const nv = $('next'), nctx = nv.getContext('2d');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const LINE_PTS = [0, 100, 300, 500, 800];
-  const LOCK_MS = 650, MAX_RESETS = 15, CLEAR_MS = 320;
+  const LOCK_MS = 600, MAX_RESETS = 15, CLEAR_MS = 300, START_ROWS = 8, LINES_PER_LEVEL = 8;
 
-  let best = 1;
-  try { best = Math.max(1, parseInt(localStorage.getItem('sukima-best') || '1', 10) || 1); } catch (e) {}
-  const saveBest = () => { try { localStorage.setItem('sukima-best', String(best)); } catch (e) {} };
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+  let best = parseInt(store.get('sukima-best-score', '0'), 10) || 0;
 
+  // ---------- sound (synthesized, starts after the first tap or key) ----------
+  const SND = (() => {
+    let ac = null, on = store.get('sukima-sound', 'on') !== 'off';
+    const ensure = () => {
+      if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+      if (ac.state === 'suspended') ac.resume();
+      return ac;
+    };
+    function tone(freq, dur, type, vol, slideTo, delay = 0) {
+      if (!on) return; const a = ensure(); if (!a) return;
+      const t = a.currentTime + delay, o = a.createOscillator(), g = a.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.03);
+    }
+    function noise(dur, freq, vol, q = 1, delay = 0) {
+      if (!on) return; const a = ensure(); if (!a) return;
+      const t = a.currentTime + delay, len = Math.max(1, Math.floor(a.sampleRate * dur));
+      const buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+      const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+      s.buffer = buf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q; g.gain.value = vol;
+      s.connect(f).connect(g).connect(a.destination); s.start(t);
+    }
+    return {
+      get on() { return on; },
+      toggle() { on = !on; store.set('sukima-sound', on ? 'on' : 'off'); if (on) ensure(); return on; },
+      unlock: ensure,
+      move() { tone(480, .035, 'square', .03); },
+      rotate() { tone(620, .07, 'triangle', .09, 880); },
+      lock() { noise(.07, 1500, .6, 2.5); tone(170, .14, 'triangle', .28, 85); },
+      clear(n) {
+        const notes = [523, 659, 784, 1047, 1319];
+        for (let i = 0; i <= Math.min(4, n); i++) tone(notes[i], .22, 'triangle', .13, null, i * .055);
+        noise(.3, 2600, .18, .8);
+      },
+      rise() { tone(95, .2, 'sine', .3, 55); noise(.14, 260, .35, 1); },
+      level() { [523, 659, 784, 1047].forEach((f, i) => tone(f, .14, 'square', .05, null, i * .08)); },
+      over() { [392, 330, 262, 196].forEach((f, i) => tone(f, .32, 'triangle', .16, null, i * .17)); },
+      start() { tone(440, .08, 'triangle', .1); tone(660, .14, 'triangle', .1, null, .08); },
+    };
+  })();
+  addEventListener('pointerdown', () => SND.unlock(), { once: true });
+  addEventListener('keydown', () => SND.unlock(), { once: true });
+  const soundBtn = $('soundBtn');
+  const showSound = () => { soundBtn.textContent = SND.on ? '音 ON' : '音 OFF'; };
+  showSound();
+  soundBtn.addEventListener('click', () => { SND.toggle(); showSound(); soundBtn.blur(); });
+
+  // ---------- game state ----------
   let G = null;
   let cs = 24, dpr = 1, tiles = null, bgImg = null;
   const particles = [];
 
-  const clone = p => ({ board: p.board.map(r => r.slice()), rowTag: p.rowTag.slice(), queue: p.queue.map(q => ({ t: q.t, cells: q.cells.map(c => c.slice()) })) });
-
-  // A level is a run of walls (Level 3-1, 3-2, ...). Each wall is cleared in turn.
-  function setup(level, score, puzzle) {
-    const waves = Math.min(4, 2 + Math.floor((level - 1) / 3));
-    puzzle = puzzle || { waves: Array.from({ length: waves }, () => generate(level)) };
-    const total = puzzle.waves.reduce((n, w) => n + w.queue.length, 0);
+  function setup() {
+    const stream = makeStream();
+    const board = Array.from({ length: H }, () => new Array(W).fill(0));
+    const ids = Array.from({ length: H }, () => new Array(W).fill(0));
+    for (let y = H - START_ROWS; y < H; y++) { const r = stream.next(); board[y] = r.row; ids[y] = r.ids; }
     G = {
-      level, puzzle, startScore: score, score, wave: -1,
-      board: null, rowTag: null, queue: null, qi: 0, curIdx: -1, cur: null,
-      time: 15 + total * 6, phase: 'ready', gAcc: 0, lockT: 0, resets: 0,
-      soft: false, clearing: null, hintT: 0,
-      grav: Math.max(320, 900 - (level - 1) * 45),
+      stream, board, ids, cur: null, next: [], bag: [],
+      score: 0, lines: 0, level: 1, phase: 'ready',
+      gAcc: 0, lockT: 0, resets: 0, soft: false, clearing: null, riseT: 0,
     };
-    loadWave();
+    while (G.next.length < 3) G.next.push(pickPiece(G.next.length + 1));
     particles.length = 0;
     hud();
   }
-  function loadWave() {
-    const s = clone(G.puzzle.waves[++G.wave]);
-    G.board = s.board; G.rowTag = s.rowTag; G.queue = s.queue; G.qi = 0; G.curIdx = -1;
-  }
-  function begin() { G.phase = 'play'; spawnNext(); hideOverlay(); }
+  const gravMs = () => Math.max(110, 850 - (G.level - 1) * 70);
+  const wallRows = () => { for (let y = 0; y < H; y++) if (G.board[y].some(v => v === 1)) return H - y; return 0; };
+  // Rises faster as the level goes up, and hurries when the wall is almost gone.
+  const riseMs = () => Math.max(2400, 9000 - (G.level - 1) * 650) * (wallRows() < 5 ? .4 : 1);
 
+  // Gap shapes in the order the player will reach them (top of the wall first).
+  function gapOrder() {
+    const seen = new Set(), out = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const id = G.ids[y][x];
+      if (id && !G.board[y][x] && !seen.has(id)) { seen.add(id); out.push(G.stream.types[id]); }
+    }
+    for (const r of G.stream.upcoming()) for (const id of r.ids) if (id && !seen.has(id)) { seen.add(id); out.push(G.stream.types[id]); }
+    return out;
+  }
+  // Half the time the next piece matches the gap it will meet; otherwise a 7-bag.
+  function pickPiece(k) {
+    const gaps = gapOrder();
+    if (gaps[k] && Math.random() < .5) return gaps[k];
+    if (!G.bag.length) { G.bag = TYPES.slice(); for (let i = 6; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [G.bag[i], G.bag[j]] = [G.bag[j], G.bag[i]]; } }
+    return G.bag.pop();
+  }
+
+  function begin() { G.phase = 'play'; SND.start(); spawnNext(); hideOverlay(); }
   function spawnNext() {
-    if (G.qi >= G.queue.length) { lose('ピースがなくなりました', 'すきまが残っています。順番どおりにはめると、かならず埋まります。'); return; }
-    G.curIdx = G.qi;
-    const p = spawnState(G.queue[G.qi++].t);
+    const t = G.next.shift();
+    G.next.push(pickPiece(G.next.length + 1));
+    const p = spawnState(t);
     G.cur = p; G.gAcc = 0; G.lockT = 0; G.resets = 0;
-    if (!fits(G.board, p.t, p.r, p.x, p.y)) { G.cur = null; lose('つみあがりました', '入口がふさがってしまいました。'); }
+    if (!fits(G.board, p.t, p.r, p.x, p.y)) { G.cur = null; gameOver(); }
     hud();
   }
 
@@ -313,12 +357,12 @@ function generate(level, rnd = Math.random) {
   function move(dx) {
     if (!canPlay()) return;
     const p = G.cur;
-    if (fits(G.board, p.t, p.r, p.x + dx, p.y)) { p.x += dx; touched(); }
+    if (fits(G.board, p.t, p.r, p.x + dx, p.y)) { p.x += dx; touched(); SND.move(); }
   }
   function rotate(dir) {
     if (!canPlay()) return;
     const n = rotated(G.board, G.cur, dir);
-    if (n) { G.cur = n; touched(); }
+    if (n) { G.cur = n; touched(); SND.rotate(); }
   }
   function stepDown() {
     if (!canPlay()) return false;
@@ -336,61 +380,66 @@ function generate(level, rnd = Math.random) {
 
   function lock() {
     const p = G.cur; G.cur = null;
+    SND.lock();
     for (const [dx, dy] of ROT[p.t][p.r]) {
       const X = p.x + dx, Y = p.y + dy;
-      if (Y < 0) { lose('つみあがりました', '盤面の上まで届いてしまいました。'); return; }
+      if (Y < 0) { gameOver(); return; }
       G.board[Y][X] = 2;
     }
     const full = [];
     for (let y = 0; y < H; y++) if (G.board[y].every(v => v)) full.push(y);
     if (full.length) {
       G.phase = 'clearing'; G.clearing = { rows: full, t: 0 };
+      SND.clear(full.length);
       if (!reduceMotion) for (const y of full) for (let x = 0; x < W; x++) {
-        particles.push({ x: (x + .5) * cs, y: (y + .5) * cs, vx: (Math.random() - .5) * cs * 9, vy: -Math.random() * cs * 10, life: 0.9, s: cs * (.18 + Math.random() * .22), rot: Math.random() * 6 });
+        particles.push({ x: (x + .5) * cs, y: (y + .5) * cs, vx: (Math.random() - .5) * cs * 9, vy: -Math.random() * cs * 10, life: .9, s: cs * (.18 + Math.random() * .22), rot: Math.random() * 6 });
       }
-    } else afterLock();
+    } else spawnNext();
     hud();
   }
   function finishClear() {
     const rows = G.clearing.rows; G.clearing = null;
-    const keep = [], tags = [];
-    for (let y = 0; y < H; y++) if (!rows.includes(y)) { keep.push(G.board[y]); tags.push(G.rowTag[y]); }
-    while (keep.length < H) { keep.unshift(new Array(W).fill(0)); tags.unshift(false); }
-    G.board = keep; G.rowTag = tags;
-    // Planned spots slide down with the rows above a cleared line.
-    for (let i = G.qi; i < G.queue.length; i++) for (const c of G.queue[i].cells) c[1] += rows.filter(r => r > c[1]).length;
+    const keep = [], keepIds = [];
+    for (let y = 0; y < H; y++) if (!rows.includes(y)) { keep.push(G.board[y]); keepIds.push(G.ids[y]); }
+    while (keep.length < H) { keep.unshift(new Array(W).fill(0)); keepIds.unshift(new Array(W).fill(0)); }
+    G.board = keep; G.ids = keepIds;
     G.score += LINE_PTS[Math.min(4, rows.length)] * G.level;
-    if (rows.length >= 3) toast(rows.length + '段消し！');
+    G.lines += rows.length;
+    const lv = 1 + Math.floor(G.lines / LINES_PER_LEVEL);
+    if (lv > G.level) { G.level = lv; toast('レベル ' + lv + '！'); SND.level(); }
+    else if (rows.length >= 3) toast(rows.length + '段消し！');
     if (rows.length >= 3 && !reduceMotion) {
       cv.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(-4px,3px)' }, { transform: 'translate(4px,-2px)' }, { transform: 'translate(-2px,1px)' }, { transform: 'translate(0,0)' }], { duration: 260 });
     }
     G.phase = 'play';
-    afterLock();
+    spawnNext();
     hud();
-  }
-  function afterLock() {
-    if (G.rowTag.includes(true)) spawnNext();
-    else if (G.wave + 1 < G.puzzle.waves.length) { loadWave(); toast('つぎの壁！'); spawnNext(); }
-    else win();
   }
 
-  function win() {
-    G.phase = 'won';
-    const bonus = Math.ceil(G.time) * 20;
-    G.score += bonus;
-    if (G.level + 1 > best) { best = G.level + 1; saveBest(); }
-    hud();
-    showOverlay('クリア！',
-      `<p>ぜんぶの壁を消しました。</p><div class="big">${G.score.toLocaleString()}</div><p>のこり時間ボーナス +${bonus.toLocaleString()}</p>`,
-      [['つぎのレベルへ', () => { setup(G.level + 1, G.score); begin(); }]]);
+  // Push one wall row up from the bottom. Anything pushed off the top ends the game.
+  function rise() {
+    if (G.board[0].some(v => v)) { gameOver(); return; }
+    const r = G.stream.next();
+    G.board.shift(); G.board.push(r.row);
+    G.ids.shift(); G.ids.push(r.ids);
+    SND.rise();
+    const p = G.cur;
+    if (p && !fits(G.board, p.t, p.r, p.x, p.y)) {
+      if (fits(G.board, p.t, p.r, p.x, p.y - 1)) p.y--;
+      else { G.cur = null; gameOver(); }
+    }
   }
-  function lose(title, msg) {
-    G.phase = 'lost'; G.cur = null;
+
+  function gameOver() {
+    if (G.phase === 'over') return;
+    G.phase = 'over'; G.cur = null;
+    SND.over();
+    const isBest = G.score > best;
+    if (isBest) { best = G.score; store.set('sukima-best-score', String(best)); }
     hud();
-    showOverlay(title, `<p>${msg}</p>`, [
-      ['もういちど', () => { setup(G.level, G.startScore, G.puzzle); begin(); }],
-      ['べつの盤面', () => { setup(G.level, G.startScore); begin(); }, true],
-    ]);
+    showOverlay('つみあがった！',
+      `<div class="big">${G.score.toLocaleString()}</div><p>${G.lines}段消して、レベル${G.level}まで行きました。${isBest ? '<br>ベスト更新！' : ''}</p>`,
+      [['もういちど', () => { setup(); begin(); }]]);
   }
 
   // ---------- overlay / hud ----------
@@ -401,7 +450,7 @@ function generate(level, rnd = Math.random) {
     for (const [label, fn, sub] of buttons) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'btn' + (sub ? ' sub' : ''); b.textContent = label;
-      b.addEventListener('click', fn);
+      b.addEventListener('click', () => { b.blur(); fn(); });
       box.appendChild(b);
     }
     $('overlay').hidden = false;
@@ -411,32 +460,24 @@ function generate(level, rnd = Math.random) {
   let toastTimer = null;
   function toast(msg) {
     const t = $('toast'); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 1600);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 1400);
   }
-  const HELP = `<p>木のブロックのすきまに、落ちてくるピースをぴったりはめよう。横一列がそろうと消えます。壁をぜんぶ消したら、つぎの壁へ。最後の壁まで消したらクリア。</p>
-    <ul><li>すきまは1列の縦穴。ときどき横にずれる。NEXT の順にはめれば、かならず埋まる</li>
-    <li>キーボード: ← → で移動、スペースで回転、↓ で速く落とす</li>
-    <li>スマホ: 盤面タップで回転、左右になぞって移動、下ボタンで速く落とす</li>
-    <li>こまったら「ヒント」ではめる場所が光る</li></ul>`;
-  function showStart() {
-    const btns = [['レベル1からあそぶ', () => { setup(1, 0, G.level === 1 ? G.puzzle : null); begin(); }]];
-    if (best > 1) btns.unshift([`レベル${best}からつづける`, () => { setup(best, 0); begin(); }]);
-    if (best > 1) btns[1][2] = true;
-    showOverlay('すきまブロック', HELP, btns);
-  }
+  const HELP = `<p>下から木の壁がどんどんせり上がってくる。すきまにピースをはめて、横一列そろえると消える。上までつみあがったらおしまい。</p>
+    <ul><li>キーボード: ← → で移動、スペースで回転、↓ で速く落とす</li>
+    <li>スマホ: 盤面タップで回転、左右になぞって移動、下のボタンでも操作できる</li>
+    <li>上のバーがたまると壁が1段上がる。${LINES_PER_LEVEL}段消すごとにレベルアップ</li></ul>`;
+  function showStart() { showOverlay('すきまブロック', HELP, [['スタート', () => { setup(); begin(); }]]); }
   function pause(title) {
     if (!G || G.phase !== 'play') return;
-    G.phase = 'paused';
+    G.phase = 'paused'; G.soft = false;
     showOverlay(title, title === 'あそびかた' ? HELP : '<p>ゲームを止めています。</p>', [['つづける', () => { G.phase = 'play'; hideOverlay(); }]]);
   }
 
   function hud() {
-    $('lv').textContent = G.level + '-' + (G.wave + 1);
+    $('lv').textContent = G.level;
     $('score').textContent = G.score.toLocaleString();
-    const t = Math.max(0, Math.ceil(G.time));
-    $('time').textContent = t;
-    $('tmBox').classList.toggle('low', t <= 10 && G.phase === 'play');
-    $('left').textContent = Math.max(0, G.queue.length - G.qi);
+    $('lines').textContent = G.lines;
+    $('best').textContent = Math.max(best, G.score).toLocaleString();
     drawNext();
   }
 
@@ -507,29 +548,25 @@ function generate(level, rnd = Math.random) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.drawImage(bgImg, 0, 0, cs * W, cs * H);
     const b = G.board;
+    let topY = H;
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const v = b[y][x];
       if (!v) continue;
+      if (y < topY) topY = y;
       const img = v === 1 ? tiles.base[(x * 7 + y * 13) % 4] : tiles.placed[(x + y) % 2];
       ctx.drawImage(img, x * cs, y * cs, cs, cs);
+    }
+    // danger glow when the stack nears the top
+    if (topY < 6 && G.phase !== 'ready') {
+      const a = (6 - topY) / 6 * (.35 + .2 * Math.sin(now / 160));
+      const g = ctx.createLinearGradient(0, 0, 0, cs * 5);
+      g.addColorStop(0, `rgba(229,72,47,${a})`); g.addColorStop(1, 'rgba(229,72,47,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, cs * W, cs * 5);
     }
     if (G.clearing) {
       const k = G.clearing.t / CLEAR_MS;
       ctx.fillStyle = `rgba(255,244,214,${.85 * Math.sin(Math.PI * Math.min(1, k))})`;
       for (const y of G.clearing.rows) ctx.fillRect(0, y * cs, cs * W, cs);
-    }
-    // hint
-    if (G.hintT > 0 && G.cur) {
-      const plan = G.queue[G.curIdx];
-      ctx.save();
-      ctx.strokeStyle = '#A6F08E'; ctx.lineWidth = Math.max(2, cs / 9);
-      ctx.globalAlpha = .55 + .45 * Math.sin(now / 120);
-      ctx.fillStyle = 'rgba(166,240,142,.22)';
-      for (const [X, Y] of plan.cells) {
-        ctx.fillRect(X * cs, Y * cs, cs, cs);
-        ctx.strokeRect(X * cs + 2, Y * cs + 2, cs - 4, cs - 4);
-      }
-      ctx.restore();
     }
     const p = G.cur;
     if (p) {
@@ -566,18 +603,19 @@ function generate(level, rnd = Math.random) {
     const w = nv.width / dpr, h = nv.height / dpr;
     nctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     nctx.clearRect(0, 0, w, h);
+    if (!tiles) return;
     const m = Math.max(5, Math.floor(h / 2.6));
     let x = 4;
-    for (let i = G.qi; i < Math.min(G.queue.length, G.qi + 4); i++) {
-      const t = G.queue[i].t, cells = ROT[t][0];
+    G.next.forEach((t, i) => {
+      const cells = ROT[t][0];
       const minY = Math.min(...cells.map(c => c[1])), maxY = Math.max(...cells.map(c => c[1]));
       const maxX = Math.max(...cells.map(c => c[0])), minX = Math.min(...cells.map(c => c[0]));
       const oy = (h - (maxY - minY + 1) * m) / 2;
-      if (x + (maxX - minX + 1) * m > w) break;
-      nctx.globalAlpha = i === G.qi ? 1 : .6;
+      if (x + (maxX - minX + 1) * m > w) return;
+      nctx.globalAlpha = i === 0 ? 1 : .6;
       for (const [cx, cy] of cells) nctx.drawImage(tiles.base[1], x + (cx - minX) * m, oy + (cy - minY) * m, m, m);
       x += (maxX - minX + 1) * m + m * 1.6;
-    }
+    });
     nctx.globalAlpha = 1;
   }
 
@@ -586,10 +624,10 @@ function generate(level, rnd = Math.random) {
   function frame(now) {
     const dt = Math.min(100, now - lastT); lastT = now;
     if (G.phase === 'play') {
-      G.time -= dt / 1000;
-      if (G.time <= 0) { G.time = 0; lose('時間ぎれ', 'すきまを埋めきれませんでした。'); }
-      else if (G.cur) {
-        const iv = G.soft ? 35 : G.grav;
+      G.riseT += dt;
+      if (G.riseT >= riseMs()) { G.riseT = 0; rise(); }
+      if (G.phase === 'play' && G.cur) {
+        const iv = G.soft ? 35 : gravMs();
         G.gAcc += dt;
         while (G.gAcc >= iv && G.cur) {
           G.gAcc -= iv;
@@ -597,13 +635,11 @@ function generate(level, rnd = Math.random) {
         }
         if (G.cur && resting()) { G.lockT += dt; if (G.lockT >= LOCK_MS) lock(); }
       }
-      if (G.hintT > 0) G.hintT -= dt;
-      const t = Math.ceil(G.time);
-      if (String(t) !== $('time').textContent) hud();
     } else if (G.phase === 'clearing') {
       G.clearing.t += dt;
       if (G.clearing.t >= CLEAR_MS) finishClear();
     }
+    $('riseBar').style.width = (G.phase === 'ready' ? 0 : Math.min(100, G.riseT / riseMs() * 100)) + '%';
     for (let i = particles.length - 1; i >= 0; i--) {
       const q = particles[i], s = dt / 1000;
       q.vy += cs * 30 * s; q.x += q.vx * s; q.y += q.vy * s; q.rot += 6 * s; q.life -= s * 1.1;
@@ -649,18 +685,16 @@ function generate(level, rnd = Math.random) {
     const ty = Math.trunc(dy / step);
     while (gest.sy < ty) { stepDown(); gest.sy++; }
   });
-  cv.addEventListener('pointerup', e => {
+  cv.addEventListener('pointerup', () => {
     if (!gest) return;
-    const dt = performance.now() - gest.t0, dx = e.clientX - gest.x0, dy = e.clientY - gest.y0;
-    if (!gest.moved && dt < 320) rotate(1);
+    if (!gest.moved && performance.now() - gest.t0 < 320) rotate(1);
     gest = null;
   });
   cv.addEventListener('pointercancel', () => { gest = null; });
 
   addEventListener('keydown', e => {
-    if (!G) return;
+    if (!G || G.phase !== 'play') return;
     const k = e.key;
-    if (G.phase !== 'play') return;
     // keep Space from also pressing whichever button has focus
     if (k === ' ' && document.activeElement && document.activeElement.tagName === 'BUTTON') document.activeElement.blur();
     if (k === 'ArrowLeft') move(-1);
@@ -668,7 +702,6 @@ function generate(level, rnd = Math.random) {
     else if (k === 'ArrowDown') { if (!G.soft) G.gAcc = 9999; G.soft = true; }
     else if (k === ' ' || k === 'ArrowUp' || k === 'x' || k === 'X') { if (!e.repeat) rotate(1); }
     else if (k === 'z' || k === 'Z') { if (!e.repeat) rotate(-1); }
-    else if (k === 'h' || k === 'H') hint();
     else return;
     e.preventDefault();
   });
@@ -677,32 +710,23 @@ function generate(level, rnd = Math.random) {
     if (e.key === 'ArrowDown') G.soft = false;
     if (e.key === ' ' && G.phase === 'play') e.preventDefault();
   });
-  for (const b of document.querySelectorAll('.top button')) b.addEventListener('click', () => b.blur());
 
-  function hint() {
-    if (!canPlay()) return;
-    const plan = G.queue[G.curIdx];
-    if (plan.cells.some(([X, Y]) => Y < 0 || G.board[Y][X])) { toast('この盤面ではヒントが出せません'); return; }
-    G.hintT = 2600;
-  }
-  $('hintBtn').addEventListener('click', hint);
   $('retryBtn').addEventListener('click', () => {
+    $('retryBtn').blur();
     if (!G || G.phase === 'ready') return;
-    setup(G.level, G.startScore, G.puzzle); begin(); toast('はじめからやりなおし');
+    setup(); begin(); toast('はじめから');
   });
-  $('helpBtn').addEventListener('click', () => { if (G && G.phase === 'play') pause('あそびかた'); });
+  $('helpBtn').addEventListener('click', () => { $('helpBtn').blur(); pause('あそびかた'); });
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause('一時停止'); });
 
-  window.claude?.hot?.snapshot?.(() => ({ level: G && G.level, score: G && G.startScore }));
-  function start(data) {
+  function start() {
     resize();
     new ResizeObserver(resize).observe($('well'));
-    if (data && data.level) { setup(data.level, data.score || 0); begin(); }
-    else { setup(1, 0); showStart(); }
+    setup(); showStart();
     requestAnimationFrame(t => { lastT = t; frame(t); });
   }
   const hot = window.claude?.hot;
-  hot?.ready ? hot.ready(start) : start(hot?.data ?? {});
+  hot?.ready ? hot.ready(start) : start();
 })();
 </script>
 

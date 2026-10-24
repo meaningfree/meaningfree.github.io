@@ -12,7 +12,7 @@ HEAD = '''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="木のブロックのすきまに、落ちてくるピースをぴったりはめるパズル。">
+<meta name="description" content="せり上がる木の壁のすきまにピースをはめて消していくパズル。">
 '''
 i = body.index("</style>") + len("</style>")
 out = HEAD + body[:i] + "\n</head>\n<body>" + body[i:] + "\n</body>\n</html>\n"
