@@ -6,7 +6,7 @@ index.html を作る。
 import os, sys
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-body = open(os.path.join(HERE, "wordle.html"), encoding="utf-8").read()
+body = open(os.path.join(HERE, "src", "wordle.html"), encoding="utf-8").read()
 HEAD = '''<!DOCTYPE html>
 <html lang="ja">
 <head>
