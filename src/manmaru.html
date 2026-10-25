@@ -48,6 +48,9 @@ button{font:inherit;color:inherit;cursor:pointer}
 .hud .best b{font-family:var(--font-display);font-weight:900;font-size:17px;font-variant-numeric:tabular-nums;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .hud .best b.goal{font-size:13px;line-height:1.25;white-space:normal;text-align:right}
+.hud .best b.hurry{color:#D0543C}
+.time-btns{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.time-btns .btn small{display:block;font-size:12px;font-weight:700;opacity:.85}
 .hud .nx{display:flex;flex-direction:column;align-items:center;line-height:1}
 .hud .nx canvas{width:44px;height:44px;margin-top:2px;border-radius:50%;background:rgba(255,255,255,.7);box-shadow:inset 0 0 0 1.5px rgba(205,181,150,.6)}
 .well{flex:1;min-height:0;position:relative;display:flex;align-items:flex-end;justify-content:center}
@@ -435,6 +438,7 @@ const store = {
 const G = {
   w: newWorld(), state: 'title', mode: 'endless',
   score: 0, best: store.get('best', 0),
+  timeLimit: 60, timeLeft: 0, timeBest: store.get('timeBest', {}), timeUp: false, shownSec: -1,
   held: 0, next: 0, seen: store.get('seen', -1), heldX: W / 2, cool: 0, overT: 0, fx: [], pops: [], keys: {}, shake: 0, endT: 0,
 };
 const randKind = () => Math.floor(Math.random() * SPAWN_KINDS);
@@ -488,6 +492,8 @@ const sfx = {
   melon() { [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, f * 1.01, 0.2, 'triangle', 0.32, i * 0.08)); },
   clear() { [659, 784, 988, 1319].forEach((f, i) => tone(f, f * 1.02, 0.22, 'triangle', 0.34, i * 0.09)); },
   over() { [880, 740, 622, 523].forEach((f, i) => tone(f, f * 0.97, 0.28, 'triangle', 0.32, i * 0.16)); },
+  tick(last) { tone(last ? 1568 : 1175, last ? 1568 : 1175, 0.07, 'square', 0.12); },
+  timeUp() { [1319, 1047, 1319, 1568].forEach((f, i) => tone(f, f, 0.16, 'triangle', 0.3, i * 0.11)); },
 };
 
 // ----- layout -----
@@ -548,10 +554,17 @@ function drawNext() {
 }
 
 // ----- game flow -----
-function start(mode) {
+// タイムアタック: how many points in a fixed time. Choices in seconds.
+const TIMES = [60, 180, 300];
+const timeName = t => (t / 60) + 'ぷん';
+const clock = sec => { sec = Math.max(0, Math.ceil(sec)); return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0'); };
+
+function start(mode, limit) {
   ac();
   if (mode) G.mode = mode;
+  if (limit) G.timeLimit = limit;
   G.w = newWorld(); G.score = 0; G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
+  G.timeLeft = G.timeLimit; G.timeUp = false; G.shownSec = -1;
   G.held = randKind(); G.next = randKind(); G.heldX = W / 2;
   G.state = 'play';
   $('overlay').hidden = true;
@@ -581,9 +594,11 @@ function onMerge(e) {
   if (G.mode === 'elephant' && t > LAST && G.state === 'play') win();
   updHud();
 }
-function gameOver() {
+function gameOver(timeUp) {
   if (G.state !== 'play') return;
-  G.state = 'ending'; G.endT = 0; sfx.over();
+  G.timeUp = !!timeUp;
+  G.state = 'ending'; G.endT = 0;
+  if (timeUp) { sfx.timeUp(); G.held = null; } else sfx.over();
 }
 function win() {
   if (G.state !== 'play') return;
@@ -612,6 +627,20 @@ function showOver() {
       '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
     $('again').onclick = () => start('elephant');
     $('toTitle').onclick = showTitle;
+  } else if (G.mode === 'time') {
+    const key = G.timeLimit, prev = G.timeBest[key] || 0, newBest = G.score > prev;
+    if (newBest) { G.timeBest[key] = G.score; store.set('timeBest', G.timeBest); }
+    $('ovTitle').textContent = G.timeUp ? 'タイムアップ！' : 'さくから はみだした！';
+    $('ovBody').innerHTML = `<p>${timeName(key)}で</p><div class="big">${G.score}</div>` +
+      (G.timeUp ? '' : `<p>のこり ${clock(G.timeLeft)} で おしまい</p>`) +
+      (newBest ? '<span class="new">ベスト更新！</span>' : `<p>${timeName(key)}のベスト ${prev}</p>`) +
+      `<p>いちばん大きいどうぶつ：${topName}</p>`;
+    $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>' +
+      '<button class="btn sub" id="timePick" type="button">じかんをえらぶ</button>' +
+      '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
+    $('again').onclick = () => start('time');
+    $('timePick').onclick = showTimeSelect;
+    $('toTitle').onclick = showTitle;
   } else {
     $('ovTitle').textContent = 'さくから はみだした！';
     $('ovBody').innerHTML = `<p>スコア</p><div class="big">${G.score}</div>` +
@@ -632,19 +661,37 @@ function showTitle() {
   $('ovBody').innerHTML = `<ul>
     <li>同じどうぶつがくっつくと、つぎの大きなどうぶつに<b>へんしん</b></li>
     <li>ゾウどうしはおうちへ帰る。赤い線の上に2びょうでおしまい</li>
-    <li><b>ゾウモード</b>は帰ったらクリア。<b>むげん</b>はそのままつづく</li></ul>`;
+    <li><b>ゾウモード</b>は帰ったらクリア。<b>むげん</b>はそのままつづく</li>
+    <li><b>タイムアタック</b>は時間内に何点とれるか</li></ul>`;
   $('ovBtns').innerHTML = '<button class="btn" id="goEle" type="button">ゾウをおうちへ</button>' +
+    '<button class="btn sub" id="goTime" type="button">タイムアタック</button>' +
     '<button class="btn sub" id="goEndless" type="button">むげんモード</button>';
   $('goEle').onclick = () => start('elephant');
+  $('goTime').onclick = showTimeSelect;
   $('goEndless').onclick = () => start('endless');
   $('overlay').hidden = false;
   updHud();
   $('goEle').focus();
 }
+function showTimeSelect() {
+  G.state = 'title'; G.mode = 'time';
+  $('ovTitle').textContent = 'タイムアタック';
+  $('ovBody').innerHTML = '<p>じかんの中で 何点とれるかな</p><p>はみだしたら そこでおしまい</p>';
+  $('ovBtns').innerHTML = '<div class="time-btns">' + TIMES.map((t, i) =>
+    `<button class="btn${t === G.timeLimit ? '' : ' sub'}" type="button" data-t="${t}">${timeName(t)}` +
+    `<small>ベスト ${G.timeBest[t] || 0}</small></button>`).join('') + '</div>' +
+    '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
+  $('ovBtns').querySelectorAll('[data-t]').forEach(btn => { btn.onclick = () => start('time', +btn.dataset.t); });
+  $('toTitle').onclick = showTitle;
+  $('overlay').hidden = false;
+  updHud();
+  $('ovBtns').querySelector(`[data-t="${G.timeLimit}"]`).focus();
+}
 function setPause(p) {
   if (p && G.state === 'play') {
     G.state = 'pause';
-    const extra = G.mode === 'elephant' ? '<p>ゴール：ゾウを おうちへ</p>' : '';
+    const extra = G.mode === 'elephant' ? '<p>ゴール：ゾウを おうちへ</p>'
+      : G.mode === 'time' ? `<p>${timeName(G.timeLimit)}　のこり ${clock(G.timeLeft)}</p>` : '';
     $('ovTitle').textContent = 'ひとやすみ';
     $('ovBody').innerHTML = extra + `<p>スコア ${G.score}</p>`;
     $('ovBtns').innerHTML = '<button class="btn" id="resume" type="button">つづける</button>' +
@@ -667,6 +714,10 @@ function updHud() {
     $('hudMidLabel').textContent = 'ゴール';
     b.className = 'goal';
     b.textContent = 'ゾウを おうちへ';
+  } else if (G.mode === 'time' && playing) {
+    $('hudMidLabel').textContent = 'のこり じかん';
+    b.className = G.timeLeft <= 10 ? 'hurry' : '';
+    b.textContent = clock(G.timeLeft);
   } else {
     $('hudMidLabel').textContent = 'BEST';
     b.className = '';
@@ -691,6 +742,15 @@ function frame(now) {
     if (G.state === 'play' && G.cool > 0) {
       G.cool -= dt;
       if (G.cool <= 0) { G.held = G.next; G.next = randKind(); drawNext(); }
+    }
+    if (G.state === 'play' && G.mode === 'time') {
+      G.timeLeft = Math.max(0, G.timeLeft - dt);
+      const sec = Math.ceil(G.timeLeft);
+      if (sec !== G.shownSec) {
+        G.shownSec = sec; updHud();
+        if (sec <= 5 && sec > 0) sfx.tick(false);
+      }
+      if (G.timeLeft <= 0) gameOver(true);
     }
     if (G.state === 'play' && aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver(); }
     else G.overT = Math.max(0, G.overT - dt * 2);
@@ -757,6 +817,18 @@ function render() {
     c.fillStyle = p.small ? '#5B4636' : '#D9805F'; c.fillText(p.text, p.x, p.y - p.t * 50);
   }
   c.globalAlpha = 1;
+  if (G.mode === 'time' && (G.state === 'play' || G.state === 'pause') && G.timeLeft <= 5) {
+    const sec = Math.ceil(G.timeLeft), f = sec - G.timeLeft;
+    c.globalAlpha = 0.28 * (1 - f * 0.5);
+    c.font = `900 ${150 + f * 40}px "Zen Maru Gothic", sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#D0543C'; c.fillText(String(sec), W / 2, H * 0.52);
+    c.textBaseline = 'alphabetic'; c.globalAlpha = 1;
+  }
+  if (G.state === 'ending' && G.timeUp) {
+    c.font = '900 44px "Zen Maru Gothic", sans-serif'; c.textAlign = 'center';
+    c.lineWidth = 8; c.strokeStyle = '#FFF8EA'; c.strokeText('タイムアップ！', W / 2, H * 0.45);
+    c.fillStyle = '#D9805F'; c.fillText('タイムアップ！', W / 2, H * 0.45);
+  }
   if (G.state === 'ending' || G.state === 'clearing') {
     const tint = G.state === 'clearing' ? '80,140,90' : '91,70,54';
     c.fillStyle = `rgba(${tint},${Math.min(0.3, G.endT * 0.4)})`; c.fillRect(0, 0, W, H);
