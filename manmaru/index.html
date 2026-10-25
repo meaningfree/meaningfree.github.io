@@ -450,35 +450,58 @@ const store = {
   set(k, v) { try { localStorage.setItem('manmaru.' + k, JSON.stringify(v)); } catch {} },
 };
 
-// Stage goals grow from easy merges to elephants-and-score challenges.
-// type make = create animal t once; makeN = create it n times; score = reach n; home = send elephants home n times.
+// Stage goals — mix of create / score / board-state / combo / limited-drops / puzzle setups.
+// Optional per-stage: setup [[t,x,y],...], spawnKinds (smaller = harder).
+const STAGE_VER = 2;
 const STAGES = [
-  { name: 'はじまり', goal: { type: 'make', t: 2 }, hint: 'うさぎをつくろう' },
-  { name: 'みけねこ', goal: { type: 'make', t: 3 }, hint: 'みけねこをつくろう' },
-  { name: 'わんわん', goal: { type: 'make', t: 4 }, hint: 'しばいぬをつくろう' },
-  { name: 'すこしためる', goal: { type: 'score', n: 40 }, hint: 'スコア 40 たっせい' },
-  { name: 'ぶたさん', goal: { type: 'make', t: 5 }, hint: 'ぶたをつくろう' },
-  { name: 'もこもこ', goal: { type: 'make', t: 6 }, hint: 'ひつじをつくろう' },
-  { name: 'もっとためる', goal: { type: 'score', n: 100 }, hint: 'スコア 100 たっせい' },
-  { name: 'パンダ！', goal: { type: 'make', t: 7 }, hint: 'パンダをつくろう' },
-  { name: 'らいおん', goal: { type: 'make', t: 8 }, hint: 'ライオンをつくろう' },
-  { name: 'ぞうさん', goal: { type: 'make', t: 9 }, hint: 'ゾウをつくろう' },
-  { name: 'おかえり', goal: { type: 'home', n: 1 }, hint: 'ゾウを おうちへ' },
-  { name: 'スコアチャレンジ', goal: { type: 'score', n: 250 }, hint: 'スコア 250 たっせい' },
-  { name: 'パンダだいすき', goal: { type: 'makeN', t: 7, n: 3 }, hint: 'パンダを 3ひき' },
-  { name: 'おかえりパレード', goal: { type: 'home', n: 3 }, hint: 'ゾウを 3かい おうちへ' },
-  { name: 'マスター', goal: { type: 'score', n: 400 }, hint: 'スコア 400 たっせい' },
+  { name: 'はじまり', goal: { type: 'make', t: 2 } },
+  { name: 'なかよし', goal: { type: 'alive', t: 0, n: 3 } },
+  { name: 'みけねこ', goal: { type: 'make', t: 3 } },
+  { name: 'どうぶつえん', goal: { type: 'zoo', need: [{ t: 2, n: 1 }, { t: 3, n: 1 }] } },
+  { name: 'れんさ！', goal: { type: 'chain', n: 3 } },
+  { name: 'わんわん', goal: { type: 'make', t: 4 } },
+  { name: 'てかずチャレンジ', goal: { type: 'drops', t: 4, max: 18 } },
+  { name: 'すこしためる', goal: { type: 'score', n: 50 } },
+  { name: 'パズル・ふたご', goal: { type: 'make', t: 2 },
+    setup: [[0, 120, 520], [0, 160, 520], [1, 280, 510]] },
+  { name: 'ぶたさん', goal: { type: 'make', t: 5 } },
+  { name: 'いっぱいぶた', goal: { type: 'alive', t: 5, n: 2 } },
+  { name: 'もこもこ', goal: { type: 'make', t: 6 } },
+  { name: 'おおばくち', goal: { type: 'big', t: 6 } },
+  { name: 'パンダ！', goal: { type: 'make', t: 7 } },
+  { name: 'ひよこだけで', goal: { type: 'make', t: 5 }, spawnKinds: 1 },
+  { name: 'れんさマスター', goal: { type: 'chain', n: 5 } },
+  { name: 'らいおん', goal: { type: 'make', t: 8 } },
+  { name: 'パズル・だんご', goal: { type: 'make', t: 4 },
+    setup: [[1, 100, 515], [1, 150, 515], [2, 250, 500], [2, 310, 500]] },
+  { name: 'ぞうさん', goal: { type: 'make', t: 9 } },
+  { name: 'おかえり', goal: { type: 'home', n: 1 } },
+  { name: 'パンダだいすき', goal: { type: 'makeN', t: 7, n: 3 } },
+  { name: 'スコアチャレンジ', goal: { type: 'score', n: 280 } },
+  { name: 'おかえりパレード', goal: { type: 'home', n: 3 } },
+  { name: 'マスター', goal: { type: 'score', n: 450 } },
 ];
 
+const _stageOk = store.get('stageVer', 0) === STAGE_VER;
 const G = {
   w: newWorld(), state: 'title', mode: 'endless', stage: 0,
   score: 0, best: store.get('best', 0),
-  stageMax: store.get('stageMax', 0),   // highest unlocked stage index
-  cleared: store.get('cleared', {}),    // { [stageIdx]: true }
-  goalCount: 0,                         // progress toward makeN / home
+  stageMax: _stageOk ? store.get('stageMax', 0) : 0,
+  cleared: _stageOk ? store.get('cleared', {}) : {},
+  goalCount: 0, drops: 0, chain: 0, bestChain: 0, lastMergeT: -99,
   held: 0, next: 0, seen: store.get('seen', -1), heldX: W / 2, cool: 0, overT: 0, fx: [], pops: [], keys: {}, shake: 0, endT: 0,
 };
-const randKind = () => Math.floor(Math.random() * SPAWN_KINDS);
+if (!_stageOk) { store.set('stageVer', STAGE_VER); store.set('stageMax', 0); store.set('cleared', {}); }
+
+function spawnKinds() {
+  if (G.mode === 'stage') {
+    const sk = STAGES[G.stage] && STAGES[G.stage].spawnKinds;
+    if (sk) return sk;
+  }
+  return SPAWN_KINDS;
+}
+const randKind = () => Math.floor(Math.random() * spawnKinds());
+const countAlive = t => G.w.bodies.reduce((n, b) => n + (b.t === t ? 1 : 0), 0);
 
 function goalLabel(st) {
   const g = st.goal;
@@ -486,29 +509,73 @@ function goalLabel(st) {
   if (g.type === 'makeN') return KINDS[g.t].name + 'を ' + g.n + 'ひき';
   if (g.type === 'home') return g.n === 1 ? 'ゾウを おうちへ' : 'ゾウを ' + g.n + 'かい おうちへ';
   if (g.type === 'score') return 'スコア ' + g.n;
-  return st.hint;
+  if (g.type === 'alive') return KINDS[g.t].name + 'を どうじに ' + g.n + 'ひき';
+  if (g.type === 'zoo') return g.need.map(({ t, n }) => KINDS[t].name + (n > 1 ? '×' + n : '')).join(' と ');
+  if (g.type === 'chain') return 'れんさ ×' + g.n;
+  if (g.type === 'big') return KINDS[g.t].name + 'いじょうを いちどで';
+  if (g.type === 'drops') return KINDS[g.t].name + 'を ' + g.max + 'てかずで';
+  return st.hint || '';
+}
+function goalShowsProgress(g) {
+  return g.type !== 'make' && g.type !== 'big';
 }
 function goalProgressText() {
-  const st = STAGES[G.stage], g = st.goal;
+  const g = STAGES[G.stage].goal;
   if (g.type === 'score') return G.score + ' / ' + g.n;
   if (g.type === 'makeN' || g.type === 'home') return G.goalCount + ' / ' + g.n;
+  if (g.type === 'alive') return countAlive(g.t) + ' / ' + g.n;
+  if (g.type === 'zoo') return g.need.map(({ t, n }) => countAlive(t) + '/' + n).join(' ');
+  if (g.type === 'chain') return 'さいこう ' + G.bestChain + ' / ' + g.n;
+  if (g.type === 'drops') return G.drops + ' / ' + g.max + 'て';
   if (g.type === 'make') return G.goalCount > 0 ? 'できた！' : 'まだ…';
   return '';
 }
 function goalMet() {
   const g = STAGES[G.stage].goal;
   if (g.type === 'score') return G.score >= g.n;
-  if (g.type === 'make') return G.goalCount >= 1;
+  if (g.type === 'make' || g.type === 'big') return G.goalCount >= 1;
   if (g.type === 'makeN' || g.type === 'home') return G.goalCount >= g.n;
+  if (g.type === 'alive') return countAlive(g.t) >= g.n;
+  if (g.type === 'zoo') return g.need.every(({ t, n }) => countAlive(t) >= n);
+  if (g.type === 'chain') return G.bestChain >= g.n;
+  if (g.type === 'drops') return G.goalCount >= 1 && G.drops <= g.max;
   return false;
 }
-function noteGoalMerge(t) {
+function noteGoalMerge(t, x, y) {
   if (G.mode !== 'stage' || G.state !== 'play') return;
+  const now = G.w.time;
+  if (now - G.lastMergeT < 0.9) G.chain++;
+  else G.chain = 1;
+  G.lastMergeT = now;
+  if (G.chain > G.bestChain) G.bestChain = G.chain;
+  if (G.chain >= 2) {
+    G.pops.push({ x: Math.max(80, Math.min(W - 80, x)), y: Math.max(DEAD_Y + 30, y - 28),
+      text: 'れんさ×' + G.chain, t: 0, life: 1.0, small: true });
+  }
   const g = STAGES[G.stage].goal;
-  if (g.type === 'make' && t === g.t) G.goalCount = 1;
+  if ((g.type === 'make' || g.type === 'drops') && t === g.t) G.goalCount = 1;
   else if (g.type === 'makeN' && t === g.t) G.goalCount++;
   else if (g.type === 'home' && t > LAST) G.goalCount++;
+  else if (g.type === 'big' && t <= LAST && t >= g.t) G.goalCount = 1;
+  else if (g.type === 'big' && t > LAST && LAST >= g.t) G.goalCount = 1;
   if (goalMet()) stageClear();
+}
+function checkBoardGoals() {
+  if (G.mode !== 'stage' || G.state !== 'play') return;
+  const g = STAGES[G.stage].goal;
+  if ((g.type === 'alive' || g.type === 'zoo') && goalMet()) stageClear();
+}
+function applySetup(setup) {
+  if (!setup) return;
+  for (const row of setup) {
+    const t = row[0], x = row[1], y = row[2] != null ? row[2] : H - KINDS[t].r - 2;
+    addBody(G.w, t, x, y);
+    meet(t);
+  }
+}
+function dropsExhausted() {
+  const g = STAGES[G.stage].goal;
+  return G.mode === 'stage' && g.type === 'drops' && G.drops >= g.max && G.goalCount < 1;
 }
 
 // ----- sound -----
@@ -624,19 +691,27 @@ function start(mode, stage) {
   ac();
   if (mode) G.mode = mode;
   if (stage != null) G.stage = stage;
-  G.w = newWorld(); G.score = 0; G.goalCount = 0; G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
+  G.w = newWorld(); G.score = 0; G.goalCount = 0; G.drops = 0;
+  G.chain = 0; G.bestChain = 0; G.lastMergeT = -99;
+  G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
+  if (G.mode === 'stage') applySetup(STAGES[G.stage].setup);
   G.held = randKind(); G.next = randKind(); G.heldX = W / 2;
   G.state = 'play';
   $('overlay').hidden = true;
+  checkBoardGoals();
   updHud(); drawNext();
 }
 function drop() {
   if (G.state !== 'play' || G.cool > 0 || G.held == null) return;
+  // After the last allowed drop, give merges time to settle; fail only on the next attempt.
+  if (dropsExhausted()) { gameOver('drops'); return; }
   const r = KINDS[G.held].r;
   // a tiny sideways nudge so stacks topple naturally instead of balancing in a perfect column
   addBody(G.w, G.held, clampX(G.heldX + (Math.random() - 0.5) * 0.6, r), DROP_Y, { vy: 60 });
   sfx.drop(); meet(G.held);
+  G.drops++;
   G.held = null; G.cool = 0.45;
+  updHud();
 }
 const clampX = (x, r) => Math.max(r + 1, Math.min(W - r - 1, x));
 
@@ -652,19 +727,22 @@ function onMerge(e) {
   G.pops.push({ x: e.x, y: e.y, text: '+' + gain, t: 0 });
   meet(t, e.x, e.y);
   if (G.mode === 'stage') {
-    if (STAGES[G.stage].goal.type === 'score' && goalMet()) stageClear();
-    else noteGoalMerge(t);
+    noteGoalMerge(t, e.x, e.y);
+    if (G.state === 'play' && STAGES[G.stage].goal.type === 'score' && goalMet()) stageClear();
+    checkBoardGoals();
   }
   updHud();
 }
 
-function gameOver() {
+function gameOver(reason) {
+  if (G.state !== 'play') return;
+  G.failReason = reason || 'overflow';
   G.state = 'ending'; G.endT = 0; sfx.over();
 }
 function stageClear() {
   if (G.state !== 'play') return;
   G.state = 'clearing'; G.endT = 0; sfx.clear(); G.shake = 0.25;
-  G.cleared[G.stage] = true; store.set('cleared', G.cleared);
+  G.cleared[G.stage] = true; store.set('cleared', G.cleared); store.set('stageVer', STAGE_VER);
   if (G.stage + 1 < STAGES.length && G.stage + 1 > G.stageMax) {
     G.stageMax = G.stage + 1; store.set('stageMax', G.stageMax);
   }
@@ -699,10 +777,11 @@ function showOver() {
   const topName = top >= 0 ? KINDS[top].name : '—';
   if (G.mode === 'stage') {
     const st = STAGES[G.stage];
-    $('ovTitle').textContent = 'ざんねん…';
+    const failTitle = G.failReason === 'drops' ? 'てかずが たりない…' : 'ざんねん…';
+    $('ovTitle').textContent = failTitle;
     $('ovBody').innerHTML = `<p>ステージ ${G.stage + 1}　${st.name}</p>` +
       `<p>ゴール：${goalLabel(st)}</p>` +
-      (st.goal.type === 'score' || st.goal.type === 'makeN' || st.goal.type === 'home'
+      (goalShowsProgress(st.goal) || st.goal.type === 'drops'
         ? `<p>しんちょく ${goalProgressText()}</p>` : '') +
       `<p>スコア ${G.score}</p>`;
     $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>' +
@@ -793,7 +872,7 @@ function updHud() {
     const b = $('best');
     b.className = 'goal';
     const g = STAGES[G.stage].goal;
-    b.textContent = goalLabel(STAGES[G.stage]) + (g.type === 'make' ? '' : '　' + goalProgressText());
+    b.textContent = goalLabel(STAGES[G.stage]) + (goalShowsProgress(g) ? '　' + goalProgressText() : '');
   } else {
     $('hudMidLabel').textContent = 'BEST';
     const b = $('best');
@@ -820,7 +899,12 @@ function frame(now) {
       G.cool -= dt;
       if (G.cool <= 0) { G.held = G.next; G.next = randKind(); drawNext(); }
     }
-    if (aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver(); }
+    if (G.mode === 'stage') {
+      checkBoardGoals();
+      const g = STAGES[G.stage].goal;
+      if (G.state === 'play' && (g.type === 'alive' || g.type === 'zoo' || g.type === 'chain')) updHud();
+    }
+    if (aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver('overflow'); }
     else G.overT = Math.max(0, G.overT - dt * 2);
   } else if (G.state === 'ending') {
     G.endT += dt;
