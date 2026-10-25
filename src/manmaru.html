@@ -184,25 +184,6 @@ function stepWorld(w, dt = STEP) {
         a.touch = c.touch = true;
       }
     }
-    // Foods are fixed snacks. A big-enough animal eats one; a smaller one bounces off.
-    if (w.foods) {
-      for (const b of B) {
-        if (b.dead) continue;
-        for (const f of w.foods) {
-          if (f.eaten) continue;
-          const dx = b.x - f.x, dy = b.y - f.y, rr = b.r + f.r;
-          const d2 = dx * dx + dy * dy;
-          if (d2 >= rr * rr) continue;
-          if (b.t >= f.min) {
-            f.eaten = true;
-            events.push({ eat: true, x: f.x, y: f.y, kind: f.kind, gain: 10 + f.min * 8 });
-          } else {
-            const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d, pen = rr - d;
-            b.x += nx * pen; b.y += ny * pen; b.touch = true;
-          }
-        }
-      }
-    }
     for (const b of B) {
       if (b.x - b.r < 0) { b.x = b.r; b.touch = true; }
       if (b.x + b.r > W) { b.x = W - b.r; b.touch = true; }
@@ -217,9 +198,9 @@ function stepWorld(w, dt = STEP) {
       if (b.touch) b.spin += (b.vx / b.r - b.spin) * 0.08;
       b.ang += b.spin * h;
     }
-    if (events.length && events.some(e => !e.done && !e.eat)) {
+    if (events.length && events.some(e => !e.done)) {
       for (const e of events) {
-        if (e.done || e.eat) continue;
+        if (e.done) continue;
         e.done = true;
         if (e.t <= LAST) addBody(w, e.t, e.x, e.y, { vx: e.vx * 0.5, vy: Math.min(e.vy, 0) * 0.5, r0: KINDS[e.t - 1].r });
       }
@@ -461,13 +442,13 @@ const store = {
   set(k, v) { try { localStorage.setItem('manmaru.' + k, JSON.stringify(v)); } catch {} },
 };
 
-// Foods sit in the box from the start. min = smallest animal tier that can eat one.
-// Smaller animals bounce off. items: [kind, x, y]
+// Foods are markers. They are eaten only when a merge creates animal `eat` nearby.
+// ひよこ同士→ハムスターがいちご、ハムスター同士→うさぎがりんご、みけねこ同士→しばいぬがおにぎり、ぶた同士→ひつじがケーキ。
 const FOODS = [
-  { name:'いちご', r:18, min:0, col:'#F4546A' },
-  { name:'りんご', r:24, min:2, col:'#E23B3B' },
-  { name:'おにぎり', r:28, min:4, col:'#F7F3E8' },
-  { name:'ケーキ', r:34, min:6, col:'#F7C5D8' },
+  { name:'いちご', r:18, eat:1, col:'#F4546A' },
+  { name:'りんご', r:24, eat:2, col:'#E23B3B' },
+  { name:'おにぎり', r:28, eat:4, col:'#F7F3E8' },
+  { name:'ケーキ', r:34, eat:6, col:'#F7C5D8' },
 ];
 const FOOD_BOARDS = [
   { name:'いちご', items:[[0, 90, 538], [0, 200, 538], [0, 310, 538]] },
@@ -500,7 +481,7 @@ function boardBlurb(b) {
 function loadFoods(items) {
   G.w.foods = items.map(([kind, x, y]) => {
     const F = FOODS[kind];
-    return { kind, x, y, r: F.r, min: F.min, eaten: false };
+    return { kind, x, y, r: F.r, eat: F.eat, eaten: false };
   });
 }
 function paintFood(c, f) {
@@ -539,7 +520,7 @@ function paintFood(c, f) {
     c.lineCap = 'round'; c.lineWidth = lw; c.strokeStyle = '#E07A8A'; c.stroke();
     fillCircle(c, 0, -r * 0.9, r * 0.1, '#F6E27A', OUT, lw * 0.6);
   }
-  const need = KINDS[F.min];
+  const need = KINDS[F.eat];
   fillCircle(c, 0, r * 0.62, Math.max(4, r * 0.2), need.col, OUT, lw * 0.65);
   c.restore();
 }
@@ -686,8 +667,21 @@ function onMerge(e) {
   }
   G.pops.push({ x: e.x, y: e.y, text: '+' + gain, t: 0 });
   meet(t, e.x, e.y);
-  if (G.mode === 'elephant' && t > LAST) win();
+  if (G.mode === 'food') eatNearby(e);
+  if (G.mode === 'elephant' && t > LAST && G.state === 'play') win();
   updHud();
+}
+// A new animal eats only its own food, and only if the merge happened next to it.
+function eatNearby(e) {
+  if (G.state !== 'play' || e.t > LAST || !G.w.foods) return;
+  const reach = KINDS[e.t].r + 8;
+  for (const f of G.w.foods) {
+    if (f.eaten || f.eat !== e.t) continue;
+    const dx = f.x - e.x, dy = f.y - e.y, lim = reach + f.r;
+    if (dx * dx + dy * dy > lim * lim) continue;
+    f.eaten = true;
+    onEat({ x: f.x, y: f.y, gain: 10 + e.t * 8 });
+  }
 }
 function onEat(e) {
   G.score += e.gain;
@@ -787,7 +781,7 @@ function showTitle() {
     <li>同じどうぶつがくっつくと、つぎの大きなどうぶつに<b>へんしん</b></li>
     <li>ゾウどうしはおうちへ帰る。赤い線の上に2びょうでおしまい</li>
     <li><b>ゾウモード</b>は帰ったらクリア。<b>むげん</b>はそのままつづく</li>
-    <li><b>ごはん</b>は置いてある食べものを消す。下の色まるが、食べられるどうぶつ</li></ul>`;
+    <li><b>ごはん</b>は、へんしんした瞬間に近くのものだけ食べる。なるどうぶつで食べものがちがう</li></ul>`;
   $('ovBtns').innerHTML = '<button class="btn" id="goEle" type="button">ゾウをおうちへ</button>' +
     '<button class="btn sub" id="goFood" type="button">ごはんをたべる</button>' +
     '<button class="btn sub" id="goEndless" type="button">むげんモード</button>';
@@ -811,7 +805,7 @@ function showFoodSelect() {
       `<span class="mark">${cleared ? '✓' : open ? '▶' : '🔒'}</span></button>`;
   });
   list += '</div>';
-  $('ovBody').innerHTML = `<p>${done} / ${FOOD_BOARDS.length} クリア</p><p>ちいさいどうぶつはぶつかるだけ。おおきくなるとたべられる</p>` + list;
+  $('ovBody').innerHTML = `<p>${done} / ${FOOD_BOARDS.length} クリア</p><p>へんしんしたとき、近くのえさを食べる<br>ハムスター→いちご　うさぎ→りんご<br>しばいぬ→おにぎり　ひつじ→ケーキ</p>` + list;
   $('ovBtns').innerHTML = '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
   $('ovBody').querySelectorAll('.stage-row:not(:disabled)').forEach(btn => {
     btn.onclick = () => start('food', +btn.dataset.i);
