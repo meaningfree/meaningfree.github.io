@@ -89,6 +89,10 @@ button{font:inherit;color:inherit;cursor:pointer}
 .ring small{font-weight:900;font-size:11px;letter-spacing:.08em;opacity:.75}
 #ring{display:block;width:100%;height:40px}
 .hint{text-align:center;font-size:12px;opacity:.8;margin:0}
+.hud .score.low{color:#D0543C}
+.card p.small{font-size:12.5px;opacity:.85;line-height:1.5}
+.card .big.stars{color:#E0A030;letter-spacing:.08em;font-size:36px}
+.stage-row .mark{color:#E0A030;letter-spacing:.02em}
 </style>
 </head>
 <body>
@@ -190,6 +194,27 @@ function stepWorld(w, dt = STEP) {
         a.x -= nx * pen * wa; a.y -= ny * pen * wa;
         c.x += nx * pen * wc; c.y += ny * pen * wc;
         a.touch = c.touch = true;
+      }
+    }
+    // Foods sit still on their plates. Their favourite animal eats one on touch and grows a size;
+    // anyone else bumps into it like a wall.
+    if (w.foods) {
+      for (const b of B) {
+        if (b.dead) continue;
+        for (const f of w.foods) {
+          if (f.eaten) continue;
+          const dx = b.x - f.x, dy = b.y - f.y, rr = b.r + f.r;
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= rr * rr) continue;
+          if (b.t === f.eat) {
+            f.eaten = true;
+            b.t += 1; b.R = KINDS[b.t].r; b.born = w.time; b.vy = Math.min(b.vy, 0);
+            events.push({ eat: true, done: true, t: b.t, x: f.x, y: f.y, bx: b.x, by: b.y, kind: f.kind });
+            break;
+          }
+          const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d, pen = rr - d;
+          b.x += nx * pen; b.y += ny * pen; b.touch = true;
+        }
       }
     }
     for (const b of B) {
@@ -450,33 +475,53 @@ const store = {
   set(k, v) { try { localStorage.setItem('manmaru.' + k, JSON.stringify(v)); } catch {} },
 };
 
-// Foods are markers. They are eaten only when a merge creates animal `eat` nearby.
-// ひよこ同士→ハムスターがいちご、ハムスター同士→うさぎがりんご、みけねこ同士→しばいぬがおにぎり、ぶた同士→ひつじがケーキ。
+// Foods sit on round plates that never move. The face on the plate is the animal that likes it:
+// when that animal touches the plate it eats and grows one size, which can set off a chain
+// (ハムスター eats いちご → うさぎ eats にんじん → ...). Every other animal just bumps into it.
 const FOODS = [
-  { name:'いちご', r:18, eat:1, col:'#F4546A' },
-  { name:'りんご', r:24, eat:2, col:'#E23B3B' },
-  { name:'おにぎり', r:28, eat:4, col:'#F7F3E8' },
-  { name:'ケーキ', r:34, eat:6, col:'#F7C5D8' },
+  { name:'いちご',   r:17, eat:1 },
+  { name:'にんじん', r:19, eat:2 },
+  { name:'さかな',   r:21, eat:3 },
+  { name:'ほね',     r:23, eat:4 },
+  { name:'りんご',   r:25, eat:5 },
 ];
+// items: [food, x, y] (no y = on the floor). seed/lead fix the order of animals. drops = how many animals you may drop. star3 / star2 = drops left for ★★★ / ★★.
 const FOOD_BOARDS = [
-  { name:'いちご', items:[[0, 90, 538], [0, 200, 538], [0, 310, 538]] },
-  { name:'りんご', items:[[0, 70, 538], [1, 200, 532], [0, 330, 538]] },
-  { name:'おやつ', items:[[0, 70, 538], [1, 170, 532], [1, 300, 532], [0, 230, 470]] },
-  { name:'おにぎり', items:[[1, 90, 532], [2, 200, 528], [1, 320, 532], [0, 200, 460]] },
-  { name:'ケーキ', items:[[1, 150, 532], [1, 250, 532], [3, 200, 474], [0, 70, 538], [0, 330, 538]] },
-  { name:'ならび', items:[[0, 60, 538], [1, 150, 532], [2, 250, 528], [1, 340, 532], [0, 200, 450]] },
-  { name:'たかいごはん', items:[[0, 80, 538], [1, 200, 532], [2, 320, 528], [3, 200, 360]] },
-  { name:'ごちそう', items:[[0, 55, 538], [1, 145, 532], [1, 255, 532], [2, 200, 480], [3, 200, 418], [0, 345, 538]] },
+  { name:'いちご', drops:10, star3:6, star2:3, seed:101, lead:[1, 0, 0, 2],
+    items:[[0, 110], [0, 290]] },
+  { name:'にんじんばたけ', drops:12, star3:6, star2:3, seed:138, lead:[2, 0, 0],
+    items:[[1, 70], [0, 200], [1, 330]] },
+  { name:'さかなつり', drops:12, star3:6, star2:3, seed:212,
+    items:[[2, 90], [2, 310], [0, 200, 460], [1, 200]] },
+  { name:'たなのうえ', drops:15, star3:6, star2:3, seed:175,
+    items:[[0, 60], [1, 340], [2, 200, 430]] },
+  { name:'フルコース', drops:8, star3:5, star2:3, seed:249, lead:[3, 2, 1],
+    items:[[3, 200], [2, 200, 470], [1, 200, 410], [0, 200, 355]] },
+  { name:'ふたつのとう', drops:12, star3:4, star2:2, seed:323,
+    items:[[2, 100], [1, 100, 480], [0, 100, 425], [2, 300], [1, 300, 480], [0, 300, 425]] },
+  { name:'とおせんぼ', drops:20, star3:6, star2:3, seed:777,
+    items:[[2, 50, 330], [2, 125, 330], [2, 200, 330], [2, 275, 330], [2, 350, 330], [0, 120], [0, 280]] },
+  { name:'ほね', drops:22, star3:8, star2:4, seed:286,
+    items:[[3, 200], [2, 70, 440], [2, 330, 440], [1, 40], [1, 360]] },
+  { name:'たかいたな', drops:22, star3:6, star2:3, seed:360,
+    items:[[1, 70, 330], [1, 330, 330], [2, 200, 400], [0, 200], [3, 60]] },
+  { name:'りんご', drops:30, star3:13, star2:6, seed:397,
+    items:[[4, 200], [3, 80, 440], [3, 320, 440], [0, 130], [0, 270], [2, 200, 360]] },
+  { name:'ごちそう', drops:36, star3:14, star2:7, seed:434,
+    items:[[4, 70], [4, 330], [3, 200], [2, 200, 470], [1, 200, 410], [0, 200, 355], [0, 60, 380], [0, 340, 380]] },
 ];
 
 const G = {
   w: newWorld(), state: 'title', mode: 'endless', board: 0,
   score: 0, best: store.get('best', 0),
-  foodMax: store.get('foodMax', 0),
-  foodCleared: store.get('foodCleared', {}),
+  foodMax: store.get('food2Max', 0),
+  foodStars: store.get('food2Stars', {}),
+  drops: 0, waitT: 0,
   held: 0, next: 0, seen: store.get('seen', -1), heldX: W / 2, cool: 0, overT: 0, fx: [], pops: [], keys: {}, shake: 0, endT: 0,
 };
-const randKind = () => Math.floor(Math.random() * SPAWN_KINDS);
+// ごはん stages hand out the same animals in the same order every try, so a stage can be learned.
+let seqRand = Math.random, seqLead = [];
+const randKind = () => seqLead.length ? seqLead.shift() : Math.floor(seqRand() * SPAWN_KINDS);
 
 function foodsLeft() {
   return (G.w.foods || []).reduce((n, f) => n + (f.eaten ? 0 : 1), 0);
@@ -484,53 +529,78 @@ function foodsLeft() {
 function boardBlurb(b) {
   const counts = {};
   for (const it of b.items) counts[it[0]] = (counts[it[0]] || 0) + 1;
-  return FOODS.map((f, i) => counts[i] ? f.name + '×' + counts[i] : '').filter(Boolean).join(' ');
+  return FOODS.map((f, i) => counts[i] ? f.name + '×' + counts[i] : '').filter(Boolean).join(' ') + '　おとせる ' + b.drops;
 }
 function loadFoods(items) {
   G.w.foods = items.map(([kind, x, y]) => {
     const F = FOODS[kind];
-    return { kind, x, y, r: F.r, eat: F.eat, eaten: false };
+    return { kind, x, y: y == null ? H - F.r : y, r: F.r, eat: F.eat, eaten: false };
   });
 }
-function paintFood(c, f) {
-  const F = FOODS[f.kind], r = f.r, lw = Math.max(1.2, r * 0.055);
-  const body = col => {
-    const g = c.createRadialGradient(-r * 0.28, -r * 0.32, r * 0.1, 0, 0, r);
-    g.addColorStop(0, shade(col, 0.28)); g.addColorStop(1, col);
-    fillCircle(c, 0, 0, r, g, OUT, lw);
-  };
+const starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+function starsFor(b, left) { return left >= b.star3 ? 3 : left >= b.star2 ? 2 : 1; }
+
+function paintFoodIcon(c, kind, s, lw) {
+  if (kind === 0) {          // strawberry
+    c.beginPath(); c.moveTo(0, s * 0.95);
+    c.bezierCurveTo(-s * 1.05, s * 0.25, -s * 0.85, -s * 0.7, 0, -s * 0.5);
+    c.bezierCurveTo(s * 0.85, -s * 0.7, s * 1.05, s * 0.25, 0, s * 0.95);
+    c.fillStyle = '#F4546A'; c.fill(); c.lineWidth = lw; c.strokeStyle = OUT; c.lineJoin = 'round'; c.stroke();
+    for (const [x, y] of [[-0.3, -0.05], [0.3, -0.05], [0, 0.18], [-0.15, 0.45], [0.15, 0.45], [0, -0.28]]) {
+      fillEllipse(c, x * s, y * s, s * 0.05, s * 0.08, 0, '#FFE08A');
+    }
+    fillPoly(c, [[-s * 0.45, -s * 0.62], [0, -s * 0.48], [s * 0.45, -s * 0.62], [s * 0.12, -s * 0.78], [0, -s * 1.0], [-s * 0.12, -s * 0.78]], '#7CB86A', OUT, lw * 0.7);
+  } else if (kind === 1) {   // carrot
+    for (const a of [-0.5, 0, 0.5]) fillEllipse(c, Math.sin(a) * s * 0.35, -s * 0.72 - Math.cos(a) * s * 0.12, s * 0.12, s * 0.3, a, '#7CB86A', OUT, lw * 0.7);
+    c.beginPath(); c.moveTo(-s * 0.42, -s * 0.5);
+    c.quadraticCurveTo(0, -s * 0.72, s * 0.42, -s * 0.5);
+    c.quadraticCurveTo(s * 0.2, s * 0.4, 0, s * 1.0);
+    c.quadraticCurveTo(-s * 0.2, s * 0.4, -s * 0.42, -s * 0.5);
+    c.fillStyle = '#F59A45'; c.fill(); c.lineWidth = lw; c.strokeStyle = OUT; c.lineJoin = 'round'; c.stroke();
+    c.lineCap = 'round'; c.lineWidth = lw * 0.7;
+    for (const [y, w] of [[-0.15, 0.18], [0.2, 0.12], [0.5, 0.08]]) {
+      c.beginPath(); c.moveTo(-s * w, s * y); c.lineTo(s * w * 0.2, s * y); c.stroke();
+    }
+  } else if (kind === 2) {   // fish
+    fillPoly(c, [[s * 0.45, 0], [s * 1.0, -s * 0.45], [s * 0.9, 0], [s * 1.0, s * 0.45]], '#7FA9D6', OUT, lw);
+    fillEllipse(c, -s * 0.1, 0, s * 0.72, s * 0.46, 0, '#9CC0E6', OUT, lw);
+    fillEllipse(c, -s * 0.15, s * 0.16, s * 0.45, s * 0.18, 0, '#D8E8F7');
+    fillCircle(c, -s * 0.5, -s * 0.08, s * 0.09, EYE);
+    c.beginPath(); c.arc(-s * 0.25, 0, s * 0.3, -0.9, 0.9); c.lineWidth = lw * 0.7; c.strokeStyle = OUT; c.stroke();
+  } else if (kind === 3) {   // bone
+    const ends = [[-0.62, -0.22], [-0.62, 0.22], [0.62, -0.22], [0.62, 0.22]];
+    for (const pass of [0, 1]) {
+      c.save(); c.rotate(-0.5);
+      c.fillStyle = pass ? '#FFFDF4' : OUT;
+      const g = pass ? 0 : lw;
+      c.fillRect(-s * 0.62, -s * 0.17 - g, s * 1.24, s * 0.34 + g * 2);
+      for (const [x, y] of ends) { c.beginPath(); c.arc(x * s, y * s, s * 0.24 + g, 0, Math.PI * 2); c.fill(); }
+      c.restore();
+    }
+  } else {                   // apple
+    fillCircle(c, 0, s * 0.08, s * 0.78, '#E5484D', OUT, lw);
+    fillEllipse(c, -s * 0.3, -s * 0.18, s * 0.14, s * 0.22, 0.4, 'rgba(255,255,255,.55)');
+    c.beginPath(); c.moveTo(0, -s * 0.55); c.quadraticCurveTo(s * 0.05, -s * 0.85, s * 0.02, -s * 0.98);
+    c.lineCap = 'round'; c.lineWidth = lw * 1.1; c.strokeStyle = '#6B4A3A'; c.stroke();
+    fillEllipse(c, s * 0.3, -s * 0.78, s * 0.26, s * 0.12, -0.5, '#8FCB6A', OUT, lw * 0.6);
+  }
+}
+// The plate: cream disc, the food in the middle, the hungry animal's face in the corner.
+function paintFood(c, f, glow) {
+  const r = f.r, lw = Math.max(1.2, r * 0.07);
   c.save();
   c.translate(f.x, f.y);
-  if (f.kind === 0) {
-    body(F.col);
-    fillEllipse(c, 0, -r * 0.72, r * 0.28, r * 0.16, 0, '#7CB86A', OUT, lw * 0.7);
-    for (const [x, y] of [[-0.28, -0.05], [0.22, 0.08], [0, 0.38], [-0.1, -0.32]]) {
-      fillEllipse(c, x * r, y * r, r * 0.05, r * 0.09, 0.4, '#FFE08A');
-    }
-  } else if (f.kind === 1) {
-    body(F.col);
-    c.beginPath(); c.moveTo(0, -r * 0.7); c.quadraticCurveTo(r * 0.05, -r * 1.05, r * 0.02, -r * 1.15);
-    c.lineCap = 'round'; c.lineWidth = lw; c.strokeStyle = '#6B8F4E'; c.stroke();
-    fillEllipse(c, r * 0.22, -r * 0.78, r * 0.22, r * 0.1, -0.6, '#8FCB6A', OUT, lw * 0.6);
-  } else if (f.kind === 2) {
-    body(F.col);
-    c.save(); c.beginPath(); c.arc(0, 0, r - lw, 0, Math.PI * 2); c.clip();
-    c.fillStyle = '#3E4A38'; c.fillRect(-r, -r * 0.22, r * 2, r * 0.38);
-    c.restore();
-    fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
-  } else {
-    body('#FFF6EA');
-    c.save(); c.beginPath(); c.arc(0, 0, r - lw, 0, Math.PI * 2); c.clip();
-    c.fillStyle = F.col; c.fillRect(-r, -r * 0.05, r * 2, r * 1.2);
-    c.restore();
-    fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
-    c.beginPath(); c.moveTo(0, -r * 0.15); c.lineTo(0, -r * 0.85);
-    c.lineCap = 'round'; c.lineWidth = lw; c.strokeStyle = '#E07A8A'; c.stroke();
-    fillCircle(c, 0, -r * 0.9, r * 0.1, '#F6E27A', OUT, lw * 0.6);
+  if (glow) {
+    const p = 0.5 + 0.5 * Math.sin(performance.now() / 180);
+    c.beginPath(); c.arc(0, 0, r + 4 + p * 3, 0, Math.PI * 2);
+    c.fillStyle = `rgba(255,214,120,${0.35 + p * 0.3})`; c.fill();
   }
-  const need = KINDS[F.eat];
-  fillCircle(c, 0, r * 0.62, Math.max(4, r * 0.2), need.col, OUT, lw * 0.65);
+  fillCircle(c, 0, 0, r, '#FFFDF6', OUT, lw);
+  fillCircle(c, 0, 0, r * 0.78, 'rgba(0,0,0,0)', 'rgba(205,181,150,.7)', lw * 0.6);
+  paintFoodIcon(c, f.kind, r * 0.56, lw * 0.85);
   c.restore();
+  const br = Math.max(8, r * 0.48);
+  drawSprite(c, f.eat, f.x + r * 0.68, f.y + r * 0.62, br, 0);
 }
 
 // ----- sound -----
@@ -638,6 +708,7 @@ function drawNext() {
   const c = nctx, s = nextCv.width;
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, s, s);
   if (G.state === 'title' || G.state === 'boards') return;
+  if (G.mode === 'food' && G.drops < 2) return;
   const F = KINDS[G.next], k = (s * 0.3) / Math.max(F.r, 20);
   c.translate(s / 2, s / 2 + 3); c.scale(k, k); paintAnimal(c, G.next, F.r);
 }
@@ -647,8 +718,13 @@ function start(mode, board) {
   ac();
   if (mode) G.mode = mode;
   if (board != null) G.board = board;
-  G.w = newWorld(); G.score = 0; G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
-  if (G.mode === 'food') loadFoods(FOOD_BOARDS[G.board].items);
+  G.w = newWorld(); G.score = 0; G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0; G.waitT = 0;
+  seqRand = Math.random; seqLead = [];
+  if (G.mode === 'food') {
+    const bd = FOOD_BOARDS[G.board];
+    loadFoods(bd.items); G.drops = bd.drops;
+    seqRand = rng(bd.seed); seqLead = (bd.lead || []).slice();
+  }
   G.held = randKind(); G.next = randKind(); G.heldX = W / 2;
   G.state = 'play';
   $('overlay').hidden = true;
@@ -661,6 +737,7 @@ function drop() {
   addBody(G.w, G.held, clampX(G.heldX + (Math.random() - 0.5) * 0.6, r), DROP_Y, { vy: 60 });
   sfx.drop(); meet(G.held);
   G.held = null; G.cool = 0.45;
+  if (G.mode === 'food') { G.drops--; updHud(); drawNext(); }
 }
 const clampX = (x, r) => Math.max(r + 1, Math.min(W - r - 1, x));
 
@@ -675,46 +752,40 @@ function onMerge(e) {
   }
   G.pops.push({ x: e.x, y: e.y, text: '+' + gain, t: 0 });
   meet(t, e.x, e.y);
-  if (G.mode === 'food') eatNearby(e);
+  G.waitT = 0;
   if (G.mode === 'elephant' && t > LAST && G.state === 'play') win();
   updHud();
 }
-// A new animal eats only its own food, and only if the merge happened next to it.
-function eatNearby(e) {
-  if (G.state !== 'play' || e.t > LAST || !G.w.foods) return;
-  const reach = KINDS[e.t].r + 8;
-  for (const f of G.w.foods) {
-    if (f.eaten || f.eat !== e.t) continue;
-    const dx = f.x - e.x, dy = f.y - e.y, lim = reach + f.r;
-    if (dx * dx + dy * dy > lim * lim) continue;
-    f.eaten = true;
-    onEat({ x: f.x, y: f.y, gain: 10 + e.t * 8 });
-  }
-}
+// e: the food at (x, y) was eaten by an animal that has now become KINDS[e.t].
 function onEat(e) {
-  G.score += e.gain;
-  sfx.eat();
+  const F = FOODS[e.kind], gain = 20 + points(e.t);
+  G.score += gain; G.waitT = 0;
+  sfx.eat(); setTimeout(() => sfx.merge(e.t), 90);
   const cols = ['#F25C6B', '#F6E27A', '#F7C5D8', '#8FCB6A'];
-  for (let k = 0; k < 8; k++) {
-    const a = Math.random() * Math.PI * 2, sp = 70 + Math.random() * 120;
-    G.fx.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, t: 0, col: cols[k % cols.length], r: 3 + Math.random() * 2 });
+  for (let k = 0; k < 14; k++) {
+    const a = Math.random() * Math.PI * 2, sp = 70 + Math.random() * 140;
+    G.fx.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.55, t: 0, col: cols[k % cols.length], r: 3 + Math.random() * 3 });
   }
-  G.pops.push({ x: e.x, y: e.y, text: 'もぐもぐ +' + e.gain, t: 0, small: true, life: 0.9 });
+  G.pops.push({ x: Math.max(70, Math.min(W - 70, e.x)), y: e.y - 10, text: F.name + ' もぐもぐ！', t: 0, small: true, life: 1.1 });
+  meet(e.t, e.bx, e.by);
   if (G.mode === 'food' && foodsLeft() === 0) win();
   updHud();
 }
 
-function gameOver() {
+function gameOver(starved) {
   if (G.state !== 'play') return;
+  G.starved = !!starved;
   G.state = 'ending'; G.endT = 0; sfx.over();
 }
 function win() {
   if (G.state !== 'play') return;
   G.state = 'clearing'; G.endT = 0; sfx.clear(); G.shake = 0.25;
   if (G.mode === 'food') {
-    G.foodCleared[G.board] = true; store.set('foodCleared', G.foodCleared);
+    G.lastStars = starsFor(FOOD_BOARDS[G.board], G.drops);
+    G.newStars = G.lastStars > (G.foodStars[G.board] || 0);
+    if (G.newStars) { G.foodStars[G.board] = G.lastStars; store.set('food2Stars', G.foodStars); }
     if (G.board + 1 < FOOD_BOARDS.length && G.board + 1 > G.foodMax) {
-      G.foodMax = G.board + 1; store.set('foodMax', G.foodMax);
+      G.foodMax = G.board + 1; store.set('food2Max', G.foodMax);
     }
   }
 }
@@ -732,9 +803,12 @@ function showClear() {
   }
   if (G.mode !== 'food') return;
   const b = FOOD_BOARDS[G.board], next = G.board + 1, isLast = next >= FOOD_BOARDS.length;
-  $('ovTitle').textContent = 'ぜんぶ たべた！';
-  $('ovBody').innerHTML = `<p>${G.board + 1}　${b.name}</p><div class="big">もぐもぐ</div><p>スコア ${G.score}</p>` +
-    (isLast ? '<span class="new">全ごはんクリア！</span>' : `<p>つぎは「${FOOD_BOARDS[next].name}」</p>`);
+  $('ovTitle').textContent = 'ごちそうさま！';
+  $('ovBody').innerHTML = `<p>${G.board + 1}　${b.name}</p><div class="big stars">${starText(G.lastStars)}</div>` +
+    `<p>あと ${G.drops}こ のこして クリア</p>` +
+    (G.lastStars < 3 ? `<p class="small">★3は ${b.star3}こ のこして</p>` : '') +
+    (G.newStars && G.lastStars > 1 ? '<span class="new">ほし更新！</span>' : '') +
+    (isLast ? '<p><span class="new">さいごの ごはんまで クリア！</span></p>' : '');
   let btns = '';
   if (!isLast) btns += '<button class="btn" id="nextSt" type="button">つぎのごはん</button>';
   btns += '<button class="btn' + (isLast ? '' : ' sub') + '" id="boardPick" type="button">ごはんをえらぶ</button>';
@@ -760,8 +834,9 @@ function showOver() {
     $('toTitle').onclick = showTitle;
   } else if (G.mode === 'food') {
     const b = FOOD_BOARDS[G.board];
-    $('ovTitle').textContent = 'さくから はみだした！';
-    $('ovBody').innerHTML = `<p>${G.board + 1}　${b.name}</p><p>のこり ${foodsLeft()}こ</p><p>スコア ${G.score}</p>`;
+    $('ovTitle').textContent = G.starved ? 'ごはんが のこった' : 'さくから はみだした！';
+    $('ovBody').innerHTML = `<p>${G.board + 1}　${b.name}</p><p>たべてないごはん ${foodsLeft()}こ</p>` +
+      (G.starved ? '<p class="small">おさらの顔のどうぶつを、おさらにくっつけよう</p>' : '');
     $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>' +
       '<button class="btn sub" id="boardPick" type="button">ごはんをえらぶ</button>' +
       '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
@@ -789,7 +864,7 @@ function showTitle() {
     <li>同じどうぶつがくっつくと、つぎの大きなどうぶつに<b>へんしん</b></li>
     <li>ゾウどうしはおうちへ帰る。赤い線の上に2びょうでおしまい</li>
     <li><b>ゾウモード</b>は帰ったらクリア。<b>むげん</b>はそのままつづく</li>
-    <li><b>ごはん</b>は、へんしんした瞬間に近くのものだけ食べる。なるどうぶつで食べものがちがう</li></ul>`;
+    <li><b>ごはん</b>は、おさらの顔のどうぶつをくっつけて食べさせる。食べると大きくなる</li></ul>`;
   $('ovBtns').innerHTML = '<button class="btn" id="goEle" type="button">ゾウをおうちへ</button>' +
     '<button class="btn sub" id="goFood" type="button">ごはんをたべる</button>' +
     '<button class="btn sub" id="goEndless" type="button">むげんモード</button>';
@@ -802,18 +877,20 @@ function showTitle() {
 }
 function showFoodSelect() {
   G.state = 'boards'; G.mode = 'food';
-  const done = Object.keys(G.foodCleared).filter(k => G.foodCleared[k]).length;
+  const done = FOOD_BOARDS.filter((b, i) => G.foodStars[i]).length;
+  const total = FOOD_BOARDS.reduce((n, b, i) => n + (G.foodStars[i] || 0), 0);
   $('ovTitle').textContent = 'ごはんをえらぶ';
   let list = '<div class="stage-list" role="list">';
   FOOD_BOARDS.forEach((b, i) => {
-    const open = i <= G.foodMax, cleared = !!G.foodCleared[i];
+    const open = i <= G.foodMax, st = G.foodStars[i] || 0;
     list += `<button class="stage-row" type="button" role="listitem" data-i="${i}" ${open ? '' : 'disabled'}>` +
       `<span class="num">${i + 1}</span>` +
       `<span class="meta"><span>${b.name}</span><small>${boardBlurb(b)}</small></span>` +
-      `<span class="mark">${cleared ? '✓' : open ? '▶' : '🔒'}</span></button>`;
+      `<span class="mark">${st ? starText(st) : open ? '▶' : '🔒'}</span></button>`;
   });
   list += '</div>';
-  $('ovBody').innerHTML = `<p>${done} / ${FOOD_BOARDS.length} クリア</p><p>へんしんしたとき、近くのえさを食べる<br>ハムスター→いちご　うさぎ→りんご<br>しばいぬ→おにぎり　ひつじ→ケーキ</p>` + list;
+  $('ovBody').innerHTML = `<p class="small">おさらの顔のどうぶつが さわると食べて、ひとまわり大きくなる。ほかのどうぶつには かべ。おとせる数が のこるほど ★がふえる</p>` +
+    `<p>${done} / ${FOOD_BOARDS.length} クリア　★ ${total} / ${FOOD_BOARDS.length * 3}</p>` + list;
   $('ovBtns').innerHTML = '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
   $('ovBody').querySelectorAll('.stage-row:not(:disabled)').forEach(btn => {
     btn.onclick = () => start('food', +btn.dataset.i);
@@ -828,7 +905,7 @@ function setPause(p) {
   if (p && G.state === 'play') {
     G.state = 'pause';
     const extra = G.mode === 'elephant' ? '<p>ゴール：ゾウを おうちへ</p>'
-      : G.mode === 'food' ? `<p>${FOOD_BOARDS[G.board].name}</p><p>のこり ${foodsLeft()}こ</p>` : '';
+      : G.mode === 'food' ? `<p>${FOOD_BOARDS[G.board].name}</p><p>ごはん のこり ${foodsLeft()}こ　おとせる あと ${G.drops}こ</p>` : '';
     $('ovTitle').textContent = 'ひとやすみ';
     $('ovBody').innerHTML = extra + `<p>スコア ${G.score}</p>`;
     $('ovBtns').innerHTML = '<button class="btn" id="resume" type="button">つづける</button>' +
@@ -843,18 +920,20 @@ function setPause(p) {
   }
 }
 function updHud() {
-  $('hudLeftLabel').textContent = 'SCORE';
-  $('score').textContent = G.score;
   const b = $('best');
   const playing = G.state === 'play' || G.state === 'pause' || G.state === 'clearing' || G.state === 'clear' || G.state === 'ending' || G.state === 'over';
+  const food = G.mode === 'food' && playing;
+  $('hudLeftLabel').textContent = food ? 'おとせる あと' : 'SCORE';
+  $('score').textContent = food ? G.drops + 'こ' : G.score;
+  $('score').classList.toggle('low', food && G.drops <= 3);
   if (G.mode === 'elephant' && playing) {
     $('hudMidLabel').textContent = 'ゴール';
     b.className = 'goal';
     b.textContent = 'ゾウを おうちへ';
   } else if (G.mode === 'food' && playing) {
-    $('hudMidLabel').textContent = 'ごはん';
-    b.className = 'goal';
-    b.textContent = 'のこり ' + foodsLeft();
+    $('hudMidLabel').textContent = 'ごはん のこり';
+    b.className = '';
+    b.textContent = foodsLeft() + 'こ';
   } else {
     $('hudMidLabel').textContent = 'BEST';
     b.className = '';
@@ -878,7 +957,13 @@ function frame(now) {
     }
     if (G.state === 'play' && G.cool > 0) {
       G.cool -= dt;
-      if (G.cool <= 0) { G.held = G.next; G.next = randKind(); drawNext(); }
+      if (G.cool <= 0 && !(G.mode === 'food' && G.drops <= 0)) { G.held = G.next; G.next = randKind(); drawNext(); }
+    }
+    // Out of drops: give the pile a moment to settle (and maybe eat), then call it.
+    if (G.state === 'play' && G.mode === 'food' && G.drops <= 0 && G.held == null) {
+      G.waitT += dt;
+      const calm = G.w.bodies.every(b => Math.hypot(b.vx, b.vy) < 25);
+      if (G.waitT > 4 || (calm && G.waitT > 1.5)) gameOver(true);
     }
     if (G.state === 'play' && aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver(); }
     else G.overT = Math.max(0, G.overT - dt * 2);
@@ -929,7 +1014,7 @@ function render() {
     if (t != null) drawSprite(c, t, x, DROP_Y, r, 0);
   }
 
-  if (G.w.foods) for (const f of G.w.foods) if (!f.eaten) paintFood(c, f);
+  if (G.w.foods) for (const f of G.w.foods) if (!f.eaten) paintFood(c, f, G.state === 'play' && G.held === f.eat);
   for (const b of G.w.bodies) drawSprite(c, b.t, b.x, b.y, b.r, b.ang);
 
   for (const p of G.fx) {
