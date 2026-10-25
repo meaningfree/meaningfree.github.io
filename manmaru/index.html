@@ -192,6 +192,25 @@ function stepWorld(w, dt = STEP) {
         a.touch = c.touch = true;
       }
     }
+    // Foods are fixed snacks. A big-enough animal eats one; a smaller one bounces off.
+    if (w.foods) {
+      for (const b of B) {
+        if (b.dead) continue;
+        for (const f of w.foods) {
+          if (f.eaten) continue;
+          const dx = b.x - f.x, dy = b.y - f.y, rr = b.r + f.r;
+          const d2 = dx * dx + dy * dy;
+          if (d2 >= rr * rr) continue;
+          if (b.t >= f.min) {
+            f.eaten = true;
+            events.push({ eat: true, x: f.x, y: f.y, kind: f.kind, gain: 10 + f.min * 8 });
+          } else {
+            const d = Math.sqrt(d2) || 0.0001, nx = dx / d, ny = dy / d, pen = rr - d;
+            b.x += nx * pen; b.y += ny * pen; b.touch = true;
+          }
+        }
+      }
+    }
     for (const b of B) {
       if (b.x - b.r < 0) { b.x = b.r; b.touch = true; }
       if (b.x + b.r > W) { b.x = W - b.r; b.touch = true; }
@@ -206,9 +225,9 @@ function stepWorld(w, dt = STEP) {
       if (b.touch) b.spin += (b.vx / b.r - b.spin) * 0.08;
       b.ang += b.spin * h;
     }
-    if (events.length && events.some(e => !e.done)) {
+    if (events.length && events.some(e => !e.done && !e.eat)) {
       for (const e of events) {
-        if (e.done) continue;
+        if (e.done || e.eat) continue;
         e.done = true;
         if (e.t <= LAST) addBody(w, e.t, e.x, e.y, { vx: e.vx * 0.5, vy: Math.min(e.vy, 0) * 0.5, r0: KINDS[e.t - 1].r });
       }
@@ -450,132 +469,87 @@ const store = {
   set(k, v) { try { localStorage.setItem('manmaru.' + k, JSON.stringify(v)); } catch {} },
 };
 
-// Stage goals — mix of create / score / board-state / combo / limited-drops / puzzle setups.
-// Optional per-stage: setup [[t,x,y],...], spawnKinds (smaller = harder).
-const STAGE_VER = 2;
-const STAGES = [
-  { name: 'はじまり', goal: { type: 'make', t: 2 } },
-  { name: 'なかよし', goal: { type: 'alive', t: 0, n: 3 } },
-  { name: 'みけねこ', goal: { type: 'make', t: 3 } },
-  { name: 'どうぶつえん', goal: { type: 'zoo', need: [{ t: 2, n: 1 }, { t: 3, n: 1 }] } },
-  { name: 'れんさ！', goal: { type: 'chain', n: 3 } },
-  { name: 'わんわん', goal: { type: 'make', t: 4 } },
-  { name: 'てかずチャレンジ', goal: { type: 'drops', t: 4, max: 18 } },
-  { name: 'すこしためる', goal: { type: 'score', n: 50 } },
-  { name: 'パズル・ふたご', goal: { type: 'make', t: 2 },
-    setup: [[0, 120, 520], [0, 160, 520], [1, 280, 510]] },
-  { name: 'ぶたさん', goal: { type: 'make', t: 5 } },
-  { name: 'いっぱいぶた', goal: { type: 'alive', t: 5, n: 2 } },
-  { name: 'もこもこ', goal: { type: 'make', t: 6 } },
-  { name: 'おおばくち', goal: { type: 'big', t: 6 } },
-  { name: 'パンダ！', goal: { type: 'make', t: 7 } },
-  { name: 'ひよこだけで', goal: { type: 'make', t: 5 }, spawnKinds: 1 },
-  { name: 'れんさマスター', goal: { type: 'chain', n: 5 } },
-  { name: 'らいおん', goal: { type: 'make', t: 8 } },
-  { name: 'パズル・だんご', goal: { type: 'make', t: 4 },
-    setup: [[1, 100, 515], [1, 150, 515], [2, 250, 500], [2, 310, 500]] },
-  { name: 'ぞうさん', goal: { type: 'make', t: 9 } },
-  { name: 'おかえり', goal: { type: 'home', n: 1 } },
-  { name: 'パンダだいすき', goal: { type: 'makeN', t: 7, n: 3 } },
-  { name: 'スコアチャレンジ', goal: { type: 'score', n: 280 } },
-  { name: 'おかえりパレード', goal: { type: 'home', n: 3 } },
-  { name: 'マスター', goal: { type: 'score', n: 450 } },
+// Foods sit in the box from the start. min = smallest animal tier that can eat one.
+// Smaller animals bounce off. items: [kind, x, y]
+const FOODS = [
+  { name:'いちご', r:18, min:0, col:'#F4546A' },
+  { name:'りんご', r:24, min:2, col:'#E23B3B' },
+  { name:'おにぎり', r:28, min:4, col:'#F7F3E8' },
+  { name:'ケーキ', r:34, min:6, col:'#F7C5D8' },
+];
+const FOOD_BOARDS = [
+  { name:'いちご', items:[[0, 90, 538], [0, 200, 538], [0, 310, 538]] },
+  { name:'りんご', items:[[0, 70, 538], [1, 200, 532], [0, 330, 538]] },
+  { name:'おやつ', items:[[0, 70, 538], [1, 170, 532], [1, 300, 532], [0, 230, 470]] },
+  { name:'おにぎり', items:[[1, 90, 532], [2, 200, 528], [1, 320, 532], [0, 200, 460]] },
+  { name:'ケーキ', items:[[1, 150, 532], [1, 250, 532], [3, 200, 474], [0, 70, 538], [0, 330, 538]] },
+  { name:'ならび', items:[[0, 60, 538], [1, 150, 532], [2, 250, 528], [1, 340, 532], [0, 200, 450]] },
+  { name:'たかいごはん', items:[[0, 80, 538], [1, 200, 532], [2, 320, 528], [3, 200, 360]] },
+  { name:'ごちそう', items:[[0, 55, 538], [1, 145, 532], [1, 255, 532], [2, 200, 480], [3, 200, 418], [0, 345, 538]] },
 ];
 
-const _stageOk = store.get('stageVer', 0) === STAGE_VER;
 const G = {
-  w: newWorld(), state: 'title', mode: 'endless', stage: 0,
+  w: newWorld(), state: 'title', mode: 'endless', board: 0,
   score: 0, best: store.get('best', 0),
-  stageMax: _stageOk ? store.get('stageMax', 0) : 0,
-  cleared: _stageOk ? store.get('cleared', {}) : {},
-  goalCount: 0, drops: 0, chain: 0, bestChain: 0, lastMergeT: -99,
+  foodMax: store.get('foodMax', 0),
+  foodCleared: store.get('foodCleared', {}),
   held: 0, next: 0, seen: store.get('seen', -1), heldX: W / 2, cool: 0, overT: 0, fx: [], pops: [], keys: {}, shake: 0, endT: 0,
 };
-if (!_stageOk) { store.set('stageVer', STAGE_VER); store.set('stageMax', 0); store.set('cleared', {}); }
+const randKind = () => Math.floor(Math.random() * SPAWN_KINDS);
 
-function spawnKinds() {
-  if (G.mode === 'stage') {
-    const sk = STAGES[G.stage] && STAGES[G.stage].spawnKinds;
-    if (sk) return sk;
+function foodsLeft() {
+  return (G.w.foods || []).reduce((n, f) => n + (f.eaten ? 0 : 1), 0);
+}
+function boardBlurb(b) {
+  const counts = {};
+  for (const it of b.items) counts[it[0]] = (counts[it[0]] || 0) + 1;
+  return FOODS.map((f, i) => counts[i] ? f.name + '×' + counts[i] : '').filter(Boolean).join(' ');
+}
+function loadFoods(items) {
+  G.w.foods = items.map(([kind, x, y]) => {
+    const F = FOODS[kind];
+    return { kind, x, y, r: F.r, min: F.min, eaten: false };
+  });
+}
+function paintFood(c, f) {
+  const F = FOODS[f.kind], r = f.r, lw = Math.max(1.2, r * 0.055);
+  const body = col => {
+    const g = c.createRadialGradient(-r * 0.28, -r * 0.32, r * 0.1, 0, 0, r);
+    g.addColorStop(0, shade(col, 0.28)); g.addColorStop(1, col);
+    fillCircle(c, 0, 0, r, g, OUT, lw);
+  };
+  c.save();
+  c.translate(f.x, f.y);
+  if (f.kind === 0) {
+    body(F.col);
+    fillEllipse(c, 0, -r * 0.72, r * 0.28, r * 0.16, 0, '#7CB86A', OUT, lw * 0.7);
+    for (const [x, y] of [[-0.28, -0.05], [0.22, 0.08], [0, 0.38], [-0.1, -0.32]]) {
+      fillEllipse(c, x * r, y * r, r * 0.05, r * 0.09, 0.4, '#FFE08A');
+    }
+  } else if (f.kind === 1) {
+    body(F.col);
+    c.beginPath(); c.moveTo(0, -r * 0.7); c.quadraticCurveTo(r * 0.05, -r * 1.05, r * 0.02, -r * 1.15);
+    c.lineCap = 'round'; c.lineWidth = lw; c.strokeStyle = '#6B8F4E'; c.stroke();
+    fillEllipse(c, r * 0.22, -r * 0.78, r * 0.22, r * 0.1, -0.6, '#8FCB6A', OUT, lw * 0.6);
+  } else if (f.kind === 2) {
+    body(F.col);
+    c.save(); c.beginPath(); c.arc(0, 0, r - lw, 0, Math.PI * 2); c.clip();
+    c.fillStyle = '#3E4A38'; c.fillRect(-r, -r * 0.22, r * 2, r * 0.38);
+    c.restore();
+    fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
+  } else {
+    body('#FFF6EA');
+    c.save(); c.beginPath(); c.arc(0, 0, r - lw, 0, Math.PI * 2); c.clip();
+    c.fillStyle = F.col; c.fillRect(-r, -r * 0.05, r * 2, r * 1.2);
+    c.restore();
+    fillCircle(c, 0, 0, r, 'rgba(0,0,0,0)', OUT, lw);
+    c.beginPath(); c.moveTo(0, -r * 0.15); c.lineTo(0, -r * 0.85);
+    c.lineCap = 'round'; c.lineWidth = lw; c.strokeStyle = '#E07A8A'; c.stroke();
+    fillCircle(c, 0, -r * 0.9, r * 0.1, '#F6E27A', OUT, lw * 0.6);
   }
-  return SPAWN_KINDS;
-}
-const randKind = () => Math.floor(Math.random() * spawnKinds());
-const countAlive = t => G.w.bodies.reduce((n, b) => n + (b.t === t ? 1 : 0), 0);
-
-function goalLabel(st) {
-  const g = st.goal;
-  if (g.type === 'make') return KINDS[g.t].name + 'をつくろう';
-  if (g.type === 'makeN') return KINDS[g.t].name + 'を ' + g.n + 'ひき';
-  if (g.type === 'home') return g.n === 1 ? 'ゾウを おうちへ' : 'ゾウを ' + g.n + 'かい おうちへ';
-  if (g.type === 'score') return 'スコア ' + g.n;
-  if (g.type === 'alive') return KINDS[g.t].name + 'を どうじに ' + g.n + 'ひき';
-  if (g.type === 'zoo') return g.need.map(({ t, n }) => KINDS[t].name + (n > 1 ? '×' + n : '')).join(' と ');
-  if (g.type === 'chain') return 'れんさ ×' + g.n;
-  if (g.type === 'big') return KINDS[g.t].name + 'いじょうを いちどで';
-  if (g.type === 'drops') return KINDS[g.t].name + 'を ' + g.max + 'てかずで';
-  return st.hint || '';
-}
-function goalShowsProgress(g) {
-  return g.type !== 'make' && g.type !== 'big';
-}
-function goalProgressText() {
-  const g = STAGES[G.stage].goal;
-  if (g.type === 'score') return G.score + ' / ' + g.n;
-  if (g.type === 'makeN' || g.type === 'home') return G.goalCount + ' / ' + g.n;
-  if (g.type === 'alive') return countAlive(g.t) + ' / ' + g.n;
-  if (g.type === 'zoo') return g.need.map(({ t, n }) => countAlive(t) + '/' + n).join(' ');
-  if (g.type === 'chain') return 'さいこう ' + G.bestChain + ' / ' + g.n;
-  if (g.type === 'drops') return G.drops + ' / ' + g.max + 'て';
-  if (g.type === 'make') return G.goalCount > 0 ? 'できた！' : 'まだ…';
-  return '';
-}
-function goalMet() {
-  const g = STAGES[G.stage].goal;
-  if (g.type === 'score') return G.score >= g.n;
-  if (g.type === 'make' || g.type === 'big') return G.goalCount >= 1;
-  if (g.type === 'makeN' || g.type === 'home') return G.goalCount >= g.n;
-  if (g.type === 'alive') return countAlive(g.t) >= g.n;
-  if (g.type === 'zoo') return g.need.every(({ t, n }) => countAlive(t) >= n);
-  if (g.type === 'chain') return G.bestChain >= g.n;
-  if (g.type === 'drops') return G.goalCount >= 1 && G.drops <= g.max;
-  return false;
-}
-function noteGoalMerge(t, x, y) {
-  if (G.mode !== 'stage' || G.state !== 'play') return;
-  const now = G.w.time;
-  if (now - G.lastMergeT < 0.9) G.chain++;
-  else G.chain = 1;
-  G.lastMergeT = now;
-  if (G.chain > G.bestChain) G.bestChain = G.chain;
-  if (G.chain >= 2) {
-    G.pops.push({ x: Math.max(80, Math.min(W - 80, x)), y: Math.max(DEAD_Y + 30, y - 28),
-      text: 'れんさ×' + G.chain, t: 0, life: 1.0, small: true });
-  }
-  const g = STAGES[G.stage].goal;
-  if ((g.type === 'make' || g.type === 'drops') && t === g.t) G.goalCount = 1;
-  else if (g.type === 'makeN' && t === g.t) G.goalCount++;
-  else if (g.type === 'home' && t > LAST) G.goalCount++;
-  else if (g.type === 'big' && t <= LAST && t >= g.t) G.goalCount = 1;
-  else if (g.type === 'big' && t > LAST && LAST >= g.t) G.goalCount = 1;
-  if (goalMet()) stageClear();
-}
-function checkBoardGoals() {
-  if (G.mode !== 'stage' || G.state !== 'play') return;
-  const g = STAGES[G.stage].goal;
-  if ((g.type === 'alive' || g.type === 'zoo') && goalMet()) stageClear();
-}
-function applySetup(setup) {
-  if (!setup) return;
-  for (const row of setup) {
-    const t = row[0], x = row[1], y = row[2] != null ? row[2] : H - KINDS[t].r - 2;
-    addBody(G.w, t, x, y);
-    meet(t);
-  }
-}
-function dropsExhausted() {
-  const g = STAGES[G.stage].goal;
-  return G.mode === 'stage' && g.type === 'drops' && G.drops >= g.max && G.goalCount < 1;
+  const need = KINDS[F.min];
+  fillCircle(c, 0, r * 0.62, Math.max(4, r * 0.2), need.col, OUT, lw * 0.65);
+  c.restore();
 }
 
 // ----- sound -----
@@ -625,6 +599,7 @@ const sfx = {
     tone(f, f * 1.9, 0.11, 'triangle', 0.4); tone(f * 1.5, f * 2.6, 0.09, 'sine', 0.22, 0.05);
   },
   melon() { [784, 988, 1175, 1568, 1976].forEach((f, i) => tone(f, f * 1.01, 0.2, 'triangle', 0.32, i * 0.08)); },
+  eat() { tone(620, 980, 0.08, 'triangle', 0.28); tone(900, 1400, 0.07, 'sine', 0.16, 0.03); },
   clear() { [659, 784, 988, 1319].forEach((f, i) => tone(f, f * 1.02, 0.22, 'triangle', 0.34, i * 0.09)); },
   over() { [880, 740, 622, 523].forEach((f, i) => tone(f, f * 0.97, 0.28, 'triangle', 0.32, i * 0.16)); },
 };
@@ -681,37 +656,30 @@ function meet(t, x, y) {   // record a newly met animal
 function drawNext() {
   const c = nctx, s = nextCv.width;
   c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, s, s);
-  if (G.state === 'title' || G.state === 'stages') return;
+  if (G.state === 'title' || G.state === 'boards') return;
   const F = KINDS[G.next], k = (s * 0.3) / Math.max(F.r, 20);
   c.translate(s / 2, s / 2 + 3); c.scale(k, k); paintAnimal(c, G.next, F.r);
 }
 
 // ----- game flow -----
-function start(mode, stage) {
+function start(mode, board) {
   ac();
   if (mode) G.mode = mode;
-  if (stage != null) G.stage = stage;
-  G.w = newWorld(); G.score = 0; G.goalCount = 0; G.drops = 0;
-  G.chain = 0; G.bestChain = 0; G.lastMergeT = -99;
-  G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
-  if (G.mode === 'stage') applySetup(STAGES[G.stage].setup);
+  if (board != null) G.board = board;
+  G.w = newWorld(); G.score = 0; G.overT = 0; G.fx = []; G.pops = []; G.cool = 0; G.endT = 0;
+  if (G.mode === 'food') loadFoods(FOOD_BOARDS[G.board].items);
   G.held = randKind(); G.next = randKind(); G.heldX = W / 2;
   G.state = 'play';
   $('overlay').hidden = true;
-  checkBoardGoals();
   updHud(); drawNext();
 }
 function drop() {
   if (G.state !== 'play' || G.cool > 0 || G.held == null) return;
-  // After the last allowed drop, give merges time to settle; fail only on the next attempt.
-  if (dropsExhausted()) { gameOver('drops'); return; }
   const r = KINDS[G.held].r;
   // a tiny sideways nudge so stacks topple naturally instead of balancing in a perfect column
   addBody(G.w, G.held, clampX(G.heldX + (Math.random() - 0.5) * 0.6, r), DROP_Y, { vy: 60 });
   sfx.drop(); meet(G.held);
-  G.drops++;
   G.held = null; G.cool = 0.45;
-  updHud();
 }
 const clampX = (x, r) => Math.max(r + 1, Math.min(W - r - 1, x));
 
@@ -726,48 +694,62 @@ function onMerge(e) {
   }
   G.pops.push({ x: e.x, y: e.y, text: '+' + gain, t: 0 });
   meet(t, e.x, e.y);
-  if (G.mode === 'stage') {
-    noteGoalMerge(t, e.x, e.y);
-    if (G.state === 'play' && STAGES[G.stage].goal.type === 'score' && goalMet()) stageClear();
-    checkBoardGoals();
+  if (G.mode === 'elephant' && t > LAST) win();
+  updHud();
+}
+function onEat(e) {
+  G.score += e.gain;
+  sfx.eat();
+  const cols = ['#F25C6B', '#F6E27A', '#F7C5D8', '#8FCB6A'];
+  for (let k = 0; k < 8; k++) {
+    const a = Math.random() * Math.PI * 2, sp = 70 + Math.random() * 120;
+    G.fx.push({ x: e.x, y: e.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.45, t: 0, col: cols[k % cols.length], r: 3 + Math.random() * 2 });
   }
+  G.pops.push({ x: e.x, y: e.y, text: 'もぐもぐ +' + e.gain, t: 0, small: true, life: 0.9 });
+  if (G.mode === 'food' && foodsLeft() === 0) win();
   updHud();
 }
 
-function gameOver(reason) {
+function gameOver() {
   if (G.state !== 'play') return;
-  G.failReason = reason || 'overflow';
   G.state = 'ending'; G.endT = 0; sfx.over();
 }
-function stageClear() {
+function win() {
   if (G.state !== 'play') return;
   G.state = 'clearing'; G.endT = 0; sfx.clear(); G.shake = 0.25;
-  G.cleared[G.stage] = true; store.set('cleared', G.cleared); store.set('stageVer', STAGE_VER);
-  if (G.stage + 1 < STAGES.length && G.stage + 1 > G.stageMax) {
-    G.stageMax = G.stage + 1; store.set('stageMax', G.stageMax);
+  if (G.mode === 'food') {
+    G.foodCleared[G.board] = true; store.set('foodCleared', G.foodCleared);
+    if (G.board + 1 < FOOD_BOARDS.length && G.board + 1 > G.foodMax) {
+      G.foodMax = G.board + 1; store.set('foodMax', G.foodMax);
+    }
   }
 }
 function showClear() {
   G.state = 'clear';
-  if (G.mode === 'endless') return;
-  const st = STAGES[G.stage], next = G.stage + 1;
-  const isLast = next >= STAGES.length;
-  $('ovTitle').textContent = 'クリア！';
-  $('ovBody').innerHTML = `<p>ステージ ${G.stage + 1}　${st.name}</p>` +
-    `<div class="big">やったね</div>` +
-    `<p>${goalLabel(st)}</p><p>スコア ${G.score}</p>` +
-    (isLast ? '<span class="new">全ステージクリア！</span>' : `<p>つぎは「${STAGES[next].name}」</p>`);
+  if (G.mode === 'elephant') {
+    $('ovTitle').textContent = 'おかえり！';
+    $('ovBody').innerHTML = `<p>ゾウが おうちへ かえった</p><div class="big">クリア</div><p>スコア ${G.score}</p>`;
+    $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>' +
+      '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
+    $('again').onclick = () => start('elephant');
+    $('toTitle').onclick = showTitle;
+    $('overlay').hidden = false; updHud(); $('again').focus();
+    return;
+  }
+  if (G.mode !== 'food') return;
+  const b = FOOD_BOARDS[G.board], next = G.board + 1, isLast = next >= FOOD_BOARDS.length;
+  $('ovTitle').textContent = 'ぜんぶ たべた！';
+  $('ovBody').innerHTML = `<p>${G.board + 1}　${b.name}</p><div class="big">もぐもぐ</div><p>スコア ${G.score}</p>` +
+    (isLast ? '<span class="new">全ごはんクリア！</span>' : `<p>つぎは「${FOOD_BOARDS[next].name}」</p>`);
   let btns = '';
-  if (!isLast) btns += '<button class="btn" id="nextSt" type="button">つぎのステージ</button>';
-  btns += '<button class="btn' + (isLast ? '' : ' sub') + '" id="stagePick" type="button">ステージをえらぶ</button>';
+  if (!isLast) btns += '<button class="btn" id="nextSt" type="button">つぎのごはん</button>';
+  btns += '<button class="btn' + (isLast ? '' : ' sub') + '" id="boardPick" type="button">ごはんをえらぶ</button>';
   btns += '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
   $('ovBtns').innerHTML = btns;
-  if ($('nextSt')) $('nextSt').onclick = () => start('stage', next);
-  $('stagePick').onclick = showStageSelect;
+  if ($('nextSt')) $('nextSt').onclick = () => start('food', next);
+  $('boardPick').onclick = showFoodSelect;
   $('toTitle').onclick = showTitle;
-  $('overlay').hidden = false;
-  updHud();
-  ($('nextSt') || $('stagePick')).focus();
+  $('overlay').hidden = false; updHud(); ($('nextSt') || $('boardPick')).focus();
 }
 function showOver() {
   G.state = 'over';
@@ -775,20 +757,22 @@ function showOver() {
   if (isBest) { G.best = G.score; store.set('best', G.best); }
   const top = G.w.bodies.reduce((m, b) => Math.max(m, b.t), -1);
   const topName = top >= 0 ? KINDS[top].name : '—';
-  if (G.mode === 'stage') {
-    const st = STAGES[G.stage];
-    const failTitle = G.failReason === 'drops' ? 'てかずが たりない…' : 'ざんねん…';
-    $('ovTitle').textContent = failTitle;
-    $('ovBody').innerHTML = `<p>ステージ ${G.stage + 1}　${st.name}</p>` +
-      `<p>ゴール：${goalLabel(st)}</p>` +
-      (goalShowsProgress(st.goal) || st.goal.type === 'drops'
-        ? `<p>しんちょく ${goalProgressText()}</p>` : '') +
-      `<p>スコア ${G.score}</p>`;
+  if (G.mode === 'elephant') {
+    $('ovTitle').textContent = 'さくから はみだした！';
+    $('ovBody').innerHTML = `<p>ゾウが かえるまえに いっぱい</p><p>スコア ${G.score}</p><p>いちばん大きいどうぶつ：${topName}</p>`;
     $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>' +
-      '<button class="btn sub" id="stagePick" type="button">ステージをえらぶ</button>' +
       '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
-    $('again').onclick = () => start('stage', G.stage);
-    $('stagePick').onclick = showStageSelect;
+    $('again').onclick = () => start('elephant');
+    $('toTitle').onclick = showTitle;
+  } else if (G.mode === 'food') {
+    const b = FOOD_BOARDS[G.board];
+    $('ovTitle').textContent = 'さくから はみだした！';
+    $('ovBody').innerHTML = `<p>${G.board + 1}　${b.name}</p><p>のこり ${foodsLeft()}こ</p><p>スコア ${G.score}</p>`;
+    $('ovBtns').innerHTML = '<button class="btn" id="again" type="button">もういちど</button>' +
+      '<button class="btn sub" id="boardPick" type="button">ごはんをえらぶ</button>' +
+      '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
+    $('again').onclick = () => start('food', G.board);
+    $('boardPick').onclick = showFoodSelect;
     $('toTitle').onclick = showTitle;
   } else {
     $('ovTitle').textContent = 'さくから はみだした！';
@@ -810,34 +794,36 @@ function showTitle() {
   $('ovBody').innerHTML = `<ul>
     <li>まるい どうぶつを上から落として、さくの中に入れよう</li>
     <li>同じ どうぶつが くっつくと、つぎの大きな どうぶつに <b>へんしん</b></li>
-    <li>ひよこ → ハムスター → … → ゾウ。ゾウどうしは なかよく おうちへ帰る</li>
-    <li>赤い線より上に はみだしたまま2びょうたつと、おしまい</li>
-    <li><b>ステージ</b>ではゴールをクリアしていくよ。むげんはどこまでも続くよ</li></ul>`;
-  $('ovBtns').innerHTML = '<button class="btn" id="goStage" type="button">ステージモード</button>' +
+    <li>ひよこ → … → ゾウ。ゾウどうしは なかよく おうちへ帰る</li>
+    <li><b>ゾウモード</b>は、おうちへ帰ったらクリア。<b>むげん</b>ははみだすまでつづく</li>
+    <li><b>ごはん</b>は、最初からある食べものを消す。下のまるが「これでたべられる」どうぶつの色</li></ul>`;
+  $('ovBtns').innerHTML = '<button class="btn" id="goEle" type="button">ゾウをおうちへ</button>' +
+    '<button class="btn sub" id="goFood" type="button">ごはんをたべる</button>' +
     '<button class="btn sub" id="goEndless" type="button">むげんモード</button>';
-  $('goStage').onclick = showStageSelect;
+  $('goEle').onclick = () => start('elephant');
+  $('goFood').onclick = showFoodSelect;
   $('goEndless').onclick = () => start('endless');
   $('overlay').hidden = false;
   updHud();
-  $('goStage').focus();
+  $('goEle').focus();
 }
-function showStageSelect() {
-  G.state = 'stages'; G.mode = 'stage';
-  const done = Object.keys(G.cleared).filter(k => G.cleared[k]).length;
-  $('ovTitle').textContent = 'ステージをえらぶ';
+function showFoodSelect() {
+  G.state = 'boards'; G.mode = 'food';
+  const done = Object.keys(G.foodCleared).filter(k => G.foodCleared[k]).length;
+  $('ovTitle').textContent = 'ごはんをえらぶ';
   let list = '<div class="stage-list" role="list">';
-  STAGES.forEach((st, i) => {
-    const open = i <= G.stageMax, cleared = !!G.cleared[i];
+  FOOD_BOARDS.forEach((b, i) => {
+    const open = i <= G.foodMax, cleared = !!G.foodCleared[i];
     list += `<button class="stage-row" type="button" role="listitem" data-i="${i}" ${open ? '' : 'disabled'}>` +
       `<span class="num">${i + 1}</span>` +
-      `<span class="meta"><span>${st.name}</span><small>${goalLabel(st)}</small></span>` +
+      `<span class="meta"><span>${b.name}</span><small>${boardBlurb(b)}</small></span>` +
       `<span class="mark">${cleared ? '✓' : open ? '▶' : '🔒'}</span></button>`;
   });
   list += '</div>';
-  $('ovBody').innerHTML = `<p>${done} / ${STAGES.length} クリア</p>` + list;
+  $('ovBody').innerHTML = `<p>${done} / ${FOOD_BOARDS.length} クリア</p><p>ちいさいどうぶつはぶつかるだけ。おおきくなるとたべられる</p>` + list;
   $('ovBtns').innerHTML = '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
   $('ovBody').querySelectorAll('.stage-row:not(:disabled)').forEach(btn => {
-    btn.onclick = () => start('stage', +btn.dataset.i);
+    btn.onclick = () => start('food', +btn.dataset.i);
   });
   $('toTitle').onclick = showTitle;
   $('overlay').hidden = false;
@@ -848,16 +834,15 @@ function showStageSelect() {
 function setPause(p) {
   if (p && G.state === 'play') {
     G.state = 'pause';
-    const extra = G.mode === 'stage'
-      ? `<p>ステージ ${G.stage + 1}　${STAGES[G.stage].name}</p><p>ゴール：${goalLabel(STAGES[G.stage])}</p>`
-      : '';
+    const extra = G.mode === 'elephant' ? '<p>ゴール：ゾウを おうちへ</p>'
+      : G.mode === 'food' ? `<p>${FOOD_BOARDS[G.board].name}</p><p>のこり ${foodsLeft()}こ</p>` : '';
     $('ovTitle').textContent = 'ひとやすみ';
     $('ovBody').innerHTML = extra + `<p>スコア ${G.score}</p>`;
     $('ovBtns').innerHTML = '<button class="btn" id="resume" type="button">つづける</button>' +
       '<button class="btn sub" id="restart" type="button">はじめから</button>' +
       '<button class="btn sub" id="toTitle" type="button">タイトルへ</button>';
     $('resume').onclick = () => setPause(false);
-    $('restart').onclick = () => start(G.mode, G.mode === 'stage' ? G.stage : undefined);
+    $('restart').onclick = () => start(G.mode, G.mode === 'food' ? G.board : undefined);
     $('toTitle').onclick = showTitle;
     $('overlay').hidden = false;
   } else if (!p && G.state === 'pause') {
@@ -867,15 +852,18 @@ function setPause(p) {
 function updHud() {
   $('hudLeftLabel').textContent = 'SCORE';
   $('score').textContent = G.score;
-  if (G.mode === 'stage' && (G.state === 'play' || G.state === 'pause' || G.state === 'clearing' || G.state === 'clear' || G.state === 'ending' || G.state === 'over')) {
-    $('hudMidLabel').textContent = 'ST' + (G.stage + 1);
-    const b = $('best');
+  const b = $('best');
+  const playing = G.state === 'play' || G.state === 'pause' || G.state === 'clearing' || G.state === 'clear' || G.state === 'ending' || G.state === 'over';
+  if (G.mode === 'elephant' && playing) {
+    $('hudMidLabel').textContent = 'ゴール';
     b.className = 'goal';
-    const g = STAGES[G.stage].goal;
-    b.textContent = goalLabel(STAGES[G.stage]) + (goalShowsProgress(g) ? '　' + goalProgressText() : '');
+    b.textContent = 'ゾウを おうちへ';
+  } else if (G.mode === 'food' && playing) {
+    $('hudMidLabel').textContent = 'ごはん';
+    b.className = 'goal';
+    b.textContent = 'のこり ' + foodsLeft();
   } else {
     $('hudMidLabel').textContent = 'BEST';
-    const b = $('best');
     b.className = '';
     b.textContent = Math.max(G.best, G.score);
   }
@@ -891,20 +879,15 @@ function frame(now) {
     if (G.keys.ArrowRight) G.heldX += sp * dt;
     G.heldX = Math.max(0, Math.min(W, G.heldX));
     acc += dt;
-    while (acc >= STEP) {
+    while (acc >= STEP && G.state === 'play') {
       acc -= STEP;
-      for (const e of stepWorld(G.w)) onMerge(e);
+      for (const e of stepWorld(G.w)) e.eat ? onEat(e) : onMerge(e);
     }
-    if (G.cool > 0) {
+    if (G.state === 'play' && G.cool > 0) {
       G.cool -= dt;
       if (G.cool <= 0) { G.held = G.next; G.next = randKind(); drawNext(); }
     }
-    if (G.mode === 'stage') {
-      checkBoardGoals();
-      const g = STAGES[G.stage].goal;
-      if (G.state === 'play' && (g.type === 'alive' || g.type === 'zoo' || g.type === 'chain')) updHud();
-    }
-    if (aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver('overflow'); }
+    if (G.state === 'play' && aboveLine(G.w)) { G.overT += dt; if (G.overT >= OVER_LIMIT) gameOver(); }
     else G.overT = Math.max(0, G.overT - dt * 2);
   } else if (G.state === 'ending') {
     G.endT += dt;
@@ -953,6 +936,7 @@ function render() {
     if (t != null) drawSprite(c, t, x, DROP_Y, r, 0);
   }
 
+  if (G.w.foods) for (const f of G.w.foods) if (!f.eaten) paintFood(c, f);
   for (const b of G.w.bodies) drawSprite(c, b.t, b.x, b.y, b.r, b.ang);
 
   for (const p of G.fx) {
