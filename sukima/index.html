@@ -80,12 +80,12 @@ button{font:inherit;color:inherit;cursor:pointer}
 .toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(34,21,12,.92);color:var(--cream);
   padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;pointer-events:none;white-space:nowrap}
 
-/* D-pad: compact ← → (easy to aim), soft-drop inset below with a wide gap so thumbs don't graze it, rotate on the right */
-.pad{display:grid;grid-template-columns:1fr 1fr 1.1fr;grid-template-rows:48px 28px;column-gap:10px;row-gap:18px;padding-bottom:max(4px,env(safe-area-inset-bottom,0px))}
+/* Small ← → pushed to the left edge with "fast" under them; empty middle; big rotate on the right */
+.pad{display:grid;grid-template-columns:60px 60px 1fr 116px;grid-template-rows:48px 28px;column-gap:10px;row-gap:18px;padding-bottom:max(4px,env(safe-area-inset-bottom,0px))}
 #bL{grid-area:1/1} #bR{grid-area:1/2}
-#bD{grid-area:2/1/3/3;margin-inline:22px;flex-direction:row;gap:6px;font-size:11px;background:linear-gradient(#4A2F18,#36210C)}
+#bD{grid-area:2/1/3/3;flex-direction:row;gap:6px;font-size:11px;background:linear-gradient(#4A2F18,#36210C)}
 #bD svg{width:16px;height:16px}
-#bRot{grid-area:1/3/3/4;height:auto;margin-left:4px}
+#bRot{grid-area:1/4/3/5;height:auto}
 .pad button{height:100%;border-radius:12px;border:0;touch-action:none;
   background:linear-gradient(#5A3A1F,#40280F);box-shadow:inset 0 1px 0 rgba(255,220,170,.18),0 3px 0 #1A0E05;color:var(--cream);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;font-weight:700;line-height:1}
@@ -246,6 +246,7 @@ function makeStream(rnd = Math.random) {
   const nv = $('next'), nctx = nv.getContext('2d');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const LINE_PTS = [0, 100, 300, 500, 800];
+  const SOFT_MS = 70; // fast, but slow enough to see and let go mid-way
   const LOCK_MS = 600, MAX_RESETS = 15, CLEAR_MS = 300, START_ROWS = 8, LINES_PER_LEVEL = 8;
 
   const store = {
@@ -668,7 +669,7 @@ function makeStream(rnd = Math.random) {
       G.riseT += dt;
       if (G.riseT >= riseMs()) { G.riseT = 0; rise(); }
       if (G.phase === 'play' && G.cur) {
-        const iv = G.soft ? 35 : gravMs();
+        const iv = G.soft ? Math.min(SOFT_MS, gravMs()) : gravMs();
         G.gAcc += dt;
         while (G.gAcc >= iv && G.cur) {
           G.gAcc -= iv;
@@ -705,11 +706,9 @@ function makeStream(rnd = Math.random) {
   bindHold($('bR'), () => move(1));
   $('bRot').addEventListener('pointerdown', e => { e.preventDefault(); buzz(12); rotate(1); $('bRot').classList.add('on'); });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bRot').addEventListener(ev, () => $('bRot').classList.remove('on'));
-  // Soft-drop: delay a beat so a graze while aiming for ←/→ doesn't drop the piece.
+  // Soft-drop reacts right away while held; letting go stops it.
   const bD = $('bD');
-  let softArm = null;
   const softOff = () => {
-    clearTimeout(softArm); softArm = null;
     if (G) G.soft = false;
     bD.classList.remove('on');
   };
@@ -717,11 +716,8 @@ function makeStream(rnd = Math.random) {
     e.preventDefault();
     try { bD.setPointerCapture(e.pointerId); } catch (_) {}
     bD.classList.add('on');
-    softArm = setTimeout(() => {
-      softArm = null;
-      if (!G) return;
-      G.soft = true; G.gAcc = 9999; buzz(10);
-    }, 85);
+    if (!G) return;
+    G.soft = true; G.gAcc = 9999; buzz(10);
   });
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) bD.addEventListener(ev, softOff);
   for (const b of $('pad').querySelectorAll('button')) b.addEventListener('click', e => e.preventDefault());
