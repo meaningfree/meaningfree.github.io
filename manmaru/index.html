@@ -792,11 +792,10 @@ function showTitle() {
   G.state = 'title';
   $('ovTitle').textContent = 'まんまるどうぶつ';
   $('ovBody').innerHTML = `<ul>
-    <li>まるい どうぶつを上から落として、さくの中に入れよう</li>
-    <li>同じ どうぶつが くっつくと、つぎの大きな どうぶつに <b>へんしん</b></li>
-    <li>ひよこ → … → ゾウ。ゾウどうしは なかよく おうちへ帰る</li>
-    <li><b>ゾウモード</b>は、おうちへ帰ったらクリア。<b>むげん</b>ははみだすまでつづく</li>
-    <li><b>ごはん</b>は、最初からある食べものを消す。下のまるが「これでたべられる」どうぶつの色</li></ul>`;
+    <li>同じどうぶつがくっつくと、つぎの大きなどうぶつに<b>へんしん</b></li>
+    <li>ゾウどうしはおうちへ帰る。赤い線の上に2びょうでおしまい</li>
+    <li><b>ゾウモード</b>は帰ったらクリア。<b>むげん</b>はそのままつづく</li>
+    <li><b>ごはん</b>は置いてある食べものを消す。下の色まるが、食べられるどうぶつ</li></ul>`;
   $('ovBtns').innerHTML = '<button class="btn" id="goEle" type="button">ゾウをおうちへ</button>' +
     '<button class="btn sub" id="goFood" type="button">ごはんをたべる</button>' +
     '<button class="btn sub" id="goEndless" type="button">むげんモード</button>';
