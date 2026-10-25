@@ -80,21 +80,21 @@ button{font:inherit;color:inherit;cursor:pointer}
 .toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);background:rgba(34,21,12,.92);color:var(--cream);
   padding:6px 14px;border-radius:999px;font-size:13px;font-weight:700;pointer-events:none;white-space:nowrap}
 
-/* D-pad on the left: ← → on top, a separate wide "fast" bar below; one big rotate button on the right */
-.pad{display:grid;grid-template-columns:1fr 1fr 1.25fr;grid-template-rows:60px 38px;column-gap:8px;row-gap:12px;padding-bottom:4px}
+/* D-pad: compact ← → (easy to aim), soft-drop inset below with a wide gap so thumbs don't graze it, rotate on the right */
+.pad{display:grid;grid-template-columns:1fr 1fr 1.1fr;grid-template-rows:48px 28px;column-gap:10px;row-gap:18px;padding-bottom:max(4px,env(safe-area-inset-bottom,0px))}
 #bL{grid-area:1/1} #bR{grid-area:1/2}
-#bD{grid-area:2/1/3/3;flex-direction:row;gap:6px;font-size:12px;background:linear-gradient(#4A2F18,#36210C)}
-#bD svg{width:20px;height:20px}
-#bRot{grid-area:1/3/3/4;height:auto}
+#bD{grid-area:2/1/3/3;margin-inline:22px;flex-direction:row;gap:6px;font-size:11px;background:linear-gradient(#4A2F18,#36210C)}
+#bD svg{width:16px;height:16px}
+#bRot{grid-area:1/3/3/4;height:auto;margin-left:4px}
 .pad button{height:100%;border-radius:12px;border:0;touch-action:none;
   background:linear-gradient(#5A3A1F,#40280F);box-shadow:inset 0 1px 0 rgba(255,220,170,.18),0 3px 0 #1A0E05;color:var(--cream);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;font-weight:700;line-height:1}
 .pad button.on,.pad button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 rgba(255,220,170,.18),0 1px 0 #1A0E05}
-.pad button.rot{margin-left:8px;border-radius:999px;font-size:13px;background:linear-gradient(#F6C35A,#D99A22);color:var(--amber-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 0 #7A5210}
+.pad button.rot{border-radius:999px;font-size:13px;background:linear-gradient(#F6C35A,#D99A22);color:var(--amber-ink);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 3px 0 #7A5210}
 .pad button.rot.on,.pad button.rot:active{box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 1px 0 #7A5210}
-.pad svg{width:26px;height:26px}
-.pad .rot svg{width:30px;height:30px}
-@media (max-height:640px){.pad{grid-template-rows:50px 34px;row-gap:10px}.hud .sc{font-size:22px}}
+.pad svg{width:22px;height:22px}
+.pad .rot svg{width:28px;height:28px}
+@media (max-height:640px){.pad{grid-template-rows:44px 26px;row-gap:16px}.hud .sc{font-size:22px}}
 </style>
 </head>
 <body>
@@ -305,6 +305,9 @@ function makeStream(rnd = Math.random) {
   const showSound = () => { soundBtn.textContent = SND.on ? '音 ON' : '音 OFF'; };
   showSound();
   soundBtn.addEventListener('click', () => { SND.toggle(); showSound(); soundBtn.blur(); });
+
+  // Short buzz on Android Chrome etc. iPhone Safari has no Vibration API (and no Taptic from the web).
+  const buzz = ms => { try { navigator.vibrate?.(ms); } catch (_) {} };
 
   // ---------- game state ----------
   let G = null;
@@ -693,18 +696,34 @@ function makeStream(rnd = Math.random) {
     const stop = () => { clearTimeout(t1); clearInterval(t2); t1 = t2 = null; el.classList.remove('on'); };
     el.addEventListener('pointerdown', e => {
       e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (_) {}
-      el.classList.add('on'); fn();
+      el.classList.add('on'); buzz(8); fn();
       t1 = setTimeout(() => { t2 = setInterval(fn, 55); }, 170);
     });
     for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, stop);
   }
   bindHold($('bL'), () => move(-1));
   bindHold($('bR'), () => move(1));
-  $('bRot').addEventListener('pointerdown', e => { e.preventDefault(); rotate(1); $('bRot').classList.add('on'); });
+  $('bRot').addEventListener('pointerdown', e => { e.preventDefault(); buzz(12); rotate(1); $('bRot').classList.add('on'); });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bRot').addEventListener(ev, () => $('bRot').classList.remove('on'));
+  // Soft-drop: delay a beat so a graze while aiming for ←/→ doesn't drop the piece.
   const bD = $('bD');
-  bD.addEventListener('pointerdown', e => { e.preventDefault(); try { bD.setPointerCapture(e.pointerId); } catch (_) {} if (G) { G.soft = true; G.gAcc = 9999; } bD.classList.add('on'); });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) bD.addEventListener(ev, () => { if (G) G.soft = false; bD.classList.remove('on'); });
+  let softArm = null;
+  const softOff = () => {
+    clearTimeout(softArm); softArm = null;
+    if (G) G.soft = false;
+    bD.classList.remove('on');
+  };
+  bD.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    try { bD.setPointerCapture(e.pointerId); } catch (_) {}
+    bD.classList.add('on');
+    softArm = setTimeout(() => {
+      softArm = null;
+      if (!G) return;
+      G.soft = true; G.gAcc = 9999; buzz(10);
+    }, 85);
+  });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) bD.addEventListener(ev, softOff);
   for (const b of $('pad').querySelectorAll('button')) b.addEventListener('click', e => e.preventDefault());
 
   let gest = null;
