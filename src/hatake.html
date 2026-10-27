@@ -163,7 +163,7 @@ const CROPS = [
 const GOALS = [
   { id:'g1', text:'だいこんを 3こ かりとる', need: s => s.harvested.daikon >= 3, reward:80 },
   { id:'g2', text:'はたけを 4×4 にひろげる', need: s => s.size >= 4, reward:150 },
-  { id:'g3', text:'トマトを かいぞうする', need: s => s.unlocked.includes('tomato'), reward:120 },
+  { id:'g3', text:'トマトを かいほうする', need: s => s.unlocked.includes('tomato'), reward:120 },
   { id:'g4', text:'合計 20こ かりとる', need: s => totalHarvest(s) >= 20, reward:250 },
   { id:'g5', text:'おかねを ¥2,000 ためる', need: s => s.money >= 2000, reward:300 },
   { id:'g6', text:'はたけを 5×5 にひろげる', need: s => s.size >= 5, reward:400 },
