@@ -11,6 +11,7 @@
 | `matchstick/index.html` | <https://meaningfree.github.io/matchstick/> |
 | `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
 | `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
+| `hatake/index.html` | <https://meaningfree.github.io/hatake/> |
 
 ## むげんワードル
 
@@ -113,6 +114,30 @@ python3 tools/make-sukima.py sukima/index.html
 
 ```sh
 python3 tools/make-manmaru.py manmaru/index.html
+```
+
+## はたけものがたり
+
+たねをまいてみずをやり、かりとってうる、のんびりはたけシミュレーション。
+
+- 作物は7種類: だいこん → にんじん → トマト → いちご → とうもろこし → かぼちゃ → すいか。累計でかせいだ金額で順にかいほう
+- 空いている土にたねをまき、その日にみずをやってから「おやすみ」すると1段階そだつ。みずなしが続くと、そだちきる前にかれる
+- はたけは 3×3 から始まり、おみせで 4×4・5×5 にひろげられる
+- かりとったやさいはかごへ。おみせ／かごとからまとめて売れる
+- もくひょうが8つあり、クリアするとほうしゅう金がもらえる
+- 進行状況は端末のローカルに保存。効果音つき（Web Audio で合成）
+- 操作: どうぐ（たね・みず・かりとり・ほる）を選んでマスをタップ。スマホ前提の大きなボタン
+
+### ファイル
+
+- `src/hatake.html` — 生成元（Artifact 用の断片形式）
+- `hatake/index.html` — 公開用のスタンドアロン版
+- `tools/make-hatake.py` — 変換スクリプト
+
+`src/hatake.html` を編集したら、公開版を作り直す:
+
+```sh
+python3 tools/make-hatake.py hatake/index.html
 ```
 
 ## GitHub Pages

@@ -1,0 +1,814 @@
+<title>はたけものがたり</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@500;600&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+/* Soft meadow sim: sky→grass wash, wood-trim HUD, big tool dock for thumbs. Crops carry color; UI stays quiet green. */
+:root{
+  --sky:#B9D9F2; --sky-2:#D7EBF8; --grass:#7FAE5A; --grass-deep:#5F8A3E;
+  --soil:#C49A6C; --soil-wet:#9E7350; --soil-dry:#D4B48A;
+  --wood:#8B5E3C; --cream:#F7FBF3; --ink:#2F3A28; --muted:#5E6E52;
+  --accent:#E28B3A; --accent-deep:#B86A24; --accent-ink:#FFF8EE;
+  --good:#3E9B5A; --warn:#D45A3A;
+  --panel:rgba(247,251,243,.92); --line:rgba(47,58,40,.14);
+  --font-display:"Kiwi Maru","Hiragino Maru Gothic ProN","Yu Gothic",serif;
+  --font-body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0;color:var(--ink);
+  background:
+    radial-gradient(120% 70% at 50% -10%,#EEF7FD 0%,transparent 55%),
+    linear-gradient(180deg,var(--sky-2) 0%,var(--sky) 28%,#C5DE9A 62%,var(--grass) 100%) fixed;
+  font-family:var(--font-body);font-size:15px;line-height:1.55;
+  padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px));
+  padding-top:max(8px,env(safe-area-inset-top,0px));padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
+  -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;overflow:hidden;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.app{max-width:460px;height:100%;margin:0 auto;display:flex;flex-direction:column;gap:8px}
+
+.top{display:flex;align-items:center;gap:8px}
+.top h1{margin:0;font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:.04em;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top h1 a{color:inherit;text-decoration:none}
+.chip{border:1.5px solid var(--line);background:var(--panel);border-radius:999px;
+  padding:4px 10px;font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:4px;min-height:34px;white-space:nowrap}
+.chip:active{transform:translateY(1px)}
+
+.hud{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.stat{background:var(--panel);border:1.5px solid var(--line);border-radius:14px;padding:8px 10px;min-width:0;
+  box-shadow:0 6px 16px rgba(47,58,40,.08)}
+.stat small{display:block;font-size:11px;font-weight:900;letter-spacing:.08em;opacity:.65}
+.stat b{font-family:var(--font-display);font-weight:600;font-size:18px;font-variant-numeric:tabular-nums}
+
+.stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;
+  border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.28),rgba(255,255,255,.08));
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.35)}
+#board{display:block;touch-action:none;border-radius:12px;
+  box-shadow:0 10px 28px rgba(47,58,40,.22),0 0 0 3px rgba(139,94,60,.35)}
+
+.dock{display:flex;flex-direction:column;gap:8px}
+.tools{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tool{border-radius:14px;padding:10px 6px;background:var(--panel);border:2px solid transparent;
+  box-shadow:0 3px 0 rgba(47,58,40,.12);font-weight:900;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:58px}
+.tool .ico{width:22px;height:22px;display:block}
+.tool .ico svg{width:22px;height:22px;display:block}
+.tool.on{border-color:var(--accent);background:#FFF6EA;transform:translateY(1px);box-shadow:0 1px 0 rgba(47,58,40,.12)}
+.seeds{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.seeds::-webkit-scrollbar{display:none}
+.seed{flex:0 0 auto;min-width:72px;border-radius:12px;padding:8px 10px;background:rgba(247,251,243,.75);
+  border:2px solid transparent;text-align:left;font-size:12px;font-weight:700;line-height:1.25}
+.seed small{display:block;opacity:.65;font-weight:700}
+.seed.on{border-color:var(--good);background:#EAF7E8}
+.seed.locked{opacity:.45}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.btn{border-radius:14px;padding:12px 10px;font-weight:900;font-size:15px;background:var(--accent);color:var(--accent-ink);
+  box-shadow:0 4px 0 var(--accent-deep)}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 var(--accent-deep)}
+.btn.sub{background:var(--panel);color:var(--ink);box-shadow:0 3px 0 rgba(47,58,40,.12);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.45;cursor:default;transform:none}
+
+.hint{margin:0;text-align:center;font-size:12px;color:var(--muted)}
+.toast{position:absolute;left:50%;top:12px;transform:translateX(-50%) translateY(-8px);opacity:0;
+  background:rgba(47,58,40,.92);color:#F7FBF3;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;
+  pointer-events:none;white-space:nowrap;transition:opacity .2s ease,transform .2s ease;z-index:5}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:14px;
+  background:rgba(47,58,40,.38);border-radius:18px;z-index:6}
+.card{background:var(--cream);color:var(--ink);border-radius:18px;padding:20px 18px 16px;max-width:340px;width:100%;
+  box-shadow:0 16px 36px rgba(47,58,40,.28);text-align:center;max-height:min(86vh,560px);overflow:auto}
+.card h2{margin:0 0 6px;font-family:var(--font-display);font-weight:600;font-size:24px;letter-spacing:.03em}
+.card p{margin:4px 0;font-size:14px}
+.card ul{margin:8px 0;padding:0 0 0 1.1em;text-align:left;font-size:13.5px}
+.card .big{font-family:var(--font-display);font-weight:600;font-size:34px;line-height:1.2;margin:6px 0}
+.btns{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.shop-list{display:flex;flex-direction:column;gap:8px;margin-top:8px;text-align:left}
+.shop-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(127,174,90,.12);
+  border:1.5px solid var(--line)}
+.shop-row .meta{flex:1;min-width:0}
+.shop-row b{display:block;font-size:14px}
+.shop-row small{color:var(--muted);font-size:12px}
+.shop-row .buy{flex:0 0 auto;min-width:88px;padding:8px 10px;font-size:13px;box-shadow:0 3px 0 var(--accent-deep)}
+.goal{margin-top:8px;padding:10px 12px;border-radius:12px;background:rgba(226,139,58,.12);text-align:left;font-size:13px}
+.goal b{font-family:var(--font-display);font-weight:600}
+
+@media (prefers-reduced-motion: reduce){
+  .toast{transition:none}
+  .tool,.btn,.chip{transition:none}
+}
+</style>
+
+<div class="app">
+  <div class="top">
+    <h1><a href="../">はたけものがたり</a></h1>
+    <button class="chip" id="soundBtn" type="button" aria-label="効果音の切りかえ">音 ON</button>
+    <button class="chip" id="menuBtn" type="button">メニュー</button>
+  </div>
+
+  <div class="hud" aria-live="polite">
+    <div class="stat"><small>おかね</small><b id="money">¥0</b></div>
+    <div class="stat"><small>ひにち</small><b id="day">1にちめ</b></div>
+    <div class="stat"><small>もくひょう</small><b id="goalShort">—</b></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="board" aria-label="はたけ。マスをタップしてたねをまいたり、みずをやったりします"></canvas>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="overlay" id="overlay">
+      <div class="card" role="dialog" aria-live="polite">
+        <h2 id="ovTitle">はたけものがたり</h2>
+        <div id="ovBody"></div>
+        <div class="btns" id="ovBtns"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dock">
+    <div class="tools" role="toolbar" aria-label="どうぐ">
+      <button class="tool on" type="button" data-tool="seed"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21c-4 0-7-2.8-7-6.5C5 9 12 3 12 3s7 6 7 11.5C19 18.2 16 21 12 21z" fill="#5F8A3E"/><circle cx="12" cy="14" r="2.2" fill="#C49A6C"/></svg></span>たね</button>
+      <button class="tool" type="button" data-tool="water"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3c0 0-6 7.2-6 11a6 6 0 0012 0C18 10.2 12 3 12 3z" fill="#4A9FD8"/></svg></span>みず</button>
+      <button class="tool" type="button" data-tool="harvest"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="9" rx="2" fill="#E28B3A"/><path d="M7 10V8a5 5 0 0110 0v2" fill="none" stroke="#8B5E3C" stroke-width="2"/></svg></span>かりとり</button>
+      <button class="tool" type="button" data-tool="dig"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h3l2 8H9L8 4zm5 9l4 8H7l4-8h2z" fill="#8B5E3C"/></svg></span>ほる</button>
+    </div>
+    <div class="seeds" id="seeds" role="listbox" aria-label="たね"></div>
+    <div class="actions">
+      <button class="btn sub" id="shopBtn" type="button">おみせ</button>
+      <button class="btn" id="sleepBtn" type="button">おやすみ</button>
+      <button class="btn sub" id="bagBtn" type="button">かごと</button>
+    </div>
+    <p class="hint" id="hint">たねを選んで、土をタップしてまこう</p>
+  </div>
+</div>
+
+<script>
+/*CORE*/
+const SAVE_KEY = 'hatake-monogatari-v1';
+const CROPS = [
+  { id:'daikon', name:'だいこん', emoji:'大根', price:12, sell:28, days:2, stages:3, unlock:0,  hue:'#F2F2EA', tip:'#DDE5D0' },
+  { id:'ninjin', name:'にんじん', emoji:'人参', price:18, sell:42, days:2, stages:3, unlock:0,  hue:'#F4A04A', tip:'#7FAE5A' },
+  { id:'tomato', name:'トマト',   emoji:'番茄', price:28, sell:70, days:3, stages:4, unlock:180, hue:'#E4543A', tip:'#5F8A3E' },
+  { id:'ichigo', name:'いちご',   emoji:'苺',   price:40, sell:110,days:3, stages:4, unlock:450, hue:'#E85B6A', tip:'#7FAE5A' },
+  { id:'corn',   name:'とうもろこし', emoji:'玉蜀黍', price:55, sell:150, days:4, stages:4, unlock:900, hue:'#F2D35A', tip:'#6B9A45' },
+  { id:'kabocha',name:'かぼちゃ', emoji:'南瓜', price:70, sell:210, days:4, stages:4, unlock:1600,hue:'#E28B3A', tip:'#5F8A3E' },
+  { id:'suika',  name:'すいか',   emoji:'西瓜', price:95, sell:320, days:5, stages:5, unlock:2800,hue:'#E85B6A', tip:'#3E9B5A' },
+];
+const GOALS = [
+  { id:'g1', text:'だいこんを 3こ かりとる', need: s => s.harvested.daikon >= 3, reward:80 },
+  { id:'g2', text:'はたけを 4×4 にひろげる', need: s => s.size >= 4, reward:150 },
+  { id:'g3', text:'トマトを かいぞうする', need: s => s.unlocked.includes('tomato'), reward:120 },
+  { id:'g4', text:'合計 20こ かりとる', need: s => totalHarvest(s) >= 20, reward:250 },
+  { id:'g5', text:'おかねを ¥2,000 ためる', need: s => s.money >= 2000, reward:300 },
+  { id:'g6', text:'はたけを 5×5 にひろげる', need: s => s.size >= 5, reward:400 },
+  { id:'g7', text:'すいかを 1こ かりとる', need: s => s.harvested.suika >= 1, reward:500 },
+  { id:'g8', text:'合計 80こ かりとる', need: s => totalHarvest(s) >= 80, reward:800 },
+];
+const EXPAND_COST = { 3: 650, 4: 1800 };
+
+function totalHarvest(s){ return Object.values(s.harvested).reduce((a,b)=>a+b,0); }
+function cropById(id){ return CROPS.find(c => c.id === id); }
+function yen(n){ return '¥' + Math.max(0, Math.floor(n)).toLocaleString('ja-JP'); }
+
+function emptyPlot(){ return { crop:null, stage:0, watered:false, dryDays:0 }; }
+function makeGrid(size, old){
+  const g = [];
+  for (let y=0;y<size;y++){
+    const row=[];
+    for (let x=0;x<size;x++){
+      row.push(old && old[y] && old[y][x] ? {...old[y][x]} : emptyPlot());
+    }
+    g.push(row);
+  }
+  return g;
+}
+function defaultState(){
+  const unlocked = ['daikon','ninjin'];
+  const harvested = Object.fromEntries(CROPS.map(c=>[c.id,0]));
+  const bag = Object.fromEntries(CROPS.map(c=>[c.id,0]));
+  const seeds = Object.fromEntries(CROPS.map(c=>[c.id, c.id==='daikon'?6:c.id==='ninjin'?4:0]));
+  return {
+    money: 100, day: 1, size: 3, grid: makeGrid(3),
+    unlocked, harvested, bag, seeds,
+    goalIndex: 0, goalsDone: [], lifetimeEarned: 100,
+    tool: 'seed', seed: 'daikon', sound: true,
+  };
+}
+
+const store = {
+  load(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      const base = defaultState();
+      return {
+        ...base, ...s,
+        unlocked: s.unlocked || base.unlocked,
+        harvested: {...base.harvested, ...(s.harvested||{})},
+        bag: {...base.bag, ...(s.bag||{})},
+        seeds: {...base.seeds, ...(s.seeds||{})},
+        goalsDone: s.goalsDone || [],
+        grid: s.grid && s.grid.length === (s.size||3) ? s.grid : makeGrid(s.size||3, s.grid),
+      };
+    }catch{ return null; }
+  },
+  save(s){
+    const {tool, seed, ...rest} = s;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({...rest, tool, seed}));
+  },
+  clear(){ localStorage.removeItem(SAVE_KEY); },
+};
+
+let S = store.load() || defaultState();
+let soundOn = S.sound !== false;
+let toastTimer = 0;
+let bounce = new Map(); // "x,y" -> t
+let splash = []; // water fx
+let nightFade = 0;
+let started = false;
+
+const $ = id => document.getElementById(id);
+const board = $('board'), stage = $('stage'), ctx = board.getContext('2d');
+let dpr = 1, cell = 72, pad = 18, boardPx = 0;
+
+/* ----- audio ----- */
+let AC=null, silentEl=null;
+function unlockAudio(){
+  if (!AC) AC = new (window.AudioContext||window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  if (!silentEl){
+    // Keep iOS from muting after the first gesture.
+    const ctx2 = new (window.OfflineAudioContext||window.webkitOfflineAudioContext)(1, 1, 44100);
+    silentEl = new Audio();
+    silentEl.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+    silentEl.loop = true; silentEl.volume = 0.01; silentEl.play().catch(()=>{});
+  }
+}
+function beep(freq, dur, type='sine', gain=0.05, slide=0){
+  if (!soundOn) return;
+  try{
+    unlockAudio();
+    const t0 = AC.currentTime;
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, freq+slide), t0+dur);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0+dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t0); o.stop(t0+dur+0.02);
+  }catch{}
+}
+const sfx = {
+  tap: () => beep(520, .05, 'triangle', .03),
+  plant: () => { beep(380,.07,'sine',.04); setTimeout(()=>beep(520,.09,'sine',.035),60); },
+  water: () => beep(880,.12,'sine',.03,-400),
+  harvest: () => { beep(440,.08,'square',.03); setTimeout(()=>beep(660,.1,'square',.03),70); setTimeout(()=>beep(880,.12,'square',.025),140); },
+  dig: () => beep(180,.1,'sawtooth',.025),
+  buy: () => beep(700,.08,'triangle',.04),
+  sell: () => { beep(500,.07,'triangle',.035); setTimeout(()=>beep(750,.1,'triangle',.03),80); },
+  sleep: () => { beep(300,.15,'sine',.04,-80); setTimeout(()=>beep(220,.2,'sine',.03,-60),160); },
+  goal: () => { beep(523,.1,'square',.04); setTimeout(()=>beep(659,.1,'square',.04),100); setTimeout(()=>beep(784,.16,'square',.045),200); },
+  no: () => beep(160,.12,'triangle',.04),
+};
+
+/* ----- UI helpers ----- */
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>el.classList.remove('show'), 1600);
+}
+function setHint(){
+  const map = {
+    seed: S.seeds[S.seed] > 0 ? `${cropById(S.seed).name}のたねをまこう（のこり ${S.seeds[S.seed]}）` : 'たねがありません。おみせでかおう',
+    water: 'みずをやりたいマスをタップ',
+    harvest: 'そだったやさいをかりとろう',
+    dig: 'やさいをぬいて土にもどす（たねはもどらない）',
+  };
+  $('hint').textContent = map[S.tool] || '';
+}
+function currentGoal(){
+  while (S.goalIndex < GOALS.length && S.goalsDone.includes(GOALS[S.goalIndex].id)) S.goalIndex++;
+  return GOALS[S.goalIndex] || null;
+}
+function updHud(){
+  $('money').textContent = yen(S.money);
+  $('day').textContent = S.day + 'にちめ';
+  const g = currentGoal();
+  $('goalShort').textContent = g ? (S.goalIndex+1) + '/' + GOALS.length : 'かんりょう';
+  setHint();
+  renderSeeds();
+  syncTools();
+}
+function syncTools(){
+  document.querySelectorAll('.tool').forEach(b=>{
+    b.classList.toggle('on', b.dataset.tool === S.tool);
+  });
+}
+function renderSeeds(){
+  const box = $('seeds');
+  box.innerHTML = '';
+  for (const c of CROPS){
+    const locked = !S.unlocked.includes(c.id);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'seed' + (S.seed===c.id && S.tool==='seed' ? ' on':'') + (locked?' locked':'');
+    b.setAttribute('role','option');
+    b.disabled = locked;
+    b.innerHTML = locked
+      ? `<b>？？？</b><small>${yen(c.unlock)}でかいほう</small>`
+      : `<b>${c.name}</b><small>たね ${S.seeds[c.id]}・${c.days}にち</small>`;
+    b.onclick = () => {
+      if (locked) return;
+      S.tool = 'seed'; S.seed = c.id; unlockAudio(); sfx.tap();
+      updHud(); save();
+    };
+    box.appendChild(b);
+  }
+}
+
+function save(){ S.sound = soundOn; store.save(S); }
+
+/* ----- game actions ----- */
+function inBounds(x,y){ return x>=0 && y>=0 && x<S.size && y<S.size; }
+function bounceAt(x,y){ bounce.set(x+','+y, performance.now()); }
+
+function plant(x,y){
+  const p = S.grid[y][x];
+  if (p.crop){ sfx.no(); toast('もうなにかあるよ'); return; }
+  if ((S.seeds[S.seed]|0) <= 0){ sfx.no(); toast('たねがないよ'); return; }
+  S.seeds[S.seed]--;
+  p.crop = S.seed; p.stage = 0; p.watered = false; p.dryDays = 0;
+  bounceAt(x,y); sfx.plant(); toast(cropById(S.seed).name + 'をまいた');
+  checkUnlocks(); checkGoals(); updHud(); save();
+}
+function water(x,y){
+  const p = S.grid[y][x];
+  if (!p.crop){ sfx.no(); toast('からっぽの土'); return; }
+  if (p.watered){ sfx.no(); toast('きょうはもうみずをやった'); return; }
+  p.watered = true; p.dryDays = 0;
+  splash.push({x,y,t:0}); bounceAt(x,y); sfx.water(); toast('じょうろでみずをやった');
+  save(); draw();
+}
+function harvest(x,y){
+  const p = S.grid[y][x];
+  if (!p.crop){ sfx.no(); toast('かりとるものがない'); return; }
+  const c = cropById(p.crop);
+  if (p.stage < c.stages-1){ sfx.no(); toast('まだそだっていない'); return; }
+  S.bag[c.id] = (S.bag[c.id]|0) + 1;
+  S.harvested[c.id] = (S.harvested[c.id]|0) + 1;
+  S.grid[y][x] = emptyPlot();
+  bounceAt(x,y); sfx.harvest(); toast(c.name + 'をかりとった！');
+  checkUnlocks(); checkGoals(); updHud(); save();
+}
+function dig(x,y){
+  const p = S.grid[y][x];
+  if (!p.crop){ sfx.no(); toast('ほるものがない'); return; }
+  S.grid[y][x] = emptyPlot();
+  bounceAt(x,y); sfx.dig(); toast('ぬいて土にもどした');
+  save(); draw();
+}
+function onPlot(x,y){
+  if (!started || !inBounds(x,y)) return;
+  unlockAudio();
+  if (S.tool === 'seed') plant(x,y);
+  else if (S.tool === 'water') water(x,y);
+  else if (S.tool === 'harvest') harvest(x,y);
+  else if (S.tool === 'dig') dig(x,y);
+  draw();
+}
+
+function checkUnlocks(){
+  for (const c of CROPS){
+    if (!S.unlocked.includes(c.id) && S.lifetimeEarned >= c.unlock){
+      S.unlocked.push(c.id);
+      toast(c.name + 'のたねがつかえるようになった！');
+      sfx.goal();
+    }
+  }
+}
+function checkGoals(){
+  const g = currentGoal();
+  if (!g) return;
+  if (g.need(S)){
+    S.goalsDone.push(g.id);
+    S.money += g.reward;
+    S.lifetimeEarned += g.reward;
+    S.goalIndex++;
+    sfx.goal();
+    showModal('もくひょうクリア！', `
+      <p>${g.text}</p>
+      <div class="big">+${yen(g.reward)}</div>
+      <p>つぎのもくひょうにすすもう。</p>
+    `, [
+      {label:'つづける', fn: () => { hideModal(); checkUnlocks(); updHud(); save(); }},
+    ]);
+  }
+}
+
+function sleep(){
+  // Night transition then advance day.
+  if (nightFade > 0) return;
+  unlockAudio(); sfx.sleep();
+  nightFade = 0.01;
+  const tick = () => {
+    nightFade += 0.045;
+    draw();
+    if (nightFade < 1){ requestAnimationFrame(tick); return; }
+    advanceDay();
+    const wake = () => {
+      nightFade -= 0.06;
+      draw();
+      if (nightFade > 0) requestAnimationFrame(wake);
+      else { nightFade = 0; draw(); }
+    };
+    requestAnimationFrame(wake);
+  };
+  requestAnimationFrame(tick);
+}
+function advanceDay(){
+  S.day++;
+  let grew = 0, wilt = 0;
+  for (let y=0;y<S.size;y++) for (let x=0;x<S.size;x++){
+    const p = S.grid[y][x];
+    if (!p.crop) continue;
+    const c = cropById(p.crop);
+    if (p.watered){
+      if (p.stage < c.stages-1){ p.stage++; grew++; bounceAt(x,y); }
+      p.watered = false;
+      p.dryDays = 0;
+    } else {
+      p.dryDays++;
+      if (p.dryDays >= 2 && p.stage < c.stages-1){
+        // Wilt back to empty after prolonged drought mid-growth.
+        S.grid[y][x] = emptyPlot();
+        wilt++;
+      }
+    }
+  }
+  checkGoals();
+  updHud(); save();
+  const bits = [];
+  if (grew) bits.push(grew + 'つ そだった');
+  if (wilt) bits.push(wilt + 'つ かれてしまった');
+  toast(bits.length ? bits.join(' / ') : 'あたらしい朝');
+}
+
+function sellAll(){
+  let gained = 0, count = 0;
+  for (const c of CROPS){
+    const n = S.bag[c.id]|0;
+    if (!n) continue;
+    gained += n * c.sell;
+    count += n;
+    S.bag[c.id] = 0;
+  }
+  if (!count){ sfx.no(); toast('かごがからっぽ'); return false; }
+  S.money += gained;
+  S.lifetimeEarned += gained;
+  sfx.sell();
+  toast(count + 'こうって ' + yen(gained));
+  checkUnlocks(); checkGoals(); updHud(); save();
+  return true;
+}
+function buySeed(id, n=1){
+  const c = cropById(id);
+  if (!S.unlocked.includes(id)){ sfx.no(); toast('まだかいほうしていない'); return; }
+  const cost = c.price * n;
+  if (S.money < cost){ sfx.no(); toast('おかねがたりない'); return; }
+  S.money -= cost;
+  S.seeds[id] = (S.seeds[id]|0) + n;
+  sfx.buy(); toast(c.name + 'のたねを' + n + 'こかった');
+  updHud(); save();
+  showShop();
+}
+function expandField(){
+  if (S.size >= 5){ sfx.no(); toast('もういちばんひろい'); return; }
+  const cost = EXPAND_COST[S.size];
+  if (S.money < cost){ sfx.no(); toast('おかねがたりない'); return; }
+  S.money -= cost;
+  S.size += 1;
+  S.grid = makeGrid(S.size, S.grid);
+  sfx.goal(); toast('はたけが ' + S.size + '×' + S.size + ' になった！');
+  layout(); checkGoals(); updHud(); save();
+  showShop();
+}
+
+/* ----- panels ----- */
+function showModal(title, bodyHtml, buttons){
+  $('ovTitle').textContent = title;
+  $('ovBody').innerHTML = bodyHtml;
+  const box = $('ovBtns'); box.innerHTML = '';
+  for (const b of buttons){
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = 'btn' + (b.sub ? ' sub' : '');
+    el.textContent = b.label;
+    el.onclick = b.fn;
+    box.appendChild(el);
+  }
+  $('overlay').hidden = false;
+}
+function hideModal(){ $('overlay').hidden = true; }
+
+function showTitle(){
+  started = false;
+  const g = currentGoal();
+  showModal('はたけものがたり', `
+    <p>たねをまいて、みずをやって、かりとってうろう。<br>のんびりそだてるはたけシミュレーション。</p>
+    <ul>
+      <li>たね → みず → おやすみ、でそだつ</li>
+      <li>みずをやらないと、かれてしまうことも</li>
+      <li>おみせでたねをかったり、はたけをひろげたり</li>
+    </ul>
+    <div class="goal"><b>いまのもくひょう</b><br>${g ? g.text : 'ぜんぶクリア！'}</div>
+  `, [
+    {label: store.load() ? 'つづきから' : 'はじめる', fn: () => { started = true; hideModal(); updHud(); draw(); }},
+    {label:'はじめから', sub:true, fn: confirmReset},
+  ]);
+}
+function confirmReset(){
+  showModal('はじめから？', `<p>いまのセーブデータが消えます。</p>`, [
+    {label:'消してはじめから', fn: () => { store.clear(); S = defaultState(); soundOn = true; started = true; layout(); hideModal(); updHud(); draw(); save(); }},
+    {label:'やめる', sub:true, fn: showTitle},
+  ]);
+}
+function showMenu(){
+  const g = currentGoal();
+  showModal('メニュー', `
+    <p>${S.day}にちめ・はたけ ${S.size}×${S.size}・かりとり ${totalHarvest(S)}こ</p>
+    <div class="goal"><b>もくひょう</b><br>${g ? g.text + `（ほうしゅう ${yen(g.reward)}）` : 'ぜんぶクリア！'}</div>
+  `, [
+    {label:'とじる', fn: hideModal},
+    {label:'せつめい', sub:true, fn: showHelp},
+    {label:'タイトルへ', sub:true, fn: showTitle},
+  ]);
+}
+function showHelp(){
+  showModal('あそびかた', `
+    <ul>
+      <li><b>たね</b> … 空いている土にまける</li>
+      <li><b>みず</b> … その日のそだちにひつよう</li>
+      <li><b>かりとり</b> … まんまるにそだったら</li>
+      <li><b>おやすみ</b> … つぎの日へ。みずをやったやさいがそだつ</li>
+      <li><b>おみせ</b> … たねをかう・はたけをひろげる・やさいをうる</li>
+    </ul>
+  `, [{label:'とじる', fn: hideModal}]);
+}
+function showBag(){
+  const rows = Object.entries(S.bag).filter(([,n])=>n>0);
+  const html = rows.length
+    ? `<ul>${rows.map(([id,n])=>`<li>${cropById(id).name} × ${n}（ひとつ ${yen(cropById(id).sell)}）</li>`).join('')}</ul>
+       <p>ぜんぶうると ${yen(rows.reduce((a,[id,n])=>a+n*cropById(id).sell,0))}</p>`
+    : `<p>かごはからっぽ。かりとったやさいがはいるよ。</p>`;
+  showModal('かごと', html, [
+    {label:'ぜんぶうる', fn: () => { if (sellAll()) showBag(); }},
+    {label:'とじる', sub:true, fn: hideModal},
+  ]);
+}
+function showShop(){
+  const expand = S.size < 5
+    ? `<div class="shop-row"><div class="meta"><b>はたけをひろげる</b><small>${S.size}×${S.size} → ${S.size+1}×${S.size+1}</small></div>
+         <button class="btn buy" type="button" data-expand="1">${yen(EXPAND_COST[S.size])}</button></div>`
+    : `<div class="shop-row"><div class="meta"><b>はたけ</b><small>さいだいサイズです</small></div></div>`;
+  const seedRows = CROPS.filter(c => S.unlocked.includes(c.id)).map(c => `
+    <div class="shop-row">
+      <div class="meta"><b>${c.name}のたね</b><small>うれたら ${yen(c.sell)}・${c.days}にち・もち ${S.seeds[c.id]}</small></div>
+      <button class="btn buy" type="button" data-buy="${c.id}">${yen(c.price)}</button>
+    </div>`).join('');
+  const locked = CROPS.filter(c => !S.unlocked.includes(c.id))[0];
+  const next = locked ? `<p style="margin-top:10px;font-size:13px;color:var(--muted)">つぎのたね「？？？」は 累計 ${yen(locked.unlock)} かせぐとひらく（いま ${yen(S.lifetimeEarned)}）</p>` : '';
+  showModal('おみせ', `
+    <p>もちもの ${yen(S.money)}</p>
+    <div class="shop-list">${expand}${seedRows}</div>
+    ${next}
+  `, [
+    {label:'かごのやさいをうる', sub:true, fn: () => { sellAll(); showShop(); }},
+    {label:'とじる', fn: hideModal},
+  ]);
+  $('ovBody').querySelectorAll('[data-buy]').forEach(b => b.onclick = () => buySeed(b.dataset.buy));
+  const ex = $('ovBody').querySelector('[data-expand]');
+  if (ex) ex.onclick = expandField;
+}
+
+/* ----- render ----- */
+function layout(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const maxW = Math.min(stage.clientWidth - 16, 420);
+  const maxH = Math.min(stage.clientHeight - 16, 420);
+  boardPx = Math.floor(Math.min(maxW, maxH));
+  pad = Math.max(12, Math.floor(boardPx * 0.05));
+  cell = (boardPx - pad*2) / S.size;
+  board.style.width = boardPx + 'px';
+  board.style.height = boardPx + 'px';
+  board.width = Math.floor(boardPx * dpr);
+  board.height = Math.floor(boardPx * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+function plotXY(ev){
+  const rc = board.getBoundingClientRect();
+  const x = (ev.clientX - rc.left) / rc.width * boardPx;
+  const y = (ev.clientY - rc.top) / rc.height * boardPx;
+  const gx = Math.floor((x - pad) / cell);
+  const gy = Math.floor((y - pad) / cell);
+  return {gx, gy};
+}
+
+function drawCrop(c, cx, cy, stage, r, watered){
+  const max = c.stages - 1;
+  const t = stage / max;
+  // soil sprout → leafy → fruit
+  if (stage === 0){
+    ctx.strokeStyle = c.tip; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy+r*0.15); ctx.quadraticCurveTo(cx-2, cy-r*0.35, cx+1, cy-r*0.55); ctx.stroke();
+    return;
+  }
+  if (t < 0.5){
+    ctx.fillStyle = c.tip;
+    leaf(cx - r*0.25, cy - r*0.1, r*0.45, -0.6);
+    leaf(cx + r*0.25, cy - r*0.05, r*0.4, 0.6);
+    return;
+  }
+  // fruit body
+  ctx.fillStyle = c.hue;
+  ctx.beginPath();
+  if (c.id === 'daikon'){
+    ctx.ellipse(cx, cy+r*0.05, r*0.28, r*0.55, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = c.tip;
+    leaf(cx-r*0.15, cy-r*0.45, r*0.35, -0.4);
+    leaf(cx+r*0.15, cy-r*0.45, r*0.35, 0.4);
+  } else if (c.id === 'ninjin'){
+    ctx.moveTo(cx, cy+r*0.55); ctx.lineTo(cx-r*0.28, cy-r*0.15); ctx.lineTo(cx+r*0.28, cy-r*0.15); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = c.tip; leaf(cx, cy-r*0.25, r*0.4, 0);
+  } else if (c.id === 'corn'){
+    ctx.fillStyle = c.tip;
+    ctx.fillRect(cx-2, cy-r*0.55, 4, r*1.0);
+    ctx.fillStyle = c.hue;
+    ctx.beginPath(); ctx.ellipse(cx, cy+r*0.05, r*0.22, r*0.4, 0, 0, Math.PI*2); ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.arc(cx, cy+r*0.05, r*(0.28 + t*0.18), 0, Math.PI*2);
+    ctx.fill();
+    if (c.id === 'suika' || c.id === 'kabocha'){
+      ctx.strokeStyle = 'rgba(47,58,40,.18)'; ctx.lineWidth = 1.5;
+      for (let i=-1;i<=1;i++){
+        ctx.beginPath();
+        ctx.ellipse(cx, cy+r*0.05, r*(0.1+Math.abs(i)*0.05), r*(0.28+t*0.18), i*0.4, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = c.tip;
+    leaf(cx+r*0.2, cy-r*0.25, r*0.28, 0.5);
+  }
+  if (watered){
+    ctx.fillStyle = 'rgba(80,160,220,.55)';
+    ctx.beginPath(); ctx.arc(cx+r*0.35, cy+r*0.35, 3, 0, Math.PI*2); ctx.fill();
+  }
+}
+function leaf(x,y,len,tilt){
+  ctx.save();
+  ctx.translate(x,y); ctx.rotate(tilt);
+  ctx.beginPath();
+  ctx.ellipse(0, -len*0.35, len*0.28, len*0.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function draw(){
+  const W = boardPx, H = boardPx;
+  // meadow tray
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#8FBC68'); g.addColorStop(1,'#6B9A45');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+
+  // soft vignette path edges
+  ctx.fillStyle = 'rgba(255,255,255,.12)';
+  ctx.fillRect(pad-6, pad-6, S.size*cell+12, S.size*cell+12);
+
+  const now = performance.now();
+  for (let y=0;y<S.size;y++) for (let x=0;x<S.size;x++){
+    const p = S.grid[y][x];
+    const x0 = pad + x*cell, y0 = pad + y*cell;
+    const key = x+','+y;
+    const b = bounce.get(key);
+    let s = 1;
+    if (b != null){
+      const age = (now - b)/280;
+      if (age >= 1) bounce.delete(key);
+      else s = 1 + Math.sin(age*Math.PI)*0.08;
+    }
+    // plot
+    const wet = p.watered;
+    ctx.fillStyle = wet ? '#9E7350' : (p.crop ? '#C49A6C' : '#D4B48A');
+    roundRect(x0+3, y0+3, cell-6, cell-6, 10);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(91,70,40,.25)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // furrow lines
+    ctx.strokeStyle = 'rgba(91,70,40,.12)';
+    ctx.beginPath();
+    ctx.moveTo(x0+10, y0+cell*0.7); ctx.lineTo(x0+cell-10, y0+cell*0.7);
+    ctx.stroke();
+
+    if (p.crop){
+      const c = cropById(p.crop);
+      const cx = x0 + cell/2, cy = y0 + cell*0.55;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(s,s);
+      drawCrop(c, 0, 0, p.stage, cell*0.42, p.watered);
+      ctx.restore();
+      if (p.stage >= c.stages-1){
+        ctx.fillStyle = 'rgba(226,139,58,.9)';
+        ctx.beginPath(); ctx.arc(x0+cell-12, y0+12, 5, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+
+  // water splash fx
+  splash = splash.filter(sp => {
+    sp.t += 0.05;
+    if (sp.t >= 1) return false;
+    const x0 = pad + sp.x*cell + cell/2;
+    const y0 = pad + sp.y*cell + cell/2;
+    ctx.globalAlpha = 1 - sp.t;
+    ctx.strokeStyle = '#7EC8F0';
+    ctx.lineWidth = 2;
+    for (let i=0;i<5;i++){
+      const a = -Math.PI/2 + i*0.7;
+      const r = 8 + sp.t*18;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x0 + Math.cos(a)*r, y0 + Math.sin(a)*r - sp.t*8);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    return true;
+  });
+
+  if (nightFade > 0){
+    ctx.fillStyle = `rgba(20,28,48,${Math.min(0.72, nightFade*0.72)})`;
+    ctx.fillRect(0,0,W,H);
+    if (nightFade > 0.35 && nightFade < 0.85){
+      ctx.fillStyle = 'rgba(247,251,243,.9)';
+      ctx.font = '600 28px "Kiwi Maru", serif';
+      ctx.textAlign = 'center';
+      ctx.fillText((S.day) + 'にちめ', W/2, H/2);
+    }
+  }
+}
+
+function roundRect(x,y,w,h,r){
+  const rr = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+}
+
+/* ----- wire ----- */
+document.querySelectorAll('.tool').forEach(b => {
+  b.addEventListener('click', () => {
+    S.tool = b.dataset.tool; unlockAudio(); sfx.tap(); updHud(); save();
+  });
+});
+board.addEventListener('pointerdown', ev => {
+  if ($('overlay').hidden === false) return;
+  const {gx,gy} = plotXY(ev);
+  onPlot(gx,gy);
+  ev.preventDefault();
+});
+$('sleepBtn').onclick = () => { if (!$('overlay').hidden) return; sleep(); };
+$('shopBtn').onclick = () => { unlockAudio(); showShop(); };
+$('bagBtn').onclick = () => { unlockAudio(); showBag(); };
+$('menuBtn').onclick = () => { unlockAudio(); showMenu(); };
+const sb = $('soundBtn');
+sb.textContent = soundOn ? '音 ON' : '音 OFF';
+sb.onclick = () => {
+  soundOn = !soundOn; S.sound = soundOn; save();
+  sb.textContent = soundOn ? '音 ON' : '音 OFF';
+  if (soundOn){ unlockAudio(); sfx.tap(); }
+  else if (silentEl) silentEl.pause();
+};
+window.addEventListener('resize', layout);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) save(); });
+
+layout(); updHud(); showTitle();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+requestAnimationFrame(function loop(){ if (bounce.size || splash.length || nightFade>0) draw(); requestAnimationFrame(loop); });
+</script>
