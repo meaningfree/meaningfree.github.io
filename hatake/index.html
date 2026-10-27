@@ -143,8 +143,8 @@ button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
     <div class="tools" role="toolbar" aria-label="どうぐ">
       <button class="tool on" type="button" data-tool="seed"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21c-4 0-7-2.8-7-6.5C5 9 12 3 12 3s7 6 7 11.5C19 18.2 16 21 12 21z" fill="#5F8A3E"/><circle cx="12" cy="14" r="2.2" fill="#C49A6C"/></svg></span>たね</button>
       <button class="tool" type="button" data-tool="water"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3c0 0-6 7.2-6 11a6 6 0 0012 0C18 10.2 12 3 12 3z" fill="#4A9FD8"/></svg></span>みず</button>
-      <button class="tool" type="button" data-tool="harvest"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="9" rx="2" fill="#E28B3A"/><path d="M7 10V8a5 5 0 0110 0v2" fill="none" stroke="#8B5E3C" stroke-width="2"/></svg></span>かりとり</button>
-      <button class="tool" type="button" data-tool="dig"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 4h3l2 8H9L8 4zm5 9l4 8H7l4-8h2z" fill="#8B5E3C"/></svg></span>ほる</button>
+      <button class="tool" type="button" data-tool="harvest"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 4l4 8v9h-3V12L4 4h2zm12 0l-4 8v9h3V12l3-8h-2z" fill="#E28B3A"/><circle cx="12" cy="9" r="2.2" fill="#5F8A3E"/></svg></span>かりとり</button>
+      <button class="tool" type="button" data-tool="dig"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="11" y="2" width="2.5" height="11" rx="1" fill="#8B5E3C"/><path d="M7 13h10l-2 8H9l-2-8z" fill="#C49A6C" stroke="#8B5E3C" stroke-width="1"/></svg></span>ほる</button>
     </div>
     <div class="seeds" id="seeds" role="listbox" aria-label="たね"></div>
     <div class="actions">
@@ -739,8 +739,16 @@ function draw(){
       drawCrop(c, 0, 0, p.stage, cell*0.42, p.watered);
       ctx.restore();
       if (p.stage >= c.stages-1){
-        ctx.fillStyle = 'rgba(226,139,58,.9)';
-        ctx.beginPath(); ctx.arc(x0+cell-12, y0+12, 5, 0, Math.PI*2); ctx.fill();
+        const sx = x0+cell-13, sy = y0+13;
+        ctx.fillStyle = '#F2C14D';
+        ctx.beginPath();
+        for (let i=0;i<5;i++){
+          const a = -Math.PI/2 + i*Math.PI*2/5;
+          const r1 = 6, r2 = 2.6;
+          ctx.lineTo(sx+Math.cos(a)*r1, sy+Math.sin(a)*r1);
+          ctx.lineTo(sx+Math.cos(a+Math.PI/5)*r2, sy+Math.sin(a+Math.PI/5)*r2);
+        }
+        ctx.closePath(); ctx.fill();
       }
     }
   }
