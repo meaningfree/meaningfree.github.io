@@ -464,15 +464,20 @@ export class City {
         this.powered[ni] = 1;
         q.push(ni);
 
-        // ゾーンの他タイルも通電扱い
-        if (b === Building.ZONE_R || b === Building.ZONE_C || b === Building.ZONE_I) {
+        // ゾーンの他タイルも通電し、そこから先にも電流を流す
+        if (b === Building.ZONE_R || b === Building.ZONE_C || b === Building.ZONE_I ||
+            b === Building.POLICE || b === Building.FIRE) {
+          const size = BUILD_SIZE[b] || 3;
           const bx = nx - this.bOx[ni];
           const by = ny - this.bOy[ni];
-          for (let oy = 0; oy < 3; oy++) {
-            for (let ox = 0; ox < 3; ox++) {
+          for (let oy = 0; oy < size; oy++) {
+            for (let ox = 0; ox < size; ox++) {
               const zi = idx(bx + ox, by + oy);
+              if (!seen[zi]) {
+                seen[zi] = 1;
+                q.push(zi);
+              }
               this.powered[zi] = 1;
-              seen[zi] = 1;
             }
           }
         }
@@ -576,12 +581,21 @@ export class City {
   }
 
   hasRoadAccess(x, y, size) {
+    // ゾーン外周1マスに道路/線路があればアクセス可（角も含む）
     for (let dy = -1; dy <= size; dy++) {
       for (let dx = -1; dx <= size; dx++) {
         if (dy >= 0 && dy < size && dx >= 0 && dx < size) continue;
         const nx = x + dx, ny = y + dy;
         if (!inBounds(nx, ny)) continue;
         const f = this.feature[idx(nx, ny)];
+        if (f === Feature.ROAD || f === Feature.ROAD_WIRE || f === Feature.ROAD_RAIL ||
+            f === Feature.RAIL || f === Feature.RAIL_WIRE) return true;
+      }
+    }
+    // ゾーン内に道路が食い込んでいる場合も可
+    for (let dy = 0; dy < size; dy++) {
+      for (let dx = 0; dx < size; dx++) {
+        const f = this.feature[idx(x + dx, y + dy)];
         if (f === Feature.ROAD || f === Feature.ROAD_WIRE || f === Feature.ROAD_RAIL ||
             f === Feature.RAIL || f === Feature.RAIL_WIRE) return true;
       }
@@ -618,27 +632,28 @@ export class City {
           continue;
         }
 
-        let chance = 0.12;
+        // 通電＋道路があれば空きゾーンは早めに育つ（SFCの「人が入る」感）
+        let chance = this.level[i] === 0 ? 0.45 : 0.14;
         if (b === Building.ZONE_R) {
-          chance += this.demandR * 0.15;
-          chance += (lv - 50) / 400;
+          chance += this.demandR * 0.25;
+          chance += (lv - 40) / 350;
           chance -= pol / 500;
           chance -= crm / 400;
           if (this.hasStadium) chance += 0.05;
         } else if (b === Building.ZONE_C) {
-          chance += this.demandC * 0.15;
+          chance += this.demandC * 0.25;
           chance += (lv - 40) / 350;
           if (this.hasAirport) chance += 0.08;
         } else {
-          chance += this.demandI * 0.15;
+          chance += this.demandI * 0.25;
           chance -= pol / 800;
           if (this.hasSeaport) chance += 0.08;
         }
         chance -= taxPenalty;
 
-        if (Math.random() < Math.max(0.02, chance)) {
+        if (Math.random() < Math.max(0.05, Math.min(0.85, chance))) {
           if (this.level[i] < 5) sync(this.level[i] + 1);
-        } else if (chance < 0 && this.level[i] > 0 && Math.random() < 0.1) {
+        } else if (chance < 0.05 && this.level[i] > 0 && Math.random() < 0.08) {
           sync(this.level[i] - 1);
         }
       }
@@ -647,17 +662,22 @@ export class City {
 
   updateDemand() {
     const z = this.countZones();
-    // 住民 : 仕事(商業+工業) のバランス
-    const jobs = z.cDev * 2 + z.iDev * 3 + 1;
-    const homes = z.rDev * 3 + 1;
-    const ratio = homes / jobs;
-    // R需要: 仕事が多いと住宅需要
-    this.demandR = Math.max(-1, Math.min(1, (jobs - homes) / 20 + (z.r === 0 ? 0.5 : 0)));
-    this.demandC = Math.max(-1, Math.min(1, (homes - z.cDev * 2) / 15 + (this.population > 500 ? 0.2 : 0)));
-    this.demandI = Math.max(-1, Math.min(1, (homes - z.iDev * 2) / 15 + (z.i === 0 ? 0.4 : 0)));
-    if (this.population > 2000 && !this.hasStadium) this.demandR += 0.1;
-    if (this.population > 5000 && !this.hasSeaport) this.demandI += 0.15;
-    if (this.population > 8000 && !this.hasAirport) this.demandC += 0.15;
+    // 住民 : 仕事(商業+工業) のバランス（SFC風）
+    const jobs = z.cDev * 2 + z.iDev * 3;
+    const homes = z.rDev * 3;
+    // 空きゾーンがあると入居・出店需要が立つ
+    const emptyR = Math.max(0, z.r - z.rDev);
+    const emptyC = Math.max(0, z.c - z.cDev);
+    const emptyI = Math.max(0, z.i - z.iDev);
+    this.demandR = Math.max(-1, Math.min(1,
+      (jobs - homes) / 25 + emptyR * 0.25 + (z.r === 0 ? 0.55 : 0.15)));
+    this.demandC = Math.max(-1, Math.min(1,
+      (homes - jobs * 0.5) / 20 + emptyC * 0.2 + (homes > 0 ? 0.2 : 0)));
+    this.demandI = Math.max(-1, Math.min(1,
+      (homes - jobs * 0.5) / 20 + emptyI * 0.2 + (z.i === 0 ? 0.45 : 0.1)));
+    if (this.population > 2000 && !this.hasStadium) this.demandR = Math.min(1, this.demandR + 0.1);
+    if (this.population > 5000 && !this.hasSeaport) this.demandI = Math.min(1, this.demandI + 0.15);
+    if (this.population > 8000 && !this.hasAirport) this.demandC = Math.min(1, this.demandC + 0.15);
   }
 
   updatePopulation() {
