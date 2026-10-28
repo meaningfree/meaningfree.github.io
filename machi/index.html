@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="description" content="ドットマチ。16ビットのまちづくりを、スマホのブラウザで。">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121820">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ドットマチ">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%231e4f8c'/%3E%3Crect y='8' width='16' height='8' fill='%234ea344'/%3E%3Crect x='3' y='6' width='4' height='5' fill='%23f3e2c4'/%3E%3Crect x='3' y='4' width='4' height='3' fill='%23d24b3e'/%3E%3Crect x='9' y='3' width='4' height='8' fill='%238ec8ee'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap" rel="stylesheet">
+<title>ドットマチ</title>
+<style>
+  :root{
+    --bg:#121820;
+    --panel:#1c2633;
+    --panel-2:#273449;
+    --line:#3d516c;
+    --ink:#f6f1e6;
+    --muted:#a9b6c8;
+    --gold:#f0c84a;
+    --gold-ink:#2a2208;
+    --r:#3dbe55;
+    --c:#3aa6ef;
+    --i:#e2a23a;
+    --bad:#ef5b5b;
+    --good:#8ee0a8;
+    --font:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    --display:"DotGothic16","Zen Kaku Gothic New",sans-serif;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none !important}
+  html,body{height:100%; margin:0}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--font);
+    font-size:16px; line-height:1.45; overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  body[data-screen="title"], body[data-screen="setup"], body[data-screen="scenario"], body[data-screen="end"]{overflow:auto}
+  button,input{font:inherit; color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:3px solid var(--gold); outline-offset:2px}
+  h1,h2,h3{font-family:var(--display); font-weight:400; letter-spacing:.04em; margin:0}
+  p{margin:0}
+
+  .screen{min-height:100%; min-height:100dvh}
+  #screen-title,#screen-setup,#screen-scenario,#screen-end{
+    padding:calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+    max-width:520px; margin:0 auto;
+  }
+  #postcard{
+    width:100%; height:auto; background:#16345f;
+    image-rendering:pixelated; image-rendering:crisp-edges;
+    border:2px solid var(--line); display:block;
+  }
+  .title-block{margin:14px 0 6px}
+  h1{font-size:40px; line-height:1.1}
+  .tag{color:var(--muted); margin-top:6px; font-size:15px}
+  .stack{display:flex; flex-direction:column; gap:10px; margin-top:16px}
+  button.big, .stack button, .sheet-panel button, .end-actions button, .diff button{
+    min-height:48px; border-radius:12px; border:2px solid var(--line);
+    background:var(--panel-2); padding:10px 14px; font-weight:700;
+  }
+  button.primary{background:var(--gold); color:var(--gold-ink); border-color:#c49a22}
+  button:active{transform:translateY(1px)}
+  button[aria-pressed="true"]{border-color:var(--gold); background:#3c3420; color:var(--gold)}
+  .fine{margin-top:14px; color:var(--muted); font-size:12px}
+  .fine a{color:var(--muted)}
+
+  .setup-top{display:flex; align-items:center; gap:8px; margin-bottom:10px}
+  .setup-top h2{flex:1; font-size:26px}
+  #preview{
+    width:100%; max-width:288px; height:auto; margin:0 auto 10px; display:block;
+    image-rendering:pixelated; image-rendering:crisp-edges;
+    border:2px solid var(--line); background:#16345f;
+  }
+  .stepper{display:flex; gap:6px; align-items:center; justify-content:center; margin:8px 0}
+  .stepper button{min-width:52px; min-height:48px; border-radius:12px; border:2px solid var(--line); background:var(--panel-2); font-weight:700}
+  .num{min-width:4.2em; text-align:center; font-family:var(--display); font-size:28px}
+  label.field{display:flex; flex-direction:column; gap:4px; margin:10px 0; font-size:13px; color:var(--muted); font-weight:700}
+  label.field input{
+    min-height:48px; border-radius:12px; border:2px solid var(--line);
+    background:#0e141c; color:var(--ink); padding:0 12px; font-size:16px; font-weight:700;
+  }
+  .diff{display:flex; gap:8px}
+  .diff button{flex:1; padding:8px 6px}
+  .diff small{display:block; font-weight:500; color:var(--muted)}
+  .diff button[aria-pressed="true"] small{color:#e6d48a}
+  .mapnote{font-size:13px; color:var(--muted); text-align:center; min-height:1.3em}
+
+  .cards{display:flex; flex-direction:column; gap:8px}
+  .cards button{text-align:left}
+  .cards button b{display:block; font-size:16px}
+  .cards button span{display:block; font-weight:500; color:var(--muted); font-size:13px; margin-top:2px}
+  .cards button.done{border-color:var(--good)}
+  .cards button.lock{opacity:.55}
+
+  #screen-play{
+    height:100%; height:100dvh; display:flex; flex-direction:column;
+    padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  }
+  .hud{padding:6px 8px 4px; background:#10161f; border-bottom:2px solid #000}
+  .hud.cele{box-shadow:inset 0 -3px 0 var(--gold)}
+  .hud-row{display:flex; align-items:center; gap:6px}
+  .name{font-family:var(--display); font-size:18px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .funds{font-weight:700; font-variant-numeric:tabular-nums; font-size:17px; white-space:nowrap}
+  .funds.bad{color:var(--bad)}
+  .hud-row button{
+    min-height:40px; min-width:52px; border-radius:10px; border:2px solid var(--line);
+    background:var(--panel-2); font-weight:700; padding:4px 8px; font-size:14px;
+  }
+  .hud-row button.go{background:var(--gold); color:var(--gold-ink); border-color:#c49a22}
+  .sub{display:flex; gap:8px; align-items:flex-end; margin-top:4px}
+  .popbox{min-width:86px}
+  .rank{font-size:11px; color:var(--gold); letter-spacing:.06em}
+  .pop{font-weight:700; font-variant-numeric:tabular-nums; font-size:14px}
+  .meters{flex:1; display:flex; flex-direction:column; gap:2px; min-width:0}
+  .meter-line{display:flex; align-items:center; gap:4px}
+  .meter-line .k{width:1em; font-size:11px; font-weight:700}
+  .k.r{color:var(--r)} .k.c{color:var(--c)} .k.i{color:var(--i)}
+  .meter{position:relative; flex:1; height:8px; background:#0b1016; border-radius:99px; overflow:hidden}
+  .meter .pos,.meter .neg{position:absolute; top:0; bottom:0}
+  .meter .pos{left:50%; background:var(--good)}
+  .meter .neg{right:50%; background:var(--bad)}
+  .meter i{position:absolute; top:0; bottom:0; left:50%; width:1px; background:rgba(246,241,230,.45)}
+  .powerline{margin-top:3px; font-size:11px; color:var(--muted); display:flex; justify-content:space-between; gap:8px}
+  .powerline .hot{color:var(--bad); font-weight:700}
+  .goal{
+    background:#1a1408; color:#f0d48a; font-size:12px; padding:3px 8px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  #mapWrap{flex:1; position:relative; min-height:0; background:#16345f; touch-action:none}
+  #map{width:100%; height:100%; display:block; touch-action:none; image-rendering:pixelated; image-rendering:crisp-edges}
+  #toolChip{
+    position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    background:rgba(14,18,26,.9); border:2px solid var(--line); color:var(--ink);
+    border-radius:999px; padding:3px 10px; font-size:12px; font-weight:700;
+    pointer-events:none; z-index:3; max-width:80%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #query{
+    position:absolute; top:40px; left:8px; z-index:3; max-width:min(280px, calc(100% - 16px));
+    background:rgba(16,22,31,.94); border:2px solid var(--gold); border-radius:12px; padding:8px 10px;
+    font-size:13px; white-space:pre-line;
+  }
+  #query button{margin-top:6px; min-height:36px; border-radius:8px; border:2px solid var(--line); background:var(--panel-2); font-weight:700}
+  #toast{
+    position:absolute; left:50%; bottom:12px; transform:translateX(-50%);
+    background:#f6f1e6; color:#1a1408; border-radius:999px; padding:8px 12px;
+    font-size:13px; font-weight:700; z-index:4; pointer-events:none; max-width:90%; text-align:center;
+  }
+  .floater{position:absolute; z-index:3; display:flex; flex-direction:column; gap:6px}
+  .floater.left{left:8px; bottom:8px}
+  .floater.right{right:8px; bottom:8px}
+  .floater button{
+    width:48px; height:48px; border-radius:12px; border:2px solid var(--line);
+    background:rgba(14,18,26,.92); color:var(--ink); font-weight:700; padding:0;
+  }
+
+  #speech{
+    display:flex; gap:8px; align-items:flex-start;
+    background:#1c2633; border-top:2px solid var(--gold); padding:8px;
+    max-height:30vh;
+  }
+  #face{width:64px; height:64px; flex:0 0 auto; image-rendering:pixelated; background:#243044}
+  #speech .body{flex:1; min-width:0; display:flex; flex-direction:column; gap:6px}
+  #speechName{font-family:var(--display); font-size:14px; color:var(--gold)}
+  #speechText{font-size:14px; overflow:auto; max-height:14vh}
+  #speechActions{display:flex; flex-wrap:wrap; gap:6px}
+  #speechActions button, #speechOk{
+    min-height:40px; border-radius:10px; border:2px solid var(--line);
+    background:var(--panel-2); font-weight:700; padding:6px 10px;
+  }
+
+  .shelf{
+    display:flex; gap:6px; overflow-x:auto; padding:6px 8px 2px;
+    background:#10161f; scrollbar-width:none;
+  }
+  .shelf::-webkit-scrollbar{display:none}
+  .shelf[data-empty="1"]{display:none}
+  .tool{
+    flex:0 0 auto; min-width:78px; min-height:68px; border-radius:12px;
+    border:2px solid var(--line); background:var(--panel-2);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    padding:4px; font-size:12px; font-weight:700;
+  }
+  .tool small{font-weight:500; color:var(--muted)}
+  .tool canvas{width:32px; height:32px; image-rendering:pixelated}
+  .tool[aria-pressed="true"]{border-color:var(--gold); background:#3c3420}
+  .hintline{color:var(--muted); font-size:12px; padding:4px 2px}
+
+  .cats{
+    display:flex; gap:2px; overflow-x:auto; padding:4px 4px calc(6px + env(safe-area-inset-bottom));
+    background:#0c1118; border-top:2px solid #000; scrollbar-width:none;
+  }
+  .cats::-webkit-scrollbar{display:none}
+  .cats button{
+    flex:1 1 0; min-width:44px; min-height:48px; border-radius:12px;
+    border:2px solid transparent; background:transparent; color:var(--muted);
+    font-size:12px; font-weight:700; position:relative; padding:4px 1px;
+    white-space:nowrap;
+  }
+  .cats button[aria-pressed="true"]{color:var(--ink); border-color:var(--line); background:var(--panel)}
+  .cats button.pulse{animation:pulse 1s steps(2,end) infinite; color:var(--gold)}
+  .badge{
+    position:absolute; top:2px; right:4px; background:var(--bad); color:#fff;
+    border-radius:99px; font-size:10px; min-width:16px; padding:0 4px; line-height:16px;
+  }
+  @keyframes pulse{50%{background:#3c3420}}
+  @media (prefers-reduced-motion: reduce){
+    .cats button.pulse{animation:none}
+    button:active{transform:none}
+  }
+
+  #sheet{position:fixed; inset:0; z-index:20; display:flex; flex-direction:column; justify-content:flex-end}
+  #sheetBack{position:absolute; inset:0; background:rgba(0,0,0,.45)}
+  .sheet-panel{
+    position:relative; background:var(--panel); border-top:2px solid var(--gold);
+    border-radius:16px 16px 0 0; max-height:min(86dvh, 720px);
+    display:flex; flex-direction:column; padding-bottom:env(safe-area-inset-bottom);
+  }
+  .sheet-head{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:2px solid #000}
+  .sheet-head h2{flex:1; font-size:22px}
+  .sheet-head button, .sheet-panel .row button{
+    min-height:44px; border-radius:10px; border:2px solid var(--line); background:var(--panel-2); font-weight:700;
+  }
+  #sheetBody{overflow:auto; padding:12px; -webkit-overflow-scrolling:touch; touch-action:pan-y}
+  .row{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0}
+  .row .stepper{margin:0}
+  .statgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+  .stat{
+    background:#0e141c; border-radius:10px; padding:8px;
+  }
+  .stat b{display:block; font-size:16px}
+  .stat span{color:var(--muted); font-size:12px}
+  .menu-list{display:flex; flex-direction:column; gap:8px}
+  .check{display:flex; align-items:center; gap:8px; min-height:44px; font-weight:700}
+  .check input{width:22px; height:22px}
+  #mini{
+    width:100%; max-width:288px; height:auto; image-rendering:pixelated; border:2px solid var(--line); display:block; margin:0 auto 8px; touch-action:manipulation;
+  }
+  .chips{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px}
+  .chips button{min-height:36px; border-radius:99px; border:2px solid var(--line); background:var(--panel-2); padding:4px 10px; font-weight:700; font-size:13px}
+  #graph{width:100%; height:160px; background:#0e141c; border-radius:10px; display:block}
+  .log{font-size:14px; padding:6px 0; border-bottom:1px solid #2a384c}
+  .help h3{font-size:18px; margin:14px 0 4px}
+  .help p{font-size:14px; margin-bottom:6px}
+  .warn{background:#3a2218; border-radius:10px; padding:8px; color:#ffd0b0; font-size:14px}
+
+  #screen-end{display:flex; flex-direction:column; justify-content:center}
+  #screen-end h2{font-size:34px; margin-bottom:8px}
+  .end-actions{display:flex; flex-direction:column; gap:10px; margin-top:16px}
+
+  @media (max-height:520px){
+    h1{font-size:32px}
+    #speech{max-height:24vh}
+    #speechText{max-height:10vh}
+    .meter{height:6px}
+  }
+  @media (min-width:900px){
+    #screen-play{max-width:1100px; margin:0 auto; border-left:2px solid #000; border-right:2px solid #000}
+  }
+</style>
+</head>
+<body data-screen="title">
+<div id="screen-title" class="screen">
+  <canvas id="postcard" width="240" height="132" aria-hidden="true"></canvas>
+  <div class="title-block">
+    <h1>ドットマチ</h1>
+    <p class="tag">発電所をたて、道路をひき、人が集まるまちにする。</p>
+  </div>
+  <div class="stack">
+    <button type="button" id="btnContinue" hidden>つづきから</button>
+    <button type="button" class="primary" id="btnPractice">練習する</button>
+    <button type="button" id="btnNew">あたらしいまち</button>
+    <button type="button" id="btnScenario">シナリオ</button>
+    <button type="button" id="btnHelp">遊び方</button>
+  </div>
+  <p class="fine">1991年の16ビット都市シミュレーションの仕組みを参考にした、オリジナルのまちづくりです。</p>
+  <p id="bootErr" class="fine"></p>
+</div>
+
+<div id="screen-setup" class="screen" hidden>
+  <div class="setup-top">
+    <button type="button" id="setupBack">戻る</button>
+    <h2>あたらしいまち</h2>
+  </div>
+  <canvas id="preview" width="96" height="96" aria-label="地形のプレビュー"></canvas>
+  <div class="stepper" aria-label="マップ番号">
+    <button type="button" id="nM10" aria-label="10戻す">−10</button>
+    <button type="button" id="nM1" aria-label="1戻す">−1</button>
+    <div class="num" id="mapNum">000</div>
+    <button type="button" id="nP1" aria-label="1進む">＋1</button>
+    <button type="button" id="nP10" aria-label="10進む">＋10</button>
+  </div>
+  <div class="stepper">
+    <button type="button" id="nRand">おまかせ</button>
+  </div>
+  <p class="mapnote" id="mapNote">マップ 000</p>
+  <label class="field">まちのなまえ（8文字まで）
+    <input id="cityName" maxlength="8" autocomplete="off" spellcheck="false" value="マイタウン">
+  </label>
+  <div class="diff" role="group" aria-label="難易度">
+    <button type="button" data-diff="0">やさしい<small>$20,000</small></button>
+    <button type="button" data-diff="1" aria-pressed="true">ふつう<small>$10,000</small></button>
+    <button type="button" data-diff="2">むずかしい<small>$5,000</small></button>
+  </div>
+  <div class="stack">
+    <button type="button" class="primary" id="btnStart">このまちではじめる</button>
+  </div>
+</div>
+
+<div id="screen-scenario" class="screen" hidden>
+  <div class="setup-top">
+    <button type="button" id="scBack">戻る</button>
+    <h2>シナリオ</h2>
+  </div>
+  <p class="tag" style="margin-bottom:10px">問題のあるまちを、年限までに立て直します。6つクリアで、おまけが開きます。</p>
+  <div class="cards" id="scList"></div>
+</div>
+
+<div id="screen-play" hidden>
+  <header class="hud" id="hud">
+    <div class="hud-row">
+      <div class="name" id="hudName">まち</div>
+      <div class="funds" id="hudFunds">$0</div>
+      <button type="button" id="btnSound" aria-label="音">音</button>
+      <button type="button" id="btnPause" class="go">再開</button>
+      <button type="button" id="btnSpeed" aria-label="速度">×1</button>
+    </div>
+    <div class="sub">
+      <div class="popbox">
+        <div class="rank" id="hudRank">ビレッジ</div>
+        <div class="pop" id="hudPop">0人</div>
+      </div>
+      <div class="meters" aria-label="需要">
+        <div class="meter-line"><span class="k r">住</span><div class="meter" id="mR" role="meter" aria-label="住宅の需要"><i></i><em class="pos"></em><em class="neg"></em></div></div>
+        <div class="meter-line"><span class="k c">商</span><div class="meter" id="mC" role="meter" aria-label="商業の需要"><i></i><em class="pos"></em><em class="neg"></em></div></div>
+        <div class="meter-line"><span class="k i">工</span><div class="meter" id="mI" role="meter" aria-label="工業の需要"><i></i><em class="pos"></em><em class="neg"></em></div></div>
+      </div>
+    </div>
+    <div class="powerline">
+      <span id="hudDate">1900年1月</span>
+      <span id="hudPower">電気 —</span>
+    </div>
+  </header>
+  <div class="goal" id="goalLine" hidden></div>
+  <div id="mapWrap">
+    <canvas id="map"></canvas>
+    <div id="toolChip">移動</div>
+    <div id="query" hidden></div>
+    <div id="toast" hidden></div>
+    <div class="floater left"><button type="button" id="btnUndo" aria-label="取り消す">取消</button></div>
+    <div class="floater right">
+      <button type="button" id="btnZin" aria-label="拡大">＋</button>
+      <button type="button" id="btnZout" aria-label="縮小">−</button>
+    </div>
+  </div>
+  <div id="speech" hidden>
+    <canvas id="face" width="48" height="48" aria-hidden="true"></canvas>
+    <div class="body">
+      <div id="speechName">相談役リン</div>
+      <p id="speechText"></p>
+      <div id="speechActions"></div>
+    </div>
+    <button type="button" id="speechOk">わかった</button>
+  </div>
+  <div id="shelf" class="shelf" data-empty="1"></div>
+  <nav class="cats" id="cats" aria-label="道具"></nav>
+</div>
+
+<div id="screen-end" class="screen" hidden>
+  <h2 id="endTitle">合格</h2>
+  <p id="endText"></p>
+  <div class="end-actions">
+    <button type="button" class="primary" id="endContinue">このまま続ける</button>
+    <button type="button" id="endRetry">もう一度</button>
+    <button type="button" id="endTitleBtn">タイトルへ</button>
+  </div>
+</div>
+
+<div id="sheet" hidden>
+  <div id="sheetBack"></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="sheet-head">
+      <h2 id="sheetTitle">メニュー</h2>
+      <button type="button" id="sheetClose">閉じる</button>
+    </div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
