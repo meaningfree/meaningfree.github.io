@@ -2463,16 +2463,45 @@ function draw(){
   }
   if (hover && G.tool !== 'hand'){
     const ok = hover.eval && hover.eval.ok;
-    ctx.globalAlpha = 0.55;
-    if (G.tool !== 'query' && G.tool !== 'bulldoze'){
-      const fake = {type: toolSpec(G.tool) ? toolSpec(G.tool).kind : 'park', dens:0, variant:0, w:hover.w, h:hover.h, x:0, y:0};
-      if (SPEC[fake.type] || fake.type === 'road'){
-        if (SPEC[fake.type]) ctx.drawImage(buildingSprite(fake, frame), hover.x * TS, hover.y * TS);
+    const spec = toolSpec(G.tool);
+    ctx.save();
+    ctx.globalAlpha = 0.45 + Math.sin(anim * 7) * 0.08;
+    if (spec && spec.kind !== 'bulldoze' && spec.kind !== 'query'){
+      if (SPEC[spec.kind]){
+        const fake = {type:spec.kind, dens:0, variant:0, w:hover.w, h:hover.h, x:0, y:0};
+        ctx.drawImage(buildingSprite(fake, frame), hover.x * TS, hover.y * TS);
+      } else if (spec.kind === 'road' || spec.kind === 'rail' || spec.kind === 'wire'){
+        ctx.drawImage(tileSprite(spec.kind === 'wire' ? 'wire' : spec.kind, 10), hover.x * TS, hover.y * TS);
       }
     }
-    ctx.fillStyle = ok ? 'rgba(125,222,160,.45)' : 'rgba(239,91,91,.45)';
+    ctx.globalAlpha = ok ? 0.16 : 0.22;
+    ctx.fillStyle = ok ? '#b6f0c8' : '#ff8d8d';
     ctx.fillRect(hover.x * TS, hover.y * TS, hover.w * TS, hover.h * TS);
+    const x = hover.x * TS, y = hover.y * TS, w = hover.w * TS, h = hover.h * TS;
+    const L = Math.max(5, Math.min(9, w / 3, h / 3));
     ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y + L); ctx.lineTo(x, y); ctx.lineTo(x + L, y);
+    ctx.moveTo(x + w - L, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + L);
+    ctx.moveTo(x, y + h - L); ctx.lineTo(x, y + h); ctx.lineTo(x + L, y + h);
+    ctx.moveTo(x + w - L, y + h); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w, y + h - L);
+    ctx.lineJoin = 'miter';
+    ctx.strokeStyle = '#1a1408';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.strokeStyle = ok ? '#ffe27a' : '#ff5d5d';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    if (hover.finger){
+      const cx = (hover.x + hover.w / 2) * TS, cy = (hover.y + hover.h / 2) * TS;
+      ctx.beginPath();
+      ctx.moveTo(hover.finger.x, hover.finger.y);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+      ctx.fillStyle = '#ffe27a';
+      ctx.fillRect(hover.finger.x - 2, hover.finger.y - 2, 4, 4);
+    }
+    ctx.restore();
   }
   drawActors(ctx);
   if (G.sheet === 'map') paintMinimap();
@@ -2610,9 +2639,22 @@ function updateChip(){
   const el = $('toolChip');
   if (!el) return;
   const s = toolSpec(G.tool);
+  const aim = s && !dragsPaint(G.tool);
+  const btn = $('placeBtn');
+  const ready = !!(aim && hover && hover.eval && hover.eval.ok);
+  if (btn){
+    btn.hidden = !ready;
+    if (ready) btn.textContent = 'ここに置く　$' + fmt(hover.eval.cost != null ? hover.eval.cost : s.cost);
+  }
   if (G.tool === 'hand') el.textContent = '移動・1本指で地図、2本指で拡大';
   else if (G.tool === 'query') el.textContent = '調べる・長押しでも見られます';
   else if (!s) el.textContent = '';
+  else if (aim){
+    const size = s.w > 1 ? ' ' + s.w + '×' + s.h : '';
+    if (hover && hover.eval && hover.eval.ok) el.textContent = s.name + size;
+    else if (hover && hover.eval) el.textContent = (hover.eval.reason || '置けません');
+    else el.textContent = s.name + size;
+  }
   else {
     const cost = hover && hover.eval && hover.eval.cost != null ? hover.eval.cost : s.cost;
     const bridge = hover && hover.eval && hover.eval.bridge;
@@ -2620,7 +2662,11 @@ function updateChip(){
     if (bridge && s.kind === 'road') name = '橋';
     if (bridge && s.kind === 'rail') name = '鉄橋';
     if (bridge && s.kind === 'wire') name = '水上の電線';
-    el.textContent = name + '  $' + fmt(cost) + (s.w > 1 ? '  ' + s.w + '×' + s.h : '');
+    const size = s.w > 1 ? ' ' + s.w + '×' + s.h : '';
+    let tail = '・なぞると敷きます';
+    if (gesture && gesture.cancel) tail = '・地図の外で離すと中止';
+    else if (hover && hover.eval) tail = hover.eval.ok ? '・このマスに敷きます' : '・' + (hover.eval.reason || '置けません');
+    el.textContent = name + '  $' + fmt(cost) + size + tail;
   }
 }
 function updateHUD(){
@@ -2817,7 +2863,7 @@ function renderDock(){
     shelf.dataset.empty = '0';
     const p = document.createElement('div');
     p.className = 'hintline';
-    p.textContent = 'ドラッグで移動。建物を選ぶと、ドラッグで連続して置けます。長押しでそのマスを調べます。';
+    p.textContent = 'ドラッグで地図を動かします。建物は枠を出してから、下の「ここに置く」で1つ置きます。';
     shelf.appendChild(p);
     return;
   }
@@ -2853,7 +2899,13 @@ function renderDock(){
       cost.textContent = spec ? '$' + fmt(spec.cost) : '';
       b.appendChild(name); b.appendChild(cost);
       b.setAttribute('aria-pressed', G.tool === tool ? 'true' : 'false');
-      b.addEventListener('click', () => { G.tool = tool; renderDock(); updateChip(); sfxUi(); });
+      b.addEventListener('click', () => {
+        const same = G.tool === tool;
+        G.tool = tool;
+        renderDock();
+        if (same) updateChip(); else armPlacement();
+        sfxUi();
+      });
     }
     shelf.appendChild(b);
   }
@@ -2861,6 +2913,7 @@ function renderDock(){
 function selectCat(id){
   if (id === 'menu'){ openSheet('menu'); return; }
   G.cat = id;
+  const prev = G.tool;
   if (id === 'move') G.tool = 'hand';
   else if (id === 'query') G.tool = 'query';
   else {
@@ -2868,7 +2921,7 @@ function selectCat(id){
     if (list.length && !list.includes(G.tool) && !String(G.tool).startsWith('gift:')) G.tool = list[0];
   }
   renderDock();
-  updateChip();
+  if (G.tool !== prev) armPlacement(); else updateChip();
   sfxUi();
 }
 
@@ -3075,7 +3128,7 @@ function helpHTML(){
     '<h3>交通と財政</h3><p>道路は $10（水上は橋で $20）、線路は $20。線路は渋滞と公害が少なめです。税は毎年1月に入ります。7%前後が目安で、上げすぎると人が来なくなります。交通・警察・消防の予算を下げると、道が崩れ、犯罪と火事に弱くなります。</p>' +
     '<h3>地価・公害・犯罪</h3><p>水辺、森、公園、贈り物は地価を上げ、地価が高いとマンションや高層ビルになります。工業と火力と渋滞は公害を出し、近くの住宅を苦しめます。警察は近くの犯罪を下げます。</p>' +
     '<h3>災害</h3><p>火事は上下左右に燃え広がります。燃えるマスのまわりを整地すると防火帯です。洪水、地震、竜巻、墜落、怪獣モグドラ、円盤、原子力の事故があります。災害が起きたら時間が止まるので、落ち着いて消せます。</p>' +
-    '<h3>操作</h3><p>下の欄で道具を選び、地図をドラッグすると連続して置けます。「移動」のときはドラッグで地図が動きます。2本指でも移動と拡大ができます。長押しでマスを調べられます。取消は左下。パソコンはスペースで一時停止、Uで取消、ホイールで拡大、右ドラッグで移動です。</p>' +
+    '<h3>操作</h3><p>建物や地区を選ぶと、地図の中央に黄色い枠が出ます。指で枠を動かし、下の「ここに置く」か、枠をもう一度タップすると、その枠に1つだけ置きます。指を離しただけでは置きません。道路・線路・電線・公園・整地は、なぞった線の上に敷けます。「移動」は1本指で地図、2本指で拡大です。調べる、または移動中の長押しでマスを見られます。取消は左下。パソコンは枠の上をクリックすると置きます。スペースで一時停止、Uで取消、ホイールで拡大、右ドラッグで移動です。</p>' +
     '</div>';
 }
 function showEnd(win){
@@ -3131,6 +3184,54 @@ function queryAt(tx, ty){
   $('queryClose').onclick = () => { el.hidden = true; G.hl = null; };
 }
 
+function armPlacement(){
+  const s = toolSpec(G.tool);
+  if (!s || dragsPaint(G.tool) || G.tool === 'hand' || G.tool === 'query'){
+    hover = null;
+    updateChip();
+    return;
+  }
+  const map = $('map');
+  if (!map || map.clientWidth < 8){ hover = null; updateChip(); return; }
+  const tx = clamp(Math.floor((cam.x + map.clientWidth / cam.z / 2) / TS), 0, W - 1);
+  const ty = clamp(Math.floor((cam.y + map.clientHeight / cam.z / 2) / TS), 0, H - 1);
+  updateHover({x:tx, y:ty}, null);
+}
+function confirmPlace(){
+  const s = toolSpec(G.tool);
+  if (!s || dragsPaint(G.tool)) return;
+  if (!hover || !hover.eval || !hover.eval.ok || hover.ax == null){
+    toast((hover && hover.eval && hover.eval.reason) || '置けません');
+    sfxErr();
+    return;
+  }
+  const ax = hover.ax, ay = hover.ay;
+  beginStroke();
+  const r = paintCell(ax, ay);
+  endStroke();
+  if (!r.ok && !r.noop){ toast(r.reason || '置けません'); sfxErr(); updateHover({x:ax, y:ay}, null); return; }
+  nudgeAim(ax, ay);
+}
+function nudgeAim(ax, ay){
+  const s = toolSpec(G.tool);
+  const stepX = s ? s.w : 1, stepY = s ? s.h : 1;
+  const map = $('map');
+  const x0 = cam.x, y0 = cam.y;
+  const x1 = cam.x + (map ? map.clientWidth : 0) / cam.z;
+  const y1 = cam.y + (map ? map.clientHeight : 0) / cam.z;
+  const visible = (tx, ty) => {
+    const a = tileAnchor(G.tool, tx, ty);
+    return a.x * TS >= x0 - 4 && a.y * TS >= y0 - 4 && (a.x + a.w) * TS <= x1 + 8 && (a.y + a.h) * TS <= y1 + 8;
+  };
+  const tries = [{x:ax + stepX, y:ay}, {x:ax, y:ay + stepY}, {x:ax - stepX, y:ay}, {x:ax, y:ay - stepY}];
+  for (const t of tries){
+    if (!inside(t.x, t.y) || !visible(t.x, t.y)) continue;
+    updateHover(t, null);
+    if (hover && hover.eval && hover.eval.ok) return;
+  }
+  hover = null;
+  updateChip();
+}
 function tileAnchor(tool, tx, ty){
   const s = toolSpec(tool);
   if (!s) return {x:tx, y:ty, w:1, h:1};
@@ -3162,6 +3263,29 @@ function bresenham(x0, y0, x1, y1, fn){
     if (e2 < dx){ err += dx; y0 += sy; }
   }
 }
+const FINGER_LIFT = 72;
+function dragsPaint(tool){
+  const s = toolSpec(tool);
+  return !!(s && s.w === 1 && s.h === 1);
+}
+function pointerOnMap(e){
+  const r = $('map').getBoundingClientRect();
+  return e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom;
+}
+function aimTile(e){
+  const map = $('map').getBoundingClientRect();
+  let x = e.clientX, y = e.clientY;
+  if (e.pointerType === 'touch') y -= FINGER_LIFT;
+  x = clamp(x, map.left + 2, map.right - 3);
+  y = clamp(y, map.top + 2, map.bottom - 3);
+  return screenToTile(x, y);
+}
+function revertStroke(){
+  if (!stroke) return;
+  const had = stroke.cells.length || stroke.spawned.length;
+  endStroke();
+  if (had) undo();
+}
 function bindInput(){
   const map = $('map');
   map.addEventListener('contextmenu', e => e.preventDefault());
@@ -3171,6 +3295,7 @@ function bindInput(){
   map.addEventListener('pointercancel', onUp);
   map.addEventListener('wheel', onWheel, {passive:false});
   $('btnUndo').onclick = () => undo();
+  $('placeBtn').onclick = () => confirmPlace();
   $('btnZin').onclick = () => setZoom(cam.z + 1);
   $('btnZout').onclick = () => setZoom(cam.z - 1);
   $('btnPause').onclick = () => togglePause();
@@ -3199,32 +3324,44 @@ function onDown(e){
   unlockAudio();
   pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
-  if (pointers.size >= 2){ pinch = null; if (stroke) endStroke(); gesture = null; return; }
-  const tile = screenToTile(e.clientX, e.clientY);
+  if (pointers.size >= 2){ pinch = null; if (stroke) endStroke(); gesture = null; hover = null; return; }
   const pan = e.button === 1 || e.button === 2 || G.tool === 'hand' || e.shiftKey;
-  gesture = {id:e.pointerId, x:e.clientX, y:e.clientY, tile, moved:false, long:false, painting:false, pan, cx:cam.x, cy:cam.y};
-  gesture.timer = setTimeout(() => {
-    if (gesture && !gesture.moved){
+  const tile = aimTile(e);
+  const confirmTap = e.pointerType === 'touch' && !pan && hover && hover.ax === tile.x && hover.ay === tile.y && !dragsPaint(G.tool);
+  gesture = {id:e.pointerId, x:e.clientX, y:e.clientY, origin:tile, aim:tile, moved:false, long:false, painting:false, pan, cancel:false, cx:cam.x, cy:cam.y, pointerType:e.pointerType || '', confirmTap};
+  if (pan || G.tool === 'query'){
+    gesture.timer = setTimeout(() => {
+      if (!gesture || gesture.moved) return;
       gesture.long = true;
-      queryAt(gesture.tile.x, gesture.tile.y);
+      const under = gesture.pan ? screenToTile(gesture.x, gesture.y) : gesture.origin;
+      queryAt(under.x, under.y);
       buzz(12);
-    }
-  }, 460);
+    }, 460);
+  }
+  if (!pan && G.tool !== 'query') updateHover(tile, e);
 }
 function onMove(e){
   if (e.cancelable) e.preventDefault();
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if (pointers.size >= 2){ doPinch(); return; }
-  const tile = screenToTile(e.clientX, e.clientY);
   if (!gesture || gesture.id !== e.pointerId){
-    updateHover(tile);
+    updateHover(screenToTile(e.clientX, e.clientY), e);
     return;
   }
   const dist = Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y);
-  if (dist > 8){
+  if (dist > 10){
     gesture.moved = true;
     clearTimeout(gesture.timer);
   }
+  if (!pointerOnMap(e)){
+    gesture.cancel = true;
+    if (gesture.pan || dragsPaint(G.tool)){
+      hover = null;
+      updateChip();
+    } else if (hover) hover.finger = null;
+    return;
+  }
+  gesture.cancel = false;
   if (gesture.pan){
     if (gesture.moved){
       cam.x = gesture.cx - (e.clientX - gesture.x) / cam.z;
@@ -3233,50 +3370,75 @@ function onMove(e){
     }
     return;
   }
-  if (gesture.long || G.tool === 'query'){ updateHover(tile); return; }
-  if (gesture.moved && G.tool !== 'hand'){
+  const tile = aimTile(e);
+  gesture.aim = tile;
+  if (!(gesture.long || G.tool === 'query') && gesture.moved && dragsPaint(G.tool)){
     if (!gesture.painting){
       beginStroke();
       gesture.painting = true;
-      const spec = toolSpec(G.tool);
-      if (spec && spec.w === 1) paintCell(gesture.tile.x, gesture.tile.y);
-      else paintCell(gesture.tile.x, gesture.tile.y);
-      gesture.last = gesture.tile;
+      paintCell(gesture.origin.x, gesture.origin.y);
+      gesture.last = {x:gesture.origin.x, y:gesture.origin.y};
     }
-    const spec = toolSpec(G.tool);
-    if (spec && spec.w === 1 && gesture.last) bresenham(gesture.last.x, gesture.last.y, tile.x, tile.y, (x, y) => paintCell(x, y));
-    else paintCell(tile.x, tile.y);
-    gesture.last = tile;
+    if (gesture.last) bresenham(gesture.last.x, gesture.last.y, tile.x, tile.y, (x, y) => paintCell(x, y));
+    gesture.last = {x:tile.x, y:tile.y};
   }
-  updateHover(tile);
+  updateHover(tile, e);
 }
 function onUp(e){
   pointers.delete(e.pointerId);
   if (gesture && gesture.id === e.pointerId){
     clearTimeout(gesture.timer);
-    if (!gesture.long && !gesture.moved && !gesture.pan){
-      if (G.tool === 'query') queryAt(gesture.tile.x, gesture.tile.y);
-      else if (G.tool !== 'hand'){
-        beginStroke();
-        const r = paintCell(gesture.tile.x, gesture.tile.y);
-        if (!r.ok) toast(r.reason || '置けません');
-        if (!r.ok) sfxErr();
-        endStroke();
-      }
-    } else if (gesture.painting){
-      endStroke();
-      if (stroke === null && G.tool !== 'hand') { /* placed */ }
-    }
+    const g = gesture;
     gesture = null;
+    const aborted = g.cancel || e.type === 'pointercancel' || !pointerOnMap(e);
+    if (g.pan) hover = null;
+    else if (G.tool === 'query'){
+      if (!g.long && !aborted) queryAt(g.aim.x, g.aim.y);
+      hover = null;
+    } else if (dragsPaint(G.tool)){
+      if (aborted){
+        if (g.painting) revertStroke();
+        hover = null;
+        if (g.moved || g.painting) toast('置きませんでした');
+      } else if (g.painting){
+        endStroke();
+        hover = null;
+      } else {
+        beginStroke();
+        const r = paintCell(g.aim.x, g.aim.y);
+        if (!r.ok && !r.noop){ toast(r.reason || '置けません'); sfxErr(); }
+        endStroke();
+        hover = null;
+      }
+    } else if (G.tool !== 'hand'){
+      if (g.pointerType === 'touch'){
+        if (g.confirmTap && !g.moved && !aborted) confirmPlace();
+        else if (g.aim) updateHover(g.aim, null);
+      } else if (!aborted){
+        beginStroke();
+        const r = paintCell(g.aim.x, g.aim.y);
+        if (!r.ok && !r.noop){ toast(r.reason || '置けません'); sfxErr(); }
+        endStroke();
+        if (r.ok && !r.noop) nudgeAim(g.aim.x, g.aim.y);
+        else if (g.aim) updateHover(g.aim, null);
+      } else if (g.aim) updateHover(g.aim, null);
+    }
+    updateChip();
   }
   if (pointers.size < 2) pinch = null;
 }
-function updateHover(tile){
+function updateHover(tile, e){
   if (!$('screen-play') || $('screen-play').hidden) return;
-  if (G.tool === 'hand'){ hover = null; return; }
+  if (G.tool === 'hand' || !tile || !inside(tile.x, tile.y)){ hover = null; updateChip(); return; }
   const a = tileAnchor(G.tool, tile.x, tile.y);
   const ev = (G.tool === 'query') ? {ok:true, cost:0} : act(G.tool, a.x, a.y, true);
-  hover = {x:a.x, y:a.y, w:a.w, h:a.h, eval:ev};
+  let finger = null;
+  if (e && e.pointerType === 'touch'){
+    const p = screenToWorld(e.clientX, e.clientY);
+    finger = {x:p.x, y:p.y};
+  }
+  hover = {x:a.x, y:a.y, w:a.w, h:a.h, eval:ev, finger, ax:tile.x, ay:tile.y};
+  updateChip();
 }
 function onWheel(e){
   e.preventDefault();
@@ -3301,7 +3463,7 @@ function onKey(e){
   const k = e.key.toLowerCase();
   if (k === ' ' || e.code === 'Space'){ e.preventDefault(); togglePause(); }
   else if (k === 'u' || k === 'z' && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
-  else if (k === 'escape'){ if (G.sheet && !G.budgetPending) closeSheet(); else { G.tool = 'hand'; G.cat = 'move'; renderDock(); } }
+  else if (k === 'escape'){ if (G.sheet && !G.budgetPending) closeSheet(); else { G.tool = 'hand'; G.cat = 'move'; renderDock(); armPlacement(); } }
   else if (k === '+' || k === '=') setZoom(cam.z + 1);
   else if (k === '-' || k === '_') setZoom(cam.z - 1);
   else if (k === 'arrowleft' || k === 'a') cam.x -= 32;
@@ -3315,6 +3477,7 @@ function onKey(e){
       G.cat = k === 'h' ? 'move' : k === 'q' || k === 'b' ? G.cat : (['1','2','3'].includes(k) ? 'zone' : ['4','5'].includes(k) ? 'road' : k === '6' ? 'power' : 'civic');
       if (k === 'b') G.cat = 'zone';
       renderDock();
+      armPlacement();
     }
   }
   clampCam();
