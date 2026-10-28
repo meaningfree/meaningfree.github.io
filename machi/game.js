@@ -848,7 +848,7 @@ function addLog(text){
 }
 function alertDisaster(name, text, x, y){
   addLog(name);
-  say('dis-' + G.elapsed + '-' + name, text, {force:true, cooldown:0});
+  say('dis-' + G.elapsed + '-' + name, text, {force:true, cooldown:0, interrupt:true});
   if (x != null) centerOn(x, y);
   G.shake = 1.1;
   sfxDisaster();
@@ -863,16 +863,18 @@ function startFires(n){
   }
 }
 function earthquake(){
-  alertDisaster('地震', '地震です。火事が広がる前に、燃えているマスのまわりを整地して防火帯にしてください。', W / 2, H / 2);
-  let n = 0;
+  let n = 0, hit = null;
   for (const b of buildings){
     if (!b || !b.alive) continue;
     if (Math.random() < 0.16){
+      if (!hit) hit = b;
       if (SPEC[b.type].zone && b.dens > 0) b.dens--;
       else if (!SPEC[b.type].zone && Math.random() < 0.35) destroyBuilding(b, true);
       if (n < 8 && Math.random() < 0.55){ igniteBuilding(b); n++; }
     }
   }
+  if (!hit) hit = buildings.find(b => b && b.alive) || null;
+  alertDisaster('地震', '地震です。火事が広がる前に、燃えているマスのまわりを整地して防火帯にしてください。', hit ? hit.x + hit.w / 2 : null, hit ? hit.y + hit.h / 2 : null);
 }
 function damageCoast(){
   let hit = null;
@@ -1063,7 +1065,12 @@ function meltdown(){
   }
 }
 function triggerDisaster(kind){
-  if (kind === 'fire'){ startFires(3); alertDisaster('火事', '火事です。まわりを整地すると燃え広がりません。消防署の範囲では消えやすくなります。', W/2, H/2); }
+  if (kind === 'fire'){
+    startFires(3);
+    let fx = null, fy = null;
+    for (let i = 0; i < fire.length; i++) if (fire[i]){ fx = i % W; fy = (i / W) | 0; break; }
+    alertDisaster('火事', '火事です。まわりを整地すると燃え広がりません。消防署の範囲では消えやすくなります。', fx, fy);
+  }
   else if (kind === 'flood'){
     const hit = damageCoast();
     alertDisaster('洪水', '岸の建物が水をかぶりました。水が引くまで、しばらく育ちにくくなります。', hit ? hit.x : W/2, hit ? hit.y : H/2);
@@ -2666,7 +2673,14 @@ function say(id, text, opt){
   }
   if (id && (msgQ.some(q => q.id === id) || (currentMsg && currentMsg.id === id))) return;
   if (id) G.said[id] = now;
-  msgQ.push({id, text, annoy: !!opt.annoy, actions: opt.actions || null});
+  const msg = {id, text, annoy: !!opt.annoy, actions: opt.actions || null};
+  if (opt.interrupt){
+    msgQ.unshift(msg);
+    currentMsg = null;
+    nextMsg();
+    return;
+  }
+  msgQ.push(msg);
   if ($('speech') && $('speech').hidden) nextMsg();
 }
 function nextMsg(){
