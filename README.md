@@ -11,6 +11,7 @@
 | `matchstick/index.html` | <https://meaningfree.github.io/matchstick/> |
 | `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
 | `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
+| `simcity/index.html` | <https://meaningfree.github.io/simcity/> |
 
 ## むげんワードル
 
@@ -114,6 +115,25 @@ python3 tools/make-sukima.py sukima/index.html
 ```sh
 python3 tools/make-manmaru.py manmaru/index.html
 ```
+
+## ドットシティ
+
+スーパーファミコン版シムシティのルールに寄せた、ドット絵のまちづくりシミュレーション。
+
+- マップ 000–999（SFC同様）、難易度で初期資金が変わる
+- 建設コストはSFC準拠（どうろ$10、ゾーン$100、せきたん発電$3000 など）
+- R/C/Iゾーン・道路・線路・電線・公園・警察・消防・スタジアム・港・空港・発電所
+- 電力ネットワーク、需要、地価、汚染、犯罪、税収・予算
+- 都市ランク（むら→…→きょだいとし）、ドクター・ドットの助言
+- 災害（火災・洪水・地震・怪獣）とマップオーバーレイ
+- ドット絵タイル、スマホ向けツールドック・ピンチズーム・ミニマップ
+- 進行状況はブラウザのローカルストレージにセーブ
+
+### ファイル
+
+- `simcity/index.html` — エントリ
+- `simcity/css/game.css` — UI
+- `simcity/js/` — シミュレーション・描画・入力
 
 ## GitHub Pages
 
