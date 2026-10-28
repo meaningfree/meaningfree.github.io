@@ -65,6 +65,10 @@ function selectTool(id) {
   const t = TOOLS.find((x) => x.id === id);
   $("#dock-tool-name").textContent = t ? t.label : "";
   $("#dock-tool-cost").textContent = t && t.cost ? `$${t.cost}` : "";
+  if (id !== "inspect") {
+    const card = $("#inspect-card");
+    if (card) card.hidden = true;
+  }
   // ハプティクス
   if (navigator.vibrate) navigator.vibrate(8);
 }
@@ -379,7 +383,7 @@ function showInspect(info) {
   const card = $("#inspect-card");
   if (!info) { card.hidden = true; return; }
   const names = {
-    0: "くち", 1: "みず", 2: "もり", 3: "き",
+    0: "草地", 1: "みず", 2: "もり", 3: "き",
   };
   const bnames = {
     [Building.ZONE_R]: "じゅうたくゾーン",
