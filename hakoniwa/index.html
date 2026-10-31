@@ -89,6 +89,16 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 .qi .tx{flex:1;min-width:0}.qi .tx b{display:block;font-weight:normal;font-size:14px}.qi .tx small{display:block;color:var(--sub);font-size:11px;line-height:1.3}
 .qi .st{flex:none;color:var(--gold);font-size:12px}
 .qi.lock{opacity:.45}
+.slots{display:flex;flex-direction:column;gap:6px;margin:6px 0}
+.slot{display:flex;gap:6px}
+.sl{flex:1;min-width:0;display:flex;gap:10px;align-items:center;text-align:left;border:2px solid var(--rim);border-radius:6px;background:#222e86;padding:6px 8px;min-height:52px}
+.sl .no{flex:none;width:28px;height:28px;display:grid;place-items:center;background:#0b0f2e;border-radius:4px;color:var(--gold)}
+.sl .tx{flex:1;min-width:0}.sl .tx b{display:block;font-weight:normal;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sl .tx small{display:block;color:var(--sub);font-size:11px}
+.sl .tg{display:inline-block;background:var(--gold);color:var(--ink);border-radius:3px;padding:0 4px;font-size:10px;margin-left:6px;vertical-align:2px}
+.sl.empty{opacity:.55}.sl.empty:not([disabled]){opacity:.85}
+.sl.warn{border-color:var(--bad);background:#6a1e2a}
+.del{flex:none;min-width:58px;border:2px solid var(--rim);border-radius:6px;background:#222e86;font-size:12px}
+.del.warn{background:var(--bad);color:#fff}
 /* side buttons */
 #side{position:absolute;right:max(8px,env(safe-area-inset-right,0px));top:140px;display:flex;flex-direction:column;gap:8px;z-index:5}
 .sbtn{width:46px;height:46px;padding:0;display:grid;place-items:center;position:relative}
@@ -145,7 +155,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-o
 #info .kv span:nth-child(odd){color:var(--sub)}
 
 /* modal */
-#modalWrap{position:absolute;inset:0;background:rgba(5,8,30,.55);display:grid;place-items:center;z-index:20;padding:16px}
+#modalWrap{position:absolute;inset:0;background:rgba(5,8,30,.55);display:grid;place-items:center;z-index:40;padding:16px}
 #modal{width:min(420px,100%);max-height:calc(100% - 20px);overflow:auto;padding:14px 14px 12px}
 #modal h3{margin:0 0 10px;font-weight:normal;font-size:18px;color:var(--gold);text-wrap:balance}
 #modal p{margin:6px 0;font-size:13px}
@@ -1175,7 +1185,7 @@ $('#bMenu').onclick=()=>{const draw=()=>{$('#modal').innerHTML=`<h3>メニュー
   <div class="btns" style="margin-top:8px"><button class="bt red" id="mNew">タイトルへ</button><button class="bt gold" data-close>閉じる</button></div>`;
   $('#tAuto').onclick=()=>{S.autoBudget=!S.autoBudget;draw()};$('#tDis').onclick=()=>{S.disasters=!S.disasters;draw()};$('#tSnd').onclick=()=>{S.sound=!S.sound;draw()};
   $('#modal').querySelectorAll('[data-dz]').forEach(b=>b.onclick=()=>{closeModal();disaster(b.dataset.dz)});
-  $('#mSave').onclick=()=>{const ok=save();$('#mSave').textContent=ok?'保存しました':'この環境では保存できません'};
+  $('#mSave').onclick=()=>{const ok=save();$('#mSave').textContent=ok?`保存しました（セーブ${S.slot}）`:'この環境では保存できません'};
   $('#mHelp').onclick=help;$('#mNew').onclick=()=>{save(true);closeModal();showTitle()};$('#modal').querySelector('[data-close]').onclick=closeModal};showModal('');draw()};
 function help(){showModal(`<h3>遊び方</h3>
   <p><b style="color:var(--gold)">1. 電気をつくる</b><br>「電力」から発電所を建て、送電線で区画までつなぎます。区画どうしは隣り合えば電気が伝わります。</p>
@@ -1201,8 +1211,29 @@ function unb64(s,Ctor){const bin=atob(s);const u=new Uint8Array(bin.length);for(
 function serialize(){const o={};for(const k in S){const v=S[k];if(v instanceof Uint8Array)o[k]={u8:b64(v)};else if(v instanceof Int32Array)o[k]={i32:b64(v)};else o[k]=v}
   o.bld={};for(const id in S.bld){const b=S.bld[id];o.bld[id]={id:b.id,type:b.type,x:b.x,y:b.y,lvl:b.lvl,cls:b.cls,seed:b.seed,happy:b.happy||0}}return JSON.stringify(o)}
 function deserialize(str){const o=JSON.parse(str);for(const k in o){const v=o[k];if(v&&v.u8)o[k]=unb64(v.u8,Uint8Array);else if(v&&v.i32)o[k]=unb64(v.i32,Int32Array)}return o}
-function save(silent){if(!S||titleOn)return false;try{localStorage.setItem(KEY,serialize());if(!silent)advise('街を保存しました。');return true}catch(e){return false}}
-function loadSaved(){try{const s=localStorage.getItem(KEY);return s?deserialize(s):null}catch(e){return null}}
+const SLOTS=5,SKEY=n=>'hakoniwa-mayor-slot-'+n,MKEY='hakoniwa-mayor-slots';
+function slotMeta(){let m={};try{m=JSON.parse(localStorage.getItem(MKEY)||'{}')}catch(e){}
+  // migrate the old single save into slot 1
+  try{const old=localStorage.getItem(KEY);if(old&&!m[1]){const o=deserialize(old);localStorage.setItem(SKEY(1),old);m[1]=metaOf(o);localStorage.setItem(MKEY,JSON.stringify(m));localStorage.removeItem(KEY)}}catch(e){}
+  return m}
+function metaOf(o){return{name:o.name,year:o.year,month:o.month,pop:o.pop||0,cls:o.cls||0,quest:o.quest||null,at:Date.now()}}
+function freeSlot(){const m=slotMeta();for(let n=1;n<=SLOTS;n++)if(!m[n])return n;return 0}
+function save(silent){if(!S||titleOn)return false;if(!S.slot)S.slot=freeSlot()||1;try{localStorage.setItem(SKEY(S.slot),serialize());const m=slotMeta();m[S.slot]=metaOf(S);localStorage.setItem(MKEY,JSON.stringify(m));if(!silent)advise(`街を保存しました（セーブ${S.slot}）。`);return true}catch(e){return false}}
+function loadSlot(n){try{const s=localStorage.getItem(SKEY(n));if(!s)return null;const o=deserialize(s);o.slot=n;return o}catch(e){return null}}
+function deleteSlot(n){try{localStorage.removeItem(SKEY(n));const m=slotMeta();delete m[n];localStorage.setItem(MKEY,JSON.stringify(m))}catch(e){}}
+function slotRows(m,mode){let h='';for(let n=1;n<=SLOTS;n++){const v=m[n];const q=v&&v.quest&&QUESTS.find(x=>x.id===v.quest);
+  h+=v?`<div class="slot"><button class="sl" data-s="${n}"><span class="no num">${n}</span><span class="tx"><b>${v.name}<span class="tg">${CLASSES[v.cls]?CLASSES[v.cls][1]:''}</span></b><small class="num">${v.year}年${v.month+1}月 ・ 人口 ${fmt(v.pop)}${q?' ・ クエスト':''}</small></span></button>${mode==='load'?`<button class="del" data-d="${n}" aria-label="セーブ${n}をけす">けす</button>`:''}</div>`
+     :`<div class="slot"><button class="sl empty" data-s="${n}" ${mode==='load'?'disabled':''}><span class="no num">${n}</span><span class="tx"><b>あき</b></span></button></div>`}return h}
+function openLoad(){const draw=()=>{const m=slotMeta();if(!Object.keys(m).length){closeModal();showTitle();return}
+  $('#modal').innerHTML=`<h3>つづきから</h3><div class="slots">${slotRows(m,'load')}</div><div class="btns"><button class="bt" data-close>もどる</button></div>`;
+  $('#modal').querySelector('[data-close]').onclick=closeModal;
+  $('#modal').querySelectorAll('.sl[data-s]').forEach(b=>b.onclick=()=>{const o=loadSlot(+b.dataset.s);if(!o){sfx('err');return}closeModal();audioInit();startGame(o)});
+  $('#modal').querySelectorAll('.del').forEach(b=>b.onclick=()=>{if(b.dataset.ok){deleteSlot(+b.dataset.d);sfx('boom');draw();return}b.dataset.ok=1;b.textContent='本当に？';b.classList.add('warn');sfx('tick')})};
+  showModal('');draw()}
+// pick a slot for a new city: first empty one, otherwise ask which to overwrite
+function withSlot(cb){const n=freeSlot();if(n){cb(n);return}
+  showModal(`<h3>どの街に上書きしますか？</h3><p style="color:var(--sub);font-size:12px">セーブは${SLOTS}つまで。上書きする街を2回タップ。その街は消えて、新しい街になります。</p><div class="slots">${slotRows(slotMeta(),'pick')}</div><div class="btns"><button class="bt" data-close>やめる</button></div>`,null,()=>{
+    $('#modal').querySelectorAll('.sl[data-s]').forEach(b=>b.onclick=()=>{if(!b.dataset.ok){$('#modal').querySelectorAll('.sl').forEach(x=>{delete x.dataset.ok;x.classList.remove('warn')});b.dataset.ok=1;b.classList.add('warn');sfx('tick');return}const k=+b.dataset.s;deleteSlot(k);closeModal();cb(k)})})}
 
 
 /* ================= goals: missions & challenges ================= */
@@ -1404,8 +1435,8 @@ function checkQuest(){if(!S.quest||S.qDone)return;const q=QUESTS.find(x=>x.id===
     const idx=QUESTS.indexOf(q),nx=QUESTS[idx+1];setSpeed(0,true);
     showModal(`<h3>クエストクリア！「${q.name}」</h3><p style="font-size:34px;text-align:center;margin:6px 0" class="stars">${starStr(st)}</p><p style="text-align:center">のこり ${qLeft()/12|0}年${qLeft()%12}か月で達成</p><p style="text-align:center;color:var(--sub);font-size:12px">★3：期限の半分以内 ・ ★2：のこり2割以上</p>
      <div class="btns">${nx?`<button class="bt gold" id="qNext">次へ「${nx.name}」</button>`:''}</div><div class="btns" style="margin-top:8px"><button class="bt sm" id="qKeep" style="flex:1">このまま遊ぶ</button><button class="bt sm" id="qList" style="flex:1">クエスト一覧</button></div>`,null,()=>{
-     if(nx)$('#qNext').onclick=()=>{closeModal();startQuest(nx)};$('#qKeep').onclick=()=>{closeModal();setSpeed(1,true);advise('クエストの目標は達成済み。ここからは自由に街づくりを続けられます。')};$('#qList').onclick=()=>{closeModal();modeSel='quest';showTitle()}});sfx('fanfare');return}
-  if(qLeft()<=0){S.qDone=1;setSpeed(0,true);showModal(`<h3>期限切れ…「${q.name}」</h3><p>目標：${q.goal}</p><p style="color:var(--sub)">もう一度挑戦してみましょう。</p><div class="btns"><button class="bt" id="qList">クエスト一覧</button><button class="bt gold" id="qAgain">もう一度</button></div>`,null,()=>{$('#qAgain').onclick=()=>{closeModal();startQuest(q)};$('#qList').onclick=()=>{closeModal();modeSel='quest';showTitle()}});sfx('err')}}
+     if(nx)$('#qNext').onclick=()=>{closeModal();startQuest(nx,S.slot)};$('#qKeep').onclick=()=>{closeModal();setSpeed(1,true);advise('クエストの目標は達成済み。ここからは自由に街づくりを続けられます。')};$('#qList').onclick=()=>{closeModal();modeSel='quest';showTitle()}});sfx('fanfare');return}
+  if(qLeft()<=0){S.qDone=1;setSpeed(0,true);showModal(`<h3>期限切れ…「${q.name}」</h3><p>目標：${q.goal}</p><p style="color:var(--sub)">もう一度挑戦してみましょう。</p><div class="btns"><button class="bt" id="qList">クエスト一覧</button><button class="bt gold" id="qAgain">もう一度</button></div>`,null,()=>{$('#qAgain').onclick=()=>{closeModal();startQuest(q,S.slot)};$('#qList').onclick=()=>{closeModal();modeSel='quest';showTitle()}});sfx('err')}}
 $('#questPill').onclick=()=>{const q=QUESTS.find(x=>x.id===S.quest);if(!q)return;const[c,t,dir]=q.prog();
   showModal(`<h3>${q.name}</h3><p style="font-size:15px">目標：${q.goal}</p><table class="tbl"><tr><td>いま</td><td>${fmt(c)}${dir?'（目標 '+fmt(t)+' 以下）':' / '+fmt(t)}</td></tr><tr><td>のこり</td><td>${qLeft()/12|0}年${qLeft()%12}か月</td></tr><tr><td>図鑑</td><td>${Object.keys(S.found).length}/${COMBOS.length}</td></tr></table>${q.tip?`<p style="color:var(--sub);font-size:12px">ヒント：${q.tip}</p>`:''}
    <div class="btns"><button class="bt" id="qBook">図鑑を見る</button><button class="bt gold" data-close>閉じる</button></div>`,null,()=>{$('#qBook').onclick=()=>{closeModal();setTimeout(()=>$('#bookPill').onclick(),150)}})};
@@ -1420,7 +1451,7 @@ const PREBUILT={
    const ty=['R','C','R','I','R','C'];let k=0;for(let y=Y0+1;y+3<=Y0+28;y+=7)for(let x=X0+1;x+3<=X0+42;x+=7)for(const[dx,dy]of[[0,0],[3,0],[0,3],[3,3]]){const t=ty[k++%6];zoneAt(t,x+dx,y+dy,3)}
    addBuilding('coal',20,30);const pl=[];for(let x=24;x<=X0+42;x++)pl.push([x,31]);lay(PWR,pl)},
 };
-function startQuest(q){const st=newState(q.seed,1,q.name);st.quest=q.id;st.funds=q.funds;st.qEnd=(st.year+q.years)*12+st.month;st.rank=q.rank||1;st.xp=xpFor(st.rank);st.perks=[];st.rule=q.rule||{};st.disasters=!!(q.rule&&q.rule.disaster);st.qStart=st.year*12+st.month;
+function startQuest(q,slot){if(!slot){withSlot(n=>startQuest(q,n));return}const st=newState(q.seed,1,q.name);st.slot=slot;st.quest=q.id;st.funds=q.funds;st.qEnd=(st.year+q.years)*12+st.month;st.rank=q.rank||1;st.xp=xpFor(st.rank);st.perks=[];st.rule=q.rule||{};st.disasters=!!(q.rule&&q.rule.disaster);st.qStart=st.year*12+st.month;
   if(q.pre){S=st;PREBUILT[q.pre]()}startGame(st,true);S.qStartPop=null;if(q.pre){let c=0;for(let k=0;k<CLASSES.length;k++)if(S.pop>=CLASSES[k][0])c=k;S.cls=c;for(const[k,cond]of GIFTS)if(cond())S.giftGiven[k]=1;updHUD()}}
 let checkQuestSoon=0;
 let modeSel='free';
@@ -1441,13 +1472,13 @@ function initWorld(state){S=state;
   quickRecalc();recalcTraffic();recalcMaps();demand();comboBoot=false;
 }
 function showTitle(){buildModes();titleOn=true;$('#title').hidden=false;['#hud','#side','#dock'].forEach(s=>$(s).hidden=true);$('#adv').classList.remove('show');$('#undo').hidden=true;$('#undo1').hidden=true;$('#pad').hidden=true;$('#info').hidden=true;
-  const sv=loadSaved();$('#contWrap').innerHTML=sv?`<button class="bt gold" id="contBtn" style="width:100%;margin-bottom:8px">つづきから（${sv.name} ${sv.year}年）</button>`:'';
-  if(sv)$('#contBtn').onclick=()=>{audioInit();startGame(sv)};
+  const sm=slotMeta();const sn=Object.keys(sm).length;$('#contWrap').innerHTML=sn?`<button class="bt gold" id="contBtn" style="width:100%;margin-bottom:8px">つづきから（保存した街 ${sn}/${SLOTS}）</button>`:'';
+  if(sn)$('#contBtn').onclick=()=>{audioInit();openLoad()};
   initWorld(newState(titleSeed,diffSel,'preview'));cam.z=Math.max(1,Math.min(VW/(W*T),VH/(H*T))*1.6);focusOn([W/2,H/2]);drawLogo();
 }
 $('#diffSel').querySelectorAll('button').forEach(b=>b.onclick=()=>{diffSel=+b.dataset.d;$('#diffSel').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
 $('#reroll').onclick=()=>{titleSeed=(Math.random()*1e9)|0;initWorld(newState(titleSeed,diffSel,'preview'))};
-$('#startBtn').onclick=()=>{audioInit();const nm=($('#nameIn').value||'').trim()||'ハコニワ市';startGame(newState(titleSeed,diffSel,nm),true)};
+$('#startBtn').onclick=()=>{audioInit();const nm=($('#nameIn').value||'').trim()||'ハコニワ市';withSlot(n=>{const st=newState(titleSeed,diffSel,nm);st.slot=n;startGame(st,true)})};
 function startGame(state,fresh){initWorld(state);titleOn=false;$('#title').hidden=true;['#hud','#side','#dock'].forEach(s=>$(s).hidden=false);
   undoStack=[];refreshUndo();overlay='none';buildCats();curCat='view';setTool('inspect');$('#trayWin').hidden=true;setSpeed(S.speed!=null?S.speed||1:1,true);
   cam.z=VW<600?2:2.5;focusOn(S.center&&S.zones?S.center:[W/2,H/2]);updHUD();resize();
