@@ -11,6 +11,7 @@
 | `matchstick/index.html` | <https://meaningfree.github.io/matchstick/> |
 | `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
 | `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
+| `hakoniwa/index.html` | <https://meaningfree.github.io/hakoniwa/> |
 
 ## むげんワードル
 
@@ -113,6 +114,34 @@ python3 tools/make-sukima.py sukima/index.html
 
 ```sh
 python3 tools/make-manmaru.py manmaru/index.html
+```
+
+## ハコニワ市長
+
+スーパーファミコン時代のまちづくりシミュレーションの仕組みを下敷きにした、ドット絵の街づくりゲーム。
+名前・キャラクター・建物の絵はすべてオリジナル。
+
+- 道路・線路・送電線を引き、住宅地・商業地・工業地を置くと、電気と交通がつながった区画から育っていく
+- 需要メーター（R・C・I）、地価・公害・犯罪・渋滞、年末の予算（税率と警察・消防・道路の予算）、災害
+- 人口の節目で「町」「市」「首都」…と規模が上がり、記念の建物がプレゼントされる
+- **住民のお願い**: 育った区画の上に吹き出しが出る。期限内にかなえるとお礼が入り、建物が育つ
+- **まちづくり図鑑**: 建物の組み合わせで「商店街」「水辺の住宅地」など12種類の名所が生まれる
+- **市長レベル**: お願いや名所で経験値が入る。レベルで建物が解放され、上がるたびに政策カードを1枚選ぶ
+- **クエスト**: ゴールのちがう12ステージ（渋滞の街を立て直す、工場なしで人口3,000人、災害列島 など）。★3つで評価
+- 操作: スマホは画面中央の十字カーソルに地図を動かして合わせ、「建てる」で確定（2本指でズーム）。
+  PC はマウスのホバー位置に建ち、クリック2回で道路などを引く（ドラッグで移動、ホイールでズーム）
+- 効果音つき（Web Audio で合成）。街は年末と「保存する」で端末に保存
+
+### ファイル
+
+- `src/hakoniwa.html` — 生成元（Artifact 用の断片形式）
+- `hakoniwa/index.html` — 公開用のスタンドアロン版
+- `tools/make-hakoniwa.py` — 変換スクリプト
+
+`src/hakoniwa.html` を編集したら、公開版を作り直す:
+
+```sh
+python3 tools/make-hakoniwa.py hakoniwa/index.html
 ```
 
 ## GitHub Pages

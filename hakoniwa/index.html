@@ -1,0 +1,1477 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f2e">
+<meta name="description" content="ドット絵でつくる、スマホで遊べるまちづくりシミュレーション。">
+<title>ハコニワ市長</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap">
+<style>
+/* Layout: full-screen pixel map; game HUD pinned top, mobile-game tool dock pinned bottom, SFC-style blue windows */
+:root{
+  --ink:#0b0f2e; --win-a:#2d3fa6; --win-b:#18225e; --rim:#eef0ff; --gold:#f8d848;
+  --txt:#ffffff; --sub:#aeb8f2; --bad:#ff6a58; --good:#5ee07a;
+  --R:#4fd05a; --C:#4f8ff8; --I:#f2c62c;
+  --font:'DotGothic16','Hiragino Kaku Gothic ProN','Noto Sans JP','Yu Gothic',monospace;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;background:var(--ink);overflow:hidden;overscroll-behavior:none}
+body{font-family:var(--font);color:var(--txt);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;font-size:14px;line-height:1.35}
+#app{position:relative;width:100%;height:100%;overflow:hidden;touch-action:none;background:var(--ink)}
+#view{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;image-rendering:pixelated}
+img.px,canvas.px{image-rendering:pixelated;image-rendering:crisp-edges}
+button{font-family:var(--font);color:var(--txt);cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:focus-visible,input:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.win{background:linear-gradient(180deg,var(--win-a),var(--win-b));border:2px solid var(--rim);box-shadow:0 0 0 2px var(--ink),inset 0 0 0 1px #5a6ad6,0 4px 0 2px rgba(0,0,0,.35);border-radius:6px}
+.num{font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+/* HUD */
+#hud{position:absolute;left:0;right:0;top:0;padding:8px max(8px,env(safe-area-inset-right,0px)) 0 max(8px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:6px;pointer-events:none;z-index:5}
+#hud .win{pointer-events:auto}
+.row{display:flex;gap:6px;align-items:stretch;min-width:0}
+#cityBar{flex:1;display:flex;align-items:center;justify-content:space-between;padding:4px 10px;min-width:0;gap:8px}
+#cityName{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+#cls{display:inline-block;background:var(--gold);color:var(--ink);padding:0 6px;border-radius:3px;margin-left:6px;font-size:12px;vertical-align:1px}
+#date{white-space:nowrap;color:var(--sub)}
+.stat{padding:3px 8px;display:flex;flex-direction:column;justify-content:center;min-width:0}
+.stat small{font-size:10px;color:var(--sub);letter-spacing:.08em}
+.stat b{font-weight:normal;font-size:15px;white-space:nowrap}
+#fundsBox{flex:1.2}#popBox{flex:1}
+#fundsBox b.neg{color:var(--bad)}
+#rci{display:flex;gap:3px;align-items:flex-end;padding:3px 6px}
+#rci canvas{width:42px;height:38px;display:block}
+#speed{display:flex;padding:3px;gap:2px}
+#speed button{width:30px;height:32px;border:0;background:transparent;border-radius:4px;padding:0;display:grid;place-items:center}
+#speed button img{width:20px;height:20px}
+#speed button.on{background:var(--gold)}
+#speed button.on img{filter:brightness(0) saturate(100%) invert(6%) sepia(50%) saturate(3000%) hue-rotate(225deg)}
+
+/* goals */
+.pill{flex:1;min-width:0;display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:12px;text-align:left;min-height:34px}
+.pill .tag{flex:none;background:var(--good);color:var(--ink);border-radius:3px;padding:0 5px;font-size:10px}
+.pill .tag.gold{background:var(--gold)}
+.pill .mt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill .pr{flex:none;color:var(--gold)}
+.pill.done{animation:flash .9s steps(6) 2}
+@keyframes flash{50%{background:var(--gold);color:var(--ink)}}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}
+.modes button{min-height:50px;border:2px solid var(--rim);border-radius:6px;background:#222e86;font-size:13px;line-height:1.25;padding:4px 6px;text-align:left}
+.modes button small{display:block;color:var(--sub);font-size:11px}
+.modes button.on{background:var(--gold);color:var(--ink)}
+.modes button.on small{color:#3a3010}
+.stars{color:var(--gold);letter-spacing:1px}
+.mlist{display:flex;flex-direction:column;gap:4px;margin:8px 0}
+.mlist div{display:flex;justify-content:space-between;gap:8px;font-size:13px;padding:5px 8px;border-radius:4px;background:#0b0f2e66}
+.mlist .d{color:var(--sub);text-decoration:line-through}
+.mlist .c{background:rgba(94,224,122,.2);box-shadow:inset 0 0 0 1px var(--good)}
+@media (prefers-reduced-motion:reduce){.pill.done{animation:none}}
+#rankBtn{flex:none;border:0;background:#0b0f2e88;border-radius:4px;padding:2px 6px;display:flex;flex-direction:column;align-items:stretch;gap:2px;min-width:72px}
+#rankBtn .lv{font-size:11px;color:var(--gold);white-space:nowrap}#rankBtn .lv b{font-weight:normal;font-size:13px;margin-left:2px}
+#rankBtn .xp{display:block;height:4px;background:#0b0f2e;border:1px solid #5a68c8;border-radius:2px;overflow:hidden}#rankBtn .xp u{display:block;height:100%;width:0;background:var(--good)}
+#rankBtn.up{animation:flash .9s steps(6) 2}
+#cityName{min-width:0;flex:1}
+#questPill{flex:1.25}
+.card.lock img{filter:grayscale(1) brightness(.55)}
+.card .lk{position:absolute;top:18px;left:0;right:0;text-align:center;font-size:11px;background:#0b0f2ecc;color:var(--gold);padding:1px 0}
+.perks{display:grid;gap:8px;margin-top:8px}
+.perk{display:flex;gap:10px;align-items:center;text-align:left;padding:10px;border:2px solid var(--rim);border-radius:6px;background:linear-gradient(#3a4cc0,#222e86);min-height:56px}
+.perk:active{transform:translateY(2px)}
+.perk .pi{flex:none;width:40px;height:40px;display:grid;place-items:center;background:#0b0f2e;border-radius:4px;font-size:20px;color:var(--gold)}
+.perk b{display:block;font-weight:normal;color:var(--gold);font-size:15px}
+.perk span{font-size:12px}
+#questList{display:flex;flex-direction:column;gap:6px;max-height:min(46vh,360px);overflow-y:auto;margin:6px 0;padding-right:2px}
+.qi{display:flex;gap:10px;align-items:center;text-align:left;border:2px solid var(--rim);border-radius:6px;background:#222e86;padding:6px 8px;min-height:52px}
+.qi .no{flex:none;width:30px;height:30px;display:grid;place-items:center;background:#0b0f2e;border-radius:4px;color:var(--gold);font-size:14px}
+.qi .tx{flex:1;min-width:0}.qi .tx b{display:block;font-weight:normal;font-size:14px}.qi .tx small{display:block;color:var(--sub);font-size:11px;line-height:1.3}
+.qi .st{flex:none;color:var(--gold);font-size:12px}
+.qi.lock{opacity:.45}
+/* side buttons */
+#side{position:absolute;right:max(8px,env(safe-area-inset-right,0px));top:140px;display:flex;flex-direction:column;gap:8px;z-index:5}
+.sbtn{width:46px;height:46px;padding:0;display:grid;place-items:center;position:relative}
+.sbtn img{width:28px;height:28px}
+.sbtn span{position:absolute;bottom:-1px;left:0;right:0;font-size:9px;text-align:center;color:var(--sub);letter-spacing:.05em}
+.sbtn.on{border-color:var(--gold)}
+.badge{position:absolute;top:-6px;right:-6px;background:var(--bad);color:#fff;font-size:10px;border-radius:9px;padding:0 5px;border:1px solid #fff}
+
+/* advisor */
+#adv{position:absolute;left:max(8px,env(safe-area-inset-left,0px));top:142px;right:64px;max-width:380px;display:flex;gap:8px;align-items:flex-start;padding:8px;z-index:6;transition:transform .25s steps(5),opacity .25s;transform:translateY(-8px);opacity:0;pointer-events:none}
+#adv.show{transform:none;opacity:1;pointer-events:auto}
+#adv canvas{width:48px;height:48px;flex:none;background:#8cc8f8;border:2px solid var(--rim);border-radius:4px}
+#adv .who{font-size:11px;color:var(--gold)}
+#adv .say{font-size:13px}
+
+/* dock */
+#dock{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;flex-direction:column;gap:6px;padding:0 max(6px,env(safe-area-inset-right,0px)) calc(6px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px));pointer-events:none}
+#dock>*{pointer-events:auto}
+#hint{display:flex;align-items:center;gap:6px;padding:5px 6px 5px 10px;min-height:44px;box-sizing:border-box}
+#hint .t{flex:1;min-width:0;font-size:12px;line-height:1.3}
+#hint .c{color:var(--gold)}
+#hintX{border:0;background:#0006;border-radius:5px;width:38px;height:38px;padding:0;display:grid;place-items:center;flex:none}
+#hintX img{width:16px;height:16px}
+#okBtn{flex:none;height:38px;padding:0 12px;font-size:14px;display:flex;align-items:center;gap:6px;border:2px solid #e8ffe8;border-radius:6px;background:linear-gradient(#3fbf52,#1e7a32);white-space:nowrap}
+#okBtn img{width:16px;height:16px}
+#anchorBtn{flex:none;height:38px;padding:0 10px;font-size:13px;border:2px solid var(--rim);border-radius:6px;background:linear-gradient(#ffe070,#d8a020);color:var(--ink);white-space:nowrap}
+#pad{position:absolute;right:max(8px,env(safe-area-inset-right,0px));bottom:calc(var(--dockH,96px) + 8px);display:grid;grid-template-columns:repeat(3,40px);grid-template-rows:repeat(3,40px);gap:2px;z-index:5}
+#pad button{padding:0;font-size:16px;display:grid;place-items:center;touch-action:none}
+#pad .u{grid-column:2;grid-row:1}#pad .l{grid-column:1;grid-row:2}#pad .r{grid-column:3;grid-row:2}#pad .d{grid-column:2;grid-row:3}
+#okBtn.dis{filter:grayscale(1);opacity:.7}
+#tray{display:flex;gap:8px;overflow-x:auto;padding:6px 6px 8px;scrollbar-width:none;scroll-snap-type:x proximity}
+#tray::-webkit-scrollbar{display:none}
+.card{flex:none;width:78px;padding:6px 4px 5px;display:flex;flex-direction:column;align-items:center;gap:2px;scroll-snap-align:start;position:relative}
+.card img{width:48px;height:48px}
+.card .n{font-size:11px;white-space:nowrap}
+.card .p{font-size:11px;color:var(--gold)}
+.card.sel{border-color:var(--gold);box-shadow:0 0 0 2px var(--ink),inset 0 0 0 2px var(--gold),0 4px 0 2px rgba(0,0,0,.35)}
+.card.no{opacity:.45}
+.card .cnt{position:absolute;top:2px;right:4px;font-size:10px;color:var(--gold)}
+#tray .empty{padding:14px 12px;font-size:12px;color:var(--sub);white-space:normal;max-width:300px}
+#cats{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:4px}
+.cat{border:0;background:transparent;border-radius:5px;padding:4px 0 2px;display:flex;flex-direction:column;align-items:center;gap:1px;min-width:0}
+.cat img{width:30px;height:30px}
+.cat span{font-size:10px;color:var(--sub);white-space:nowrap}
+.cat.on{background:rgba(248,216,72,.18);box-shadow:inset 0 0 0 2px var(--gold)}
+.cat.on span{color:var(--gold)}
+#undoBox{position:absolute;left:max(8px,env(safe-area-inset-left,0px));bottom:calc(var(--dockH,96px) + 8px);display:flex;flex-direction:column;gap:8px;z-index:5}
+#undoBox .sbtn img{width:24px;height:24px;margin-bottom:8px}
+
+/* info card */
+#info{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(var(--dockH,96px) + 8px);width:min(360px,calc(100% - 120px));padding:8px 10px;z-index:6}
+#info h4{margin:0 0 4px;font-weight:normal;color:var(--gold);font-size:14px}
+#info .kv{display:grid;grid-template-columns:auto 1fr;gap:1px 10px;font-size:12px}
+#info .kv span:nth-child(odd){color:var(--sub)}
+
+/* modal */
+#modalWrap{position:absolute;inset:0;background:rgba(5,8,30,.55);display:grid;place-items:center;z-index:20;padding:16px}
+#modal{width:min(420px,100%);max-height:calc(100% - 20px);overflow:auto;padding:14px 14px 12px}
+#modal h3{margin:0 0 10px;font-weight:normal;font-size:18px;color:var(--gold);text-wrap:balance}
+#modal p{margin:6px 0;font-size:13px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.bt{flex:1;min-width:120px;min-height:44px;padding:6px 12px;font-size:15px;border:2px solid var(--rim);border-radius:6px;background:linear-gradient(#3a4cc0,#222e86);box-shadow:0 3px 0 var(--ink)}
+.bt:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.bt.gold{background:linear-gradient(#ffe070,#d8a020);color:var(--ink);border-color:#fff6c8}
+.bt.red{background:linear-gradient(#e85a4a,#a02a20)}
+.bt.sm{min-width:0;flex:none;min-height:36px;font-size:13px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl td{padding:4px 2px;border-bottom:1px dashed #5a68c8}
+.tbl td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.tbl tr.sum td{border-bottom:0;color:var(--gold);font-size:15px}
+.ctl{display:flex;align-items:center;gap:8px;margin:8px 0}
+.ctl label{flex:1;font-size:13px}
+.ctl .v{width:52px;text-align:center;font-variant-numeric:tabular-nums;color:var(--gold)}
+.ctl button{width:36px;height:36px;border:2px solid var(--rim);border-radius:6px;background:#222e86;font-size:18px;padding:0}
+.bar{height:10px;background:#0b0f2e;border-radius:2px;overflow:hidden;border:1px solid #5a68c8}
+.bar i{display:block;height:100%;background:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.toggle{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #5a68c8;font-size:14px}
+.toggle button{min-width:64px;height:32px;border:2px solid var(--rim);border-radius:16px;background:#222e86;font-size:13px}
+.toggle button.on{background:var(--gold);color:var(--ink)}
+#mini{width:100%;max-width:288px;display:block;margin:6px auto;border:2px solid var(--rim);border-radius:4px;touch-action:none}
+.lay{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.lay button{min-height:40px;border:2px solid var(--rim);border-radius:6px;background:#222e86;font-size:12px;padding:2px}
+.lay button.on{background:var(--gold);color:var(--ink)}
+.legend{display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-top:4px}
+.legend .ramp{flex:1;height:8px;margin:4px 8px;border-radius:2px}
+input[type=text]{font-family:var(--font);font-size:16px;width:100%;box-sizing:border-box;padding:8px 10px;border:2px solid var(--rim);border-radius:6px;background:#0b0f2e;color:#fff}
+
+/* title */
+#title{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;gap:14px;background:linear-gradient(rgba(10,14,46,.25),rgba(10,14,46,.75))}
+#logo{width:min(340px,92%);image-rendering:pixelated}
+#title .win{width:min(380px,100%);padding:14px;box-sizing:border-box}
+.diff{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:8px 0}
+.diff button{min-height:52px;border:2px solid var(--rim);border-radius:6px;background:#222e86;font-size:13px;line-height:1.2}
+.diff button small{display:block;color:var(--sub);font-size:11px}
+.diff button.on{background:var(--gold);color:var(--ink)}
+.diff button.on small{color:#3a3010}
+.lbl{font-size:12px;color:var(--sub);margin:6px 0 4px}
+.copy{font-size:11px;color:var(--sub);text-align:center}
+@media (prefers-reduced-motion:reduce){#adv{transition:none}}
+@media (min-width:760px){#tray{justify-content:center}.card{width:86px}}
+</style>
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}*,*::before,*::after{box-sizing:inherit}</style>
+</head>
+<body>
+
+<div id="app">
+  <canvas id="view"></canvas>
+
+  <div id="hud" hidden>
+    <div class="row">
+      <div id="cityBar" class="win"><div id="cityName">ハコニワ市<span id="cls">村</span></div><button id="rankBtn" aria-label="市長レベル"><span class="lv">市長Lv<b id="rankN" class="num">1</b></span><i class="xp"><u id="xpBar"></u></i></button><div id="date" class="num">1900年 1月</div></div>
+    </div>
+    <div class="row">
+      <div id="fundsBox" class="win stat"><small>資金</small><b id="funds" class="num">$0</b></div>
+      <div id="popBox" class="win stat"><small>人口</small><b id="pop" class="num">0</b></div>
+      <div id="rci" class="win" title="需要メーター"><canvas id="rciC" width="42" height="38" class="px"></canvas></div>
+      <div id="speed" class="win">
+        <button data-sp="0" aria-label="一時停止"><img class="px" data-ic="pause" alt=""></button>
+        <button data-sp="1" aria-label="ふつう"><img class="px" data-ic="play1" alt=""></button>
+        <button data-sp="2" aria-label="はやい"><img class="px" data-ic="play2" alt=""></button>
+        <button data-sp="3" aria-label="とてもはやい"><img class="px" data-ic="play3" alt=""></button>
+      </div>
+    </div>
+    <div class="row" id="goalRow">
+      <button class="win pill" id="reqPill"><span class="tag">お願い</span><span class="mt" id="reqT"></span><span class="pr num" id="reqP"></span></button>
+      <button class="win pill" id="bookPill" style="flex:none"><span class="tag gold">図鑑</span><span class="pr num" id="bookT">0/12</span></button>
+      <button class="win pill" id="questPill" hidden><span class="tag gold">目標</span><span class="mt" id="questT"></span><span class="pr num" id="questP"></span></button>
+    </div>
+  </div>
+
+  <div id="side" hidden>
+    <button class="win sbtn" id="bMap" aria-label="マップ"><img class="px" data-ic="layers" alt=""><span>マップ</span></button>
+    <button class="win sbtn" id="bBudget" aria-label="予算"><img class="px" data-ic="coin" alt=""><span>予算</span></button>
+    <button class="win sbtn" id="bEval" aria-label="評価"><img class="px" data-ic="chart" alt=""><span>評価</span></button>
+    <button class="win sbtn" id="bMenu" aria-label="メニュー"><img class="px" data-ic="menu" alt=""><span>メニュー</span></button>
+  </div>
+
+  <div id="adv" class="win"><canvas id="advC" width="24" height="24" class="px"></canvas><div><div class="who">ひしょ ポッポ</div><div class="say" id="advT"></div></div></div>
+
+  <div id="undoBox"><button class="win sbtn" id="undo1" hidden aria-label="1マス戻す"><img class="px" data-ic="undo" alt=""><span>1マス</span></button><button class="win sbtn" id="undo" hidden aria-label="まとめて戻す"><img class="px" data-ic="undo" alt=""><span>まとめて</span></button></div>
+  <div id="info" class="win" hidden></div>
+  <div id="pad" hidden><button class="win u" data-d="0,-1" aria-label="上へ1マス">▲</button><button class="win l" data-d="-1,0" aria-label="左へ1マス">◀</button><button class="win r" data-d="1,0" aria-label="右へ1マス">▶</button><button class="win d" data-d="0,1" aria-label="下へ1マス">▼</button></div>
+
+  <div id="dock" hidden>
+    <div id="hint" class="win" hidden><span class="t" id="hintT"></span><button id="anchorBtn" hidden>範囲で</button><button id="okBtn" hidden><img class="px" data-ic="check" alt=""><span id="okT">建てる</span></button><button id="hintX" aria-label="やめる"><img class="px" data-ic="close" alt=""></button></div>
+    <div class="win" id="trayWin" hidden><div id="tray"></div></div>
+    <div class="win"><div id="cats"></div></div>
+  </div>
+
+  <div id="modalWrap" hidden><div id="modal" class="win" role="dialog" aria-modal="true"></div></div>
+
+  <div id="title" hidden>
+    <canvas id="logo" width="170" height="64" class="px"></canvas>
+    <div class="win">
+      <div id="contWrap"></div>
+      <div class="lbl">あそびかた</div>
+      <div class="modes" id="modeSel"></div>
+      <div id="questList" hidden></div>
+      <div id="freeOpts">
+      <div class="lbl">まちの名前</div>
+      <input id="nameIn" type="text" maxlength="10" value="ハコニワ市">
+      <div class="lbl" id="diffLbl">むずかしさ</div>
+      <div class="diff" id="diffSel">
+        <button data-d="0" class="on">やさしい<small>$20,000</small></button>
+        <button data-d="1">ふつう<small>$10,000</small></button>
+        <button data-d="2">むずかしい<small>$5,000</small></button>
+      </div>
+      <div class="btns" style="margin-top:6px">
+        <button class="bt sm" id="reroll">地形をかえる</button>
+        <button class="bt gold" id="startBtn">市長になる</button>
+      </div>
+      </div>
+    </div>
+    <div class="copy">地図を動かして十字に合わせて建てる ・ 2本指でズーム</div>
+  </div>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const T=16,W=96,H=80,N=W*H,CS=4,CW=W/CS,CH=H/CS;
+const ROAD=1,RAIL=2,PWR=4;
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const fmt=n=>Math.round(n).toLocaleString('en-US');
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function hsh(x,y,s){let h=(x*374761393+y*668265263+(s|0)*1442695041)|0;h=Math.imul(h^(h>>>13),1274126177);return((h^(h>>>16))>>>0)/4294967296}
+let rnd=Math.random;
+
+/* ================= pixel helpers ================= */
+function rgb(h){h=h.replace('#','');return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]}
+function sh(h,f){const c=rgb(h).map(v=>clamp(Math.round(f>1?v+(255-v)*(f-1):v*f),0,255));return'#'+c.map(v=>v.toString(16).padStart(2,'0')).join('')}
+function mk(w,h){const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');g.imageSmoothingEnabled=false;return[c,g]}
+function R(g,x,y,w,h,c){if(w<=0||h<=0)return;g.fillStyle=c;g.fillRect(Math.round(x),Math.round(y),Math.round(w),Math.round(h))}
+function P(g,x,y,c){g.fillStyle=c;g.fillRect(x|0,y|0,1,1)}
+function ell(g,cx,cy,rx,ry,c){g.fillStyle=c;for(let dy=-ry;dy<=ry;dy++){const dx=Math.round(rx*Math.sqrt(Math.max(0,1-(dy*dy)/((ry+.5)*(ry+.5)))));g.fillRect(cx-dx,cy+dy,dx*2+1,1)}}
+function outlineRect(g,x,y,w,h,c){R(g,x,y,w,1,c);R(g,x,y+h-1,w,1,c);R(g,x,y,1,h,c);R(g,x+w-1,y,1,h,c)}
+const GL={R:['1110','1001','1001','1110','1010','1001','1001'],C:['0111','1000','1000','1000','1000','1000','0111'],I:['111','010','010','010','010','010','111'],H:['1001','1001','1111','1001','1001']};
+function glyph(g,ch,x,y,c,s=1){const m=GL[ch];m.forEach((row,j)=>{for(let i=0;i<row.length;i++)if(row[i]==='1')R(g,x+i*s,y+j*s,s,s,c)})}
+
+/* ================= palette ================= */
+const G0='#5aa83a',G1='#4c9630',G2='#72c24c',G3='#3a7a26';
+const WA0='#2a62c8',WA1='#3c7de2',WA2='#78b4fa',WA3='#1d4aa4';
+const SAND='#dccb8e',SAND2='#c2ad70';
+const ASP='#5c5c68',ASP2='#4c4c56',SIDE='#b8b4a6',SIDE2='#8e8a7e',LINE='#f6e06c',WHITE='#f2f2f2';
+
+/* ================= terrain tiles ================= */
+const tiles={grass:[],water:[],tree:[],rubble:[]};
+function buildTileArt(){
+  for(let v=0;v<4;v++){const[c,g]=mk(T,T);const r=mulberry(11+v);R(g,0,0,T,T,G0);
+    for(let k=0;k<26;k++)P(g,r()*T,r()*T,G1);for(let k=0;k<12;k++)P(g,r()*T,r()*T,G2);
+    for(let k=0;k<4;k++){const x=r()*14|0,y=r()*14|0;P(g,x,y,G2);P(g,x+1,y,G2)}
+    if(v===3){P(g,4,5,'#fff6a0');P(g,11,10,'#ffffff');P(g,8,3,'#ffb0c8');P(g,3,12,'#fff6a0')}
+    tiles.grass.push(c)}
+  for(let v=0;v<3;v++){const[c,g]=mk(T,T);const r=mulberry(31+v);R(g,0,0,T,T,WA0);
+    for(let k=0;k<6;k++){const x=r()*13|0,y=r()*15|0;R(g,x,y,3,1,WA1)}for(let k=0;k<2;k++){const x=r()*14|0,y=r()*15|0;R(g,x,y,2,1,WA2)}
+    for(let k=0;k<6;k++)P(g,r()*T,r()*T,WA3);tiles.water.push(c)}
+  for(let v=0;v<4;v++){const[c,g]=mk(T,T);const r=mulberry(51+v);g.drawImage(tiles.grass[v%3],0,0);
+    const n=3+(v%2);const pts=[];for(let k=0;k<n;k++)pts.push([3+r()*10|0,3+r()*10|0,3+(r()*2|0)]);
+    pts.sort((a,b)=>a[1]-b[1]);
+    for(const[x,y,rr]of pts)ell(g,x+1,y+2,rr,rr-1,G3);
+    for(const[x,y,rr]of pts){ell(g,x,y,rr,rr,'#2a6e22');ell(g,x-1,y-1,rr-1,rr-1,'#3f9434');P(g,x-1,y-2,'#7ccd52');P(g,x-2,y-1,'#7ccd52')}
+    tiles.tree.push(c)}
+  for(let v=0;v<2;v++){const[c,g]=mk(T,T);const r=mulberry(71+v);R(g,0,0,T,T,'#8c7c62');
+    for(let k=0;k<14;k++){const x=r()*14|0,y=r()*14|0;R(g,x,y,2+(r()*2|0),2,['#6a5a48','#a89878','#5a5050','#b8a888'][k%4])}
+    tiles.rubble.push(c)}
+}
+
+/* ================= state ================= */
+let S=null;
+const ZPOP={R:[0,40,120,300,700,1300,2200],C:[0,30,100,250,600,1100,1800],I:[0,40,120,260,480,760,1000]};
+const DEFS={
+  R:{name:'住宅地',s:3,cost:100,zone:1},C:{name:'商業地',s:3,cost:100,zone:1},I:{name:'工業地',s:3,cost:100,zone:1},
+  police:{name:'警察署',s:3,cost:500},fire:{name:'消防署',s:3,cost:500},park:{name:'公園',s:1,cost:10},
+  stadium:{name:'スタジアム',s:4,cost:3000},port:{name:'港',s:4,cost:5000},airport:{name:'空港',s:6,cost:10000},
+  coal:{name:'石炭発電所',s:4,cost:3000,cap:700},nuclear:{name:'原子力発電所',s:4,cost:5000,cap:2000},
+  home:{name:'市長の家',s:3,cost:100,gift:1,lv:40,d:'住宅地の地価が上がる'},
+  bank:{name:'銀行',s:3,cost:100,gift:1,lv:20,d:'予算画面で融資が受けられる'},
+  fountain:{name:'噴水広場',s:3,cost:100,gift:1,lv:30,d:'まわりの地価が上がる'},
+  zoo:{name:'動物園',s:3,cost:100,gift:1,lv:35,d:'住宅地の地価が上がる'},
+  park2:{name:'大公園',s:3,cost:100,gift:1,lv:35,d:'公害を吸収し地価を上げる'},
+  windmill:{name:'風車',s:3,cost:100,gift:1,lv:25,d:'まわりの地価が上がる'},
+  station:{name:'中央駅',s:3,cost:100,gift:1,lv:25,d:'まわりの渋滞がやわらぐ'},
+  casino:{name:'カジノ',s:3,cost:100,gift:1,lv:10,d:'毎年$100の収入。犯罪が増える'},
+  polhq:{name:'警察本部',s:3,cost:100,gift:1,lv:10,d:'広い範囲の犯罪を防ぐ'},
+  firehq:{name:'消防本部',s:3,cost:100,gift:1,lv:10,d:'広い範囲の火事を防ぐ'},
+  amuse:{name:'遊園地',s:3,cost:100,gift:1,lv:35,d:'住宅地の地価が上がる'},
+  expo:{name:'博覧会場',s:3,cost:100,gift:1,lv:30,d:'工業の需要が高まる'},
+  statue:{name:'市長の銅像',s:3,cost:100,gift:1,lv:60,d:'メガロポリスの証'}
+};
+const GIFTS=[
+  ['home',()=>S.pop>=2000,'人口2,000人、「町」になった記念です'],
+  ['bank',()=>S.pop>=10000,'人口1万人、「市」になった記念です。融資が受けられます'],
+  ['fountain',()=>S.year>=1950&&S.pop>=500,'1950年を迎えた記念です'],
+  ['zoo',()=>cnt('stadium')>=1,'スタジアム完成の記念です'],
+  ['park2',()=>cnt('park')>=30,'公園が30か所になりました'],
+  ['windmill',()=>S.zones>=90,'区画が90を超えました'],
+  ['station',()=>S.railTiles>=150,'線路が150マスを超えました'],
+  ['casino',()=>S.roadTiles>=400,'道路が400マスを超えました'],
+  ['polhq',()=>cnt('police')>=3,'警察署が3つになりました'],
+  ['firehq',()=>cnt('fire')>=3,'消防署が3つになりました'],
+  ['amuse',()=>S.pop>=50000,'人口5万人、「首都」になった記念です'],
+  ['expo',()=>S.pop>=100000,'人口10万人、「大都市」になった記念です'],
+  ['statue',()=>S.pop>=500000,'人口50万人、メガロポリス達成です！']
+];
+const CLASSES=[[0,'村'],[2000,'町'],[10000,'市'],[50000,'首都'],[100000,'大都市'],[500000,'メガロポリス']];
+const DIFF=[{funds:20000,mul:1.2},{funds:10000,mul:1},{funds:5000,mul:0.85}];
+
+function newState(seed,diff,name){
+  const s={seed,diff,name,funds:DIFF[diff].funds,year:1900,month:0,tax:7,fund:{road:100,police:100,fire:100},
+    autoBudget:false,disasters:true,sound:true,
+    terr:new Uint8Array(N),net:new Uint8Array(N),bid:new Int32Array(N),rub:new Uint8Array(N),fire:new Uint8Array(N),flood:new Uint8Array(N),rad:new Uint8Array(N),
+    bld:{},nextId:1,giftGiven:{},giftStock:{},pop:0,lastPop:0,popYearAgo:0,valR:.6,valC:.1,valI:.5,loan:0,zones:0,roadTiles:0,railTiles:0,
+    told:{},lastYear:null,cls:0};
+  genTerrain(s);return s;
+}
+function genTerrain(s){
+  const seed=s.seed;const r=mulberry(seed);
+  function noise(sc,k){const gw=Math.ceil(W/sc)+2,gh=Math.ceil(H/sc)+2,g=new Float32Array(gw*gh),rr=mulberry(seed*7+k);for(let i=0;i<g.length;i++)g[i]=rr();
+    return(x,y)=>{const fx=x/sc,fy=y/sc,ix=fx|0,iy=fy|0,tx=fx-ix,ty=fy-iy,sx=tx*tx*(3-2*tx),sy=ty*ty*(3-2*ty);const a=g[iy*gw+ix],b=g[iy*gw+ix+1],c=g[(iy+1)*gw+ix],d=g[(iy+1)*gw+ix+1];return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy}}
+  const n1=noise(22,1),n2=noise(9,2),n3=noise(4,3),t1=noise(7,4),t2=noise(3,5);
+  const side=r()*4|0;
+  const t=s.terr;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    let h=n1(x,y)*.55+n2(x,y)*.3+n3(x,y)*.15;
+    const d=[W-1-x,H-1-y,x,y][side]/20;if(d<1)h-=(1-d)*.55;
+    const dc=Math.hypot((x-W/2)/(W/2),(y-H/2)/(H/2));h+=(.45-dc)*.25;
+    t[y*W+x]=h<.33?1:0;
+  }
+  // river from opposite side toward coast
+  const opp=(side+2)%4;let px,py,dx,dy;
+  if(opp===0){px=W-1;py=H*(.25+r()*.5);dx=-1;dy=0}else if(opp===1){px=W*(.25+r()*.5);py=H-1;dx=0;dy=-1}else if(opp===2){px=0;py=H*(.25+r()*.5);dx=1;dy=0}else{px=W*(.25+r()*.5);py=0;dx=0;dy=1}
+  let drift=0;
+  for(let k=0;k<200;k++){
+    for(let a=-1;a<=1;a++){const qx=Math.round(px+(dy?a*.6:0)),qy=Math.round(py+(dx?a*.6:0));if(qx>=0&&qy>=0&&qx<W&&qy<H)t[qy*W+qx]=1}
+    drift=clamp(drift+(r()-.5)*.5,-.8,.8);
+    px+=dx+(dy?drift:0);py+=dy+(dx?drift:0);
+    if(px<0||py<0||px>=W||py>=H)break;
+    if(k>30&&t[Math.round(py)*W+Math.round(px)]===1&&r()<.15)break;
+  }
+  // smooth
+  for(let pass=0;pass<2;pass++){const c=t.slice();for(let y=0;y<H;y++)for(let x=0;x<W;x++){let n=0;for(const[ox,oy]of[[1,0],[-1,0],[0,1],[0,-1]]){const X=x+ox,Y=y+oy;if(X<0||Y<0||X>=W||Y>=H){n+=c[y*W+x]===1?1:0;continue}if(c[Y*W+X]===1)n++}
+    const i=y*W+x;if(c[i]===1&&n<=1)t[i]=0;else if(c[i]===0&&n>=3)t[i]=1}}
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const i=y*W+x;if(t[i]===0&&t1(x,y)*.7+t2(x,y)*.3>.6)t[i]=2}
+}
+
+/* ================= building art ================= */
+const sprCache=new Map();
+function winRows(g,x,y,w,h,o){
+  const sp=o.sp||3,ww=o.ww||2,wh=o.wh||2,vs=o.vs||4;
+  for(let yy=y+1;yy+wh<=y+h-1;yy+=vs)for(let xx=x+1;xx+ww<=x+w-1;xx+=sp){const lit=o.r()<(o.lit||.2);R(g,xx,yy,ww,wh,lit?'#f8e27a':o.win)}
+}
+function box(g,x,y,w,h,o){
+  // 3/4 view block: roof on top, facade below
+  const rh=o.rh||Math.max(4,Math.round(h*.3));const wall=o.wall,roof=o.roof;const out=sh(wall,.42);
+  R(g,x+1,y+h,w,1,'rgba(0,0,0,.28)');R(g,x+w,y+2,2,h-1,'rgba(0,0,0,.25)');
+  R(g,x,y,w,h,out);
+  R(g,x+1,y+1,w-2,rh-1,roof);R(g,x+1,y+1,w-2,1,sh(roof,1.25));R(g,x+1,y+rh-1,w-2,1,sh(roof,.75));
+  R(g,x+1,y+rh,w-2,h-rh-1,wall);R(g,x+w-4,y+rh,3,h-rh-1,sh(wall,.82));
+  if(o.win)winRows(g,x+1,y+rh,w-5,h-rh-1,o);
+  if(o.stripe)for(let yy=y+rh+3;yy<y+h-2;yy+=o.vs||4)R(g,x+1,yy,w-2,1,o.stripe);
+  return rh;
+}
+function chimney(g,x,y,h){R(g,x,y,4,h,'#9c4a38');R(g,x,y,1,h,'#c46a52');R(g,x,y+1,4,1,'#eeeeee');R(g,x,y+3,4,1,'#eeeeee');R(g,x-1,y,6,1,'#5a2a20');return[x+2,y-1]}
+function tree(g,x,y,r){ell(g,x+1,y+2,r,r-1,'rgba(0,40,0,.35)');ell(g,x,y,r,r,'#2a6e22');ell(g,x-1,y-1,Math.max(1,r-1),Math.max(1,r-1),'#3f9434');P(g,x-1,y-r+1,'#7ccd52')}
+function house(g,x,y,r,cls){
+  const roofs=[['#a85a3a','#8a6a44','#6f7480'],['#c8452f','#3c66b4','#3a8a5a'],['#2e4f9e','#9c2e44','#2f6e50']][cls];
+  const walls=['#d8c8a0','#ece4d0','#f6f2ea'][cls];const rc=roofs[r()*3|0];
+  R(g,x+3,y+13,11,1,'rgba(0,0,0,.25)');
+  R(g,x+3,y+8,10,6,sh(walls,.45));R(g,x+4,y+8,8,5,walls);R(g,x+10,y+8,2,5,sh(walls,.82));
+  R(g,x+2,y+3,12,6,sh(rc,.5));R(g,x+3,y+3,10,5,rc);R(g,x+3,y+3,10,1,sh(rc,1.3));R(g,x+3,y+7,10,1,sh(rc,.72));R(g,x+8,y+3,1,5,sh(rc,.85));
+  R(g,x+5,y+10,2,3,'#6a4428');R(g,x+8,y+9,2,2,r()<.3?'#f8e27a':'#3a5a88');
+  if(cls===2&&r()<.5)R(g,x+11,y+1,2,3,'#8a8a8a');
+}
+function groundGrass(g,w,h,seed){const r=mulberry(seed);R(g,0,0,w,h,G0);for(let k=0;k<w*h/9;k++)P(g,r()*w,r()*h,G1);for(let k=0;k<w*h/22;k++)P(g,r()*w,r()*h,G2)}
+function groundPave(g,w,h,c1,c2){R(g,0,0,w,h,c1);for(let y=0;y<h;y+=4)R(g,0,y,w,1,c2);for(let x=0;x<w;x+=8)R(g,x,0,1,h,c2)}
+function groundDirt(g,w,h,seed){const r=mulberry(seed);R(g,0,0,w,h,'#a3936e');for(let k=0;k<w*h/7;k++)P(g,r()*w,r()*h,r()<.5?'#8f7f5c':'#b6a682')}
+function parkingLot(g,x,y,w,h,r){R(g,x,y,w,h,'#6e6e78');for(let xx=x+1;xx<x+w-1;xx+=4){R(g,xx,y,1,3,'#e8e8e8');if(r()<.55)R(g,xx+1,y+1,2,3,['#e04040','#f0f0f0','#3070e0','#f0c030','#30a050'][r()*5|0])}}
+
+function zoneEmpty(g,type){
+  const col={R:'#4fd05a',C:'#4f8ff8',I:'#f2c62c'}[type];
+  for(let i=0;i<48;i+=2){P(g,i,0,col);P(g,i,47,col);P(g,0,i,col);P(g,47,i,col);P(g,i+1,1,sh(col,.6));P(g,1,i+1,sh(col,.6))}
+  R(g,15,15,18,18,'#ffffff');R(g,16,16,16,16,col);R(g,16,31,16,1,sh(col,.6));R(g,31,16,1,16,sh(col,.6));
+  const gw=GL[type][0].length*2;glyph(g,type,24-gw/2,17,'#ffffff',2);
+}
+function drawZone(g,type,lvl,cls,seed){
+  const r=mulberry(seed);const smoke=[];
+  if(type==='R'){
+    groundGrass(g,48,48,seed);
+    if(lvl===0){zoneEmpty(g,'R');return smoke}
+    if(lvl<=2){const slots=[[0,0],[16,0],[32,0],[0,16],[32,16],[0,32],[16,32],[32,32]];const n=lvl===1?3:8;
+      const order=slots.map(s=>[r(),s]).sort((a,b)=>a[0]-b[0]).slice(0,n).map(a=>a[1]).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+      for(const[x,y]of order)house(g,x,y,r,cls);
+      if(lvl===2){R(g,17,17,14,14,'#c9b98c');tree(g,24,23,4);}else{tree(g,24,24,3)}
+      return smoke}
+    const wall=['#d6c8a4','#e8e2d4','#f2efe8'][cls],roof=['#8c7a64','#6a7c98','#4a6a7e'][cls];
+    if(lvl===3){parkingLot(g,2,40,22,6,r);box(g,3,6,22,28,{roof,wall,rh:7,win:'#3a5a88',r,sp:3,vs:4,lit:.25});box(g,27,14,18,26,{roof:sh(roof,1.1),wall,rh:6,win:'#3a5a88',r,sp:3,vs:4});tree(g,36,7,4);tree(g,30,44,3);}
+    else if(lvl===4){box(g,4,3,40,36,{roof,wall,rh:9,win:'#34507e',r,sp:3,vs:4,stripe:sh(wall,.9),lit:.3});parkingLot(g,4,41,26,6,r);tree(g,38,43,3);R(g,12,6,4,3,'#9aa0a8');R(g,30,5,6,4,'#7a7a84')}
+    else if(lvl===5){box(g,9,1,30,44,{roof,wall,rh:8,win:'#30507c',r,sp:3,vs:3,lit:.35});R(g,14,3,6,4,'#8a8a94');R(g,28,3,4,3,'#c04040');tree(g,4,40,4);tree(g,44,40,3);R(g,9,45,30,2,'#c8c4b8')}
+    else{groundPave(g,48,48,'#c8c4b8','#b4b0a4');ell(g,9,40,6,4,'#4aa8e8');ell(g,9,40,5,3,'#7cc8f8');box(g,18,0,26,46,{roof:'#3a4a5a',wall:'#7ab0d8',rh:6,win:'#cfe8fa',r,sp:3,vs:3,lit:.15,ww:2,wh:2});R(g,22,1,8,3,'#e8e8e8');tree(g,6,10,4);tree(g,6,24,4);}
+    return smoke}
+  if(type==='C'){
+    if(lvl===0){groundGrass(g,48,48,seed);zoneEmpty(g,'C');return smoke}
+    groundPave(g,48,48,'#bcb8ac','#aca89c');
+    const tints=['#d8d0b8','#e6e0d0','#eef0f2'][cls];
+    if(lvl===1){parkingLot(g,2,2,44,10,r);for(let k=0;k<3;k++){const x=2+k*15;box(g,x,18,14,22,{roof:['#b04a3a','#3a64a8','#4a8a4a'][k],wall:tints,rh:6});for(let s=0;s<12;s+=2)R(g,x+1+s,28,2,3,s%4?'#ffffff':['#e04848','#3c78e0','#3cae58'][k]);R(g,x+4,34,5,5,'#3a5a88')}}
+    else if(lvl===2){parkingLot(g,2,38,44,8,r);box(g,2,6,26,30,{roof:'#8a5a3a',wall:tints,rh:8,win:'#3a5a88',r,sp:4,vs:5});R(g,4,22,22,4,'#e85838');R(g,6,23,18,2,'#fff0a0');box(g,30,12,16,24,{roof:'#4a6a9a',wall:tints,rh:6,win:'#3a5a88',r})}
+    else if(lvl===3){box(g,2,4,44,36,{roof:'#6a6a7a',wall:tints,rh:9,win:'#2e4a78',r,sp:3,vs:4,lit:.35});R(g,6,16,36,5,'#c83040');R(g,8,17,32,3,'#fff4c0');for(let k=0;k<4;k++)R(g,8+k*10,9,4,5,['#e04848','#f0c030','#3c78e0','#3cae58'][k]);parkingLot(g,2,42,44,5,r)}
+    else if(lvl===4){box(g,6,2,36,42,{roof:'#4e5a6e',wall:'#a8c0d8',rh:8,win:'#2c4a78',r,sp:3,vs:3,lit:.4,ww:2,wh:1});R(g,10,4,8,4,'#8a8a94');tree(g,3,44,2);tree(g,45,44,2)}
+    else if(lvl===5){box(g,10,0,28,46,{roof:'#2e3a4e',wall:'#4a6488',rh:6,win:'#8ab8e8',r,sp:2,vs:3,lit:.3,ww:1,wh:2});R(g,23,0,1,4,'#e8e8e8');P(g,23,0,'#ff4040');R(g,2,40,7,6,'#4a8a4a');R(g,39,40,7,6,'#4a8a4a')}
+    else{box(g,3,1,20,45,{roof:'#2e3a4e',wall:'#5aa0d8',rh:6,win:'#d8f0ff',r,sp:3,vs:3,lit:.2});box(g,26,4,19,42,{roof:'#2e3a4e',wall:'#5aa0d8',rh:6,win:'#d8f0ff',r,sp:3,vs:3,lit:.2});ell(g,13,3,4,2,'#f0c030');glyph(g,'H',11,1,'#ffffff');}
+    return smoke}
+  // industrial
+  if(lvl===0){groundGrass(g,48,48,seed);zoneEmpty(g,'I');return smoke}
+  groundDirt(g,48,48,seed);
+  if(lvl===1){box(g,4,8,24,18,{roof:'#7a7e88',wall:'#c8c0a8',rh:7});R(g,10,18,8,7,'#5a5a60');for(let k=0;k<4;k++)R(g,32+(k%2)*6,30+(k>>1)*6,5,5,['#a8743c','#8c6030'][k%2]);R(g,6,34,14,7,'#e0e0e0');R(g,18,36,6,5,'#3c78e0');R(g,8,41,3,2,'#222');R(g,18,41,3,2,'#222')}
+  else if(lvl===2){box(g,3,6,42,26,{roof:'#8a9098',wall:'#bdb6a0',rh:10});for(let x=4;x<44;x+=6){R(g,x,7,3,8,'#a8b0b8');R(g,x+3,7,1,8,'#5a6068')}R(g,8,22,10,9,'#55555c');R(g,28,22,10,9,'#55555c');parkingLot(g,3,38,30,7,r)}
+  else if(lvl===3){box(g,3,14,34,26,{roof:'#6e7480',wall:'#b0a890',rh:8,win:'#3a4a6a',r,sp:4,vs:5});smoke.push(chimney(g,39,4,26));R(g,6,42,30,4,'#7a6040');for(let k=0;k<3;k++)R(g,8+k*9,43,6,3,'#c8a060')}
+  else if(lvl===4){box(g,2,16,28,24,{roof:'#6a707c',wall:'#aaa290',rh:8,win:'#3a4a6a',r,sp:4,vs:5});for(const[cx,cy]of[[38,14],[38,32]]){ell(g,cx+1,cy+2,7,6,'rgba(0,0,0,.25)');ell(g,cx,cy,7,6,'#9aa0a8');ell(g,cx-1,cy-1,5,4,'#c8ccd2');P(g,cx-3,cy-3,'#ffffff')}smoke.push(chimney(g,8,2,16));smoke.push(chimney(g,18,4,14))}
+  else if(lvl===5){box(g,2,12,44,32,{roof:'#5a6070',wall:'#9c9484',rh:10,win:'#3a4a6a',r,sp:4,vs:5,lit:.3});for(let x=4;x<44;x+=8)R(g,x,14,5,6,'#7a8090');smoke.push(chimney(g,10,0,14));smoke.push(chimney(g,22,0,14));smoke.push(chimney(g,34,0,14));R(g,2,45,44,2,'#6a6a72')}
+  else{for(const[cx,cy,rr]of[[10,30,8],[30,34,7],[40,16,6]]){ell(g,cx+1,cy+2,rr,rr-1,'rgba(0,0,0,.25)');ell(g,cx,cy,rr,rr-1,'#c8ccd2');ell(g,cx-1,cy-1,rr-2,rr-3,'#e6e8ec');R(g,cx-rr,cy,rr*2,1,'#9aa0a8')}
+    R(g,4,4,4,22,'#a0a8b0');R(g,4,4,1,22,'#d0d6dc');for(let y=6;y<26;y+=4)R(g,3,y,6,1,'#5a6068');R(g,16,8,22,2,'#8a5a3a');R(g,16,14,22,2,'#8a5a3a');smoke.push(chimney(g,22,0,8));smoke.push([6,3])}
+  return smoke;
+}
+
+function drawSpecial(g,type,seed,s){
+  const r=mulberry(seed);const smoke=[];const w=s*16;
+  switch(type){
+  case 'police':groundPave(g,48,48,'#c0bcb0','#aeaa9e');box(g,4,4,40,30,{roof:'#3456b4',wall:'#f0f0f0',rh:11,win:'#3a5a88',r,sp:5,vs:6});R(g,20,6,8,6,'#f8d848');R(g,22,7,4,4,'#3456b4');R(g,18,26,12,7,'#5a6a88');parkingLot(g,4,38,40,8,()=>.9);R(g,10,40,8,4,'#ffffff');R(g,10,42,8,2,'#202020');R(g,13,39,2,1,'#ff3030');break;
+  case 'fire':groundPave(g,48,48,'#c0bcb0','#aeaa9e');box(g,4,8,32,28,{roof:'#c4302a',wall:'#efe6d6',rh:9});for(let k=0;k<3;k++){R(g,6+k*10,22,8,13,'#d03a30');for(let y=23;y<35;y+=3)R(g,6+k*10,y,8,1,'#f0e0d0')}box(g,38,2,8,34,{roof:'#a02420',wall:'#efe6d6',rh:4});R(g,6,39,16,6,'#e02020');R(g,6,39,16,2,'#ff6050');R(g,8,45,3,2,'#222');R(g,17,45,3,2,'#222');break;
+  case 'park':{groundGrass(g,16,16,seed);const v=seed%3;if(v===0){tree(g,6,6,4);tree(g,11,9,3);R(g,3,12,6,2,'#8a5a30')}else if(v===1){ell(g,8,8,5,4,'#3a7ad8');ell(g,7,7,3,2,'#7ab8f8');tree(g,13,3,2)}else{for(let k=0;k<6;k++)P(g,3+r()*10,3+r()*10,['#ff7090','#fff070','#ffffff'][k%3]);ell(g,8,8,3,3,'#c8c4b8');ell(g,8,8,1,1,'#7ab8f8');tree(g,3,3,2)}break}
+  case 'stadium':groundPave(g,64,64,'#bcb8ac','#aca89c');ell(g,32,34,30,26,'rgba(0,0,0,.25)');ell(g,32,32,30,26,'#8a8e98');ell(g,32,31,28,24,'#c8ccd4');for(let a=0;a<40;a++){const t=a/40*Math.PI*2;P(g,32+Math.cos(t)*25,31+Math.sin(t)*21,['#e05050','#3c78e0','#f0c030'][a%3])}ell(g,32,32,20,16,'#3c9a3c');for(let x=14;x<52;x+=6)R(g,x,17,3,30,'#48aa48');outlineRect(g,18,22,28,20,'#ffffff');R(g,31,22,1,20,'#ffffff');ell(g,32,32,3,3,'#ffffff');ell(g,32,32,2,2,'#48aa48');for(const[x,y]of[[2,2],[58,2],[2,56],[58,56]]){R(g,x+1,y,2,8,'#606068');R(g,x,y,4,2,'#ffffa0')}break;
+  case 'port':{R(g,0,0,64,64,'#9c9890');for(let y=0;y<64;y+=4)R(g,0,y,64,1,'#8a8680');R(g,0,52,64,12,WA0);for(let x=0;x<64;x+=5)R(g,x,56+(x%3),3,1,WA1);R(g,0,50,64,2,'#5a5650');
+    for(let k=0;k<14;k++){const x=4+(k%7)*6,y=24+(k/7|0)*8;R(g,x,y,5,6,sh(['#c84a3a','#3a6ac8','#3aa060','#e0b030','#e07a30'][r()*5|0],1));R(g,x,y,5,1,'rgba(255,255,255,.35)')}
+    box(g,46,4,16,22,{roof:'#6a7a8a',wall:'#d8d0c0',rh:7});
+    for(const cx of[12,34]){R(g,cx,6,3,40,'#d84030');R(g,cx-6,6,20,3,'#d84030');for(let y=8;y<44;y+=4)R(g,cx,y,3,1,'#ffffff');R(g,cx+10,9,1,8,'#303030')}
+    R(g,42,54,18,6,'#3a3a44');R(g,44,52,12,3,'#e8e8e8');R(g,46,50,3,2,'#c84030');break}
+  case 'airport':{groundGrass(g,96,96,seed);R(g,0,58,96,18,'#4a4a52');R(g,0,58,96,1,'#ffffff');R(g,0,75,96,1,'#ffffff');for(let x=4;x<96;x+=10)R(g,x,66,6,2,'#ffffff');for(let x=2;x<96;x+=8){P(g,x,57,'#ffe060');P(g,x,76,'#ffe060')}
+    R(g,40,40,10,18,'#5a5a64');R(g,0,84,96,6,'#5a5a64');
+    box(g,4,8,46,26,{roof:'#d8d8e0',wall:'#78a8d8',rh:8,win:'#d8f0ff',r,sp:3,vs:4,lit:.1});
+    box(g,58,4,10,30,{roof:'#c84030',wall:'#e8e8e8',rh:4});R(g,55,4,16,6,'#3a5a7a');R(g,56,5,14,3,'#a8d8f8');
+    box(g,74,14,20,20,{roof:'#8a9098',wall:'#c8c8c8',rh:10});R(g,77,24,14,10,'#4a4a52');
+    // parked plane
+    const pg=g;R(pg,20,44,16,3,'#f4f4f4');R(pg,26,38,3,15,'#f4f4f4');R(pg,20,43,3,5,'#d84030');R(pg,34,44,3,3,'#a8c8e8');break}
+  case 'coal':{groundDirt(g,64,64,seed);for(const[cx,cy]of[[12,50],[28,54]]){ell(g,cx,cy,10,6,'#202024');ell(g,cx-2,cy-2,6,3,'#3a3a40')}
+    box(g,4,14,40,28,{roof:'#6a5a50',wall:'#a09080',rh:9,win:'#3a4a6a',r,sp:5,vs:6});smoke.push(chimney(g,48,2,40));smoke.push(chimney(g,56,6,36));R(g,40,40,22,2,'#5a5050');for(let x=40;x<62;x+=3)R(g,x,42,1,6,'#5a5050');break}
+  case 'nuclear':{groundPave(g,64,64,'#c4c4bc','#b0b0a8');outlineRect(g,1,1,62,62,'#7a7a80');for(let x=2;x<62;x+=3)P(g,x,1,'#c8c8c8');
+    ell(g,20,36,15,14,'rgba(0,0,0,.25)');ell(g,19,34,15,14,'#a8acb4');ell(g,18,32,13,12,'#e4e6ea');ell(g,15,28,6,5,'#ffffff');R(g,4,44,30,6,'#8a8e96');
+    // cooling tower
+    for(let y=0;y<34;y++){const t=y/33;const half=Math.round(12-Math.sin(t*Math.PI)*4+t*1);R(g,48-half,6+y,half*2,1,y<2?'#8a8e96':sh('#c8ccd2',1-.15*(y%6===0)));}
+    R(g,36,40,24,2,'rgba(0,0,0,.25)');smoke.push([48,4]);
+    R(g,40,48,18,12,'#606670');ell(g,49,54,4,4,'#f0d030');ell(g,49,54,1,1,'#202020');for(const a of[0,2.1,4.2]){P(g,49+Math.cos(a)*3,54+Math.sin(a)*3,'#202020');P(g,49+Math.cos(a)*2,54+Math.sin(a)*2,'#202020')}break}
+  case 'home':groundGrass(g,48,48,seed);for(let x=0;x<48;x+=3){R(g,x,0,2,3,'#2e7a26');R(g,x,45,2,3,'#2e7a26')}R(g,20,30,8,18,'#d8c8a0');box(g,6,8,36,22,{roof:'#c8452f',wall:'#f6f2ea',rh:10,win:'#3a5a88',r,sp:5,vs:5});R(g,21,22,6,7,'#7a4a28');ell(g,10,40,4,3,'#c8c4b8');ell(g,10,40,2,1,'#7ab8f8');tree(g,40,38,4);tree(g,4,4,3);for(let k=0;k<6;k++)P(g,30+k*2,38+(k%2),'#ff7090');break;
+  case 'bank':groundPave(g,48,48,'#d0ccbe','#c0bcae');R(g,4,10,40,6,'#a89c80');for(let y=0;y<6;y++)R(g,24-20+y*3,4+y,40-y*6,1,y===0?'#c8bca0':'#e8dcc0');R(g,4,10,40,2,'#c8bca0');R(g,6,16,36,22,'#ece4d0');for(let x=8;x<42;x+=6){R(g,x,16,3,22,'#ffffff');R(g,x+3,16,1,22,'#b8b0a0')}R(g,4,38,40,3,'#a89c80');R(g,20,42,8,4,'#c8bca0');R(g,18,7,12,3,'#f0c030');break;
+  case 'fountain':groundPave(g,48,48,'#d8d0c0','#c8c0b0');ell(g,24,26,16,12,'#a8a090');ell(g,24,25,14,10,'#3a7ad8');ell(g,24,24,11,8,'#6aa8f0');ell(g,24,22,3,2,'#c8c4b8');R(g,23,12,2,10,'#d8f0ff');R(g,20,14,1,6,'#b8e0ff');R(g,27,14,1,6,'#b8e0ff');P(g,24,11,'#ffffff');tree(g,5,6,4);tree(g,43,6,4);tree(g,5,42,4);tree(g,43,42,4);break;
+  case 'zoo':groundGrass(g,48,48,seed);R(g,22,0,4,48,'#c8b890');R(g,0,22,48,4,'#c8b890');R(g,2,2,18,18,'#d8c890');outlineRect(g,2,2,18,18,'#8a6a40');R(g,28,2,18,18,'#5aa83a');outlineRect(g,28,2,18,18,'#8a6a40');ell(g,37,36,9,7,'#3a7ad8');outlineRect(g,2,28,18,18,'#8a6a40');
+    R(g,8,6,2,10,'#e8c040');R(g,8,6,4,2,'#e8c040');R(g,7,14,6,3,'#e8c040');P(g,9,9,'#8a5a20');ell(g,36,12,4,3,'#8a8e98');R(g,32,12,1,5,'#8a8e98');ell(g,10,38,4,3,'#f0f0f0');R(g,8,36,1,1,'#202020');ell(g,37,36,2,1,'#303030');tree(g,14,34,3);break;
+  case 'park2':groundGrass(g,48,48,seed);ell(g,28,28,14,10,'#3a7ad8');ell(g,27,27,11,7,'#6aa8f0');R(g,0,10,48,3,'#d8c890');R(g,10,0,3,48,'#d8c890');for(const[x,y,rr]of[[4,4,3],[20,5,4],[40,6,4],[5,24,4],[5,40,4],[24,43,3],[42,42,3]])tree(g,x,y,rr);R(g,16,16,6,2,'#8a5a30');break;
+  case 'windmill':groundGrass(g,48,48,seed);for(let y=26;y<48;y+=4)for(let x=0;x<48;x+=2)P(g,x,y+(x%4?0:1),['#ff4060','#ffe040','#ff80c0','#ffffff'][(y>>2)%4]);R(g,18,14,12,20,'#8a5a3a');R(g,19,10,10,6,'#6a3a24');R(g,22,26,4,6,'#4a2a18');
+    for(let k=0;k<14;k++){R(g,24-k,12-k,2,2,'#f4f0e0');R(g,24+k,12+k,2,2,'#f4f0e0');R(g,24+k,12-k,2,2,'#e8e0c8');R(g,24-k,12+k,2,2,'#e8e0c8')}R(g,23,11,3,3,'#3a2a20');break;
+  case 'station':groundPave(g,48,48,'#c8c4b8','#b8b4a8');R(g,0,34,48,8,'#8c7a60');for(let x=0;x<48;x+=3)R(g,x,35,2,6,'#5a3a22');R(g,0,36,48,1,'#d0d0d8');R(g,0,39,48,1,'#d0d0d8');R(g,0,30,48,4,'#e0dcd0');
+    box(g,4,4,40,24,{roof:'#2e5a3e',wall:'#e8dcc4',rh:9,win:'#3a5a88',r,sp:5,vs:6});R(g,20,0,8,8,'#2e5a3e');ell(g,24,6,3,3,'#ffffff');R(g,24,4,1,2,'#202020');R(g,8,36,26,5,'#e0e0e8');R(g,8,36,26,1,'#3aa060');break;
+  case 'casino':groundPave(g,48,48,'#3a2a5a','#2e2050');box(g,3,6,42,32,{roof:'#6a2a8a',wall:'#a83ac8',rh:10});for(let x=4;x<44;x+=2)P(g,x,6+(x%4?0:1),'#fff070');R(g,8,18,32,8,'#20103a');for(let k=0;k<4;k++)R(g,11+k*7,19,5,6,['#ff4060','#f8d848','#40e0ff','#ff80ff'][k]);R(g,20,30,8,8,'#f8d848');for(let x=2;x<48;x+=4)P(g,x,44,'#fff070');break;
+  case 'polhq':groundPave(g,48,48,'#c0bcb0','#aeaa9e');box(g,6,0,36,42,{roof:'#2a48a0',wall:'#e8eaf0',rh:8,win:'#2a4a7a',r,sp:3,vs:4});ell(g,24,3,4,2,'#f8d848');glyph(g,'H',22,1,'#2a48a0');R(g,18,32,12,9,'#3a4a70');R(g,20,30,8,2,'#f8d848');break;
+  case 'firehq':groundPave(g,48,48,'#c0bcb0','#aeaa9e');box(g,4,4,40,34,{roof:'#b42a24',wall:'#efe6d6',rh:9,win:'#3a5a88',r,sp:4,vs:5});for(let k=0;k<4;k++){R(g,6+k*9,26,7,11,'#d03a30');for(let y=27;y<37;y+=3)R(g,6+k*9,y,7,1,'#f0e0d0')}R(g,4,40,18,6,'#e02020');R(g,26,40,18,6,'#e02020');break;
+  case 'amuse':groundGrass(g,48,48,seed);R(g,0,40,48,8,'#d8c890');for(let a=0;a<16;a++){const t=a/16*Math.PI*2;R(g,16+Math.cos(t)*12,16+Math.sin(t)*12,2,2,['#ff4060','#f8d848','#40a0ff','#40d070'][a%4]);for(let k=2;k<12;k+=3)P(g,16+Math.cos(t)*k,16+Math.sin(t)*k,'#c8c8d0')}R(g,15,16,2,22,'#8a8a94');R(g,10,36,12,2,'#8a8a94');
+    for(let x=30;x<48;x++){const y=10+Math.round(Math.sin(x/3)*6);R(g,x,y,1,2,'#e83030');if(x%3===0)R(g,x,y+2,1,30-y,'#9a9aa4')}ell(g,38,40,7,4,'#ff80c0');for(let k=0;k<7;k++)R(g,32+k*2,32,1,8,k%2?'#ffffff':'#ff4080');R(g,31,30,15,3,'#ff4080');break;
+  case 'expo':groundPave(g,48,48,'#d8d4c8','#c8c4b8');for(const[cx,cy,rr,c]of[[14,16,11,'#e8e8f0'],[36,14,8,'#f0c030'],[34,36,9,'#40a0e0']]){ell(g,cx+1,cy+2,rr,rr-1,'rgba(0,0,0,.25)');ell(g,cx,cy,rr,rr-1,c);ell(g,cx-2,cy-2,rr-4,rr-5,sh(c,1.25));for(let k=-rr+2;k<rr;k+=4)R(g,cx+k,cy-rr+3,1,rr*2-6,sh(c,.85))}for(let k=0;k<5;k++){R(g,4+k*4,36,1,10,'#8a8a8a');R(g,5+k*4,36,3,2,['#ff4060','#40d070','#40a0ff','#f8d848','#ffffff'][k])}break;
+  case 'statue':groundPave(g,48,48,'#d8d0c0','#c8c0b0');for(let k=0;k<12;k++){P(g,4+k*3.5,44,'#ff6080');P(g,4+k*3.5,4,'#f8e040')}tree(g,6,24,4);tree(g,42,24,4);ell(g,24,38,10,4,'#9a9488');R(g,16,26,16,12,'#b8b0a0');R(g,16,26,16,2,'#d8d0c0');R(g,20,28,8,1,'#8a8478');
+    // golden mayor: top hat, coat
+    const gd='#e8b830',gl='#ffe070',gs='#a87818';R(g,21,2,6,2,gd);R(g,20,4,8,1,gs);ell(g,24,7,2,2,gl);R(g,20,10,8,10,gd);R(g,21,10,2,10,gl);R(g,27,10,1,10,gs);R(g,18,11,2,6,gd);R(g,28,8,2,6,gd);R(g,29,6,1,3,gl);R(g,21,20,2,6,gs);R(g,25,20,2,6,gs);break;
+  }
+  return smoke;
+}
+function spriteFor(b){
+  const def=DEFS[b.type];const s=def.s;
+  let key;if(def.zone)key=b.type+b.lvl+'_'+b.cls+'_'+(b.seed%3);else key=b.type+'_'+(b.type==='park'?b.seed%3:0);
+  let e=sprCache.get(key);if(e)return e;
+  const[c,g]=mk(s*T,s*T);const seed=(b.seed%3)*977+(def.zone?b.lvl*31+b.cls*7:0)+11;
+  const smoke=def.zone?drawZone(g,b.type,b.lvl,b.cls,seed):drawSpecial(g,b.type,b.type==='park'?b.seed%3:seed,s);
+  e={c,smoke};sprCache.set(key,e);return e;
+}
+
+/* ================= networks art ================= */
+function band(g,px,py,m,c,a,b){R(g,px+a,py+a,b-a+1,b-a+1,c);if(m&1)R(g,px+a,py,b-a+1,a,c);if(m&4)R(g,px+a,py+b+1,b-a+1,T-b-1,c);if(m&8)R(g,px,py+a,a,b-a+1,c);if(m&2)R(g,px+b+1,py+a,T-b-1,b-a+1,c)}
+function bits(m){return(m&1)+((m>>1)&1)+((m>>2)&1)+((m>>3)&1)}
+function drawRoad(g,px,py,m,water){
+  if(water){band(g,px,py,m,'#2a2a30',1,14);band(g,px,py,m,'#d8d8e0',2,13)}else{band(g,px,py,m,SIDE2,2,13);band(g,px,py,m,SIDE,2,12)}
+  band(g,px,py,m,ASP,3,12);R(g,px+3,py+12,10,1,ASP2);
+  const n=bits(m);
+  if(n<=2&&m){
+    if(m&10){const x0=m&8?0:7,x1=m&2?15:8;for(let x=x0;x<=x1;x+=4)R(g,px+x,py+7,2,1,LINE)}
+    if(m&5){const y0=m&1?0:7,y1=m&4?15:8;for(let y=y0;y<=y1;y+=4)R(g,px+7,py+y,1,2,LINE)}
+  }else if(n>=3){
+    if(m&1)for(let x=4;x<12;x+=2)R(g,px+x,py+1,1,2,WHITE);if(m&4)for(let x=4;x<12;x+=2)R(g,px+x,py+13,1,2,WHITE);
+    if(m&8)for(let y=4;y<12;y+=2)R(g,px+1,py+y,2,1,WHITE);if(m&2)for(let y=4;y<12;y+=2)R(g,px+13,py+y,2,1,WHITE);
+  }
+}
+function drawRail(g,px,py,m,water){
+  if(water)band(g,px,py,m,'#6a5a46',2,13);
+  const H_=(m&10)||!m,V_=m&5;
+  if(H_){const x0=(m&8)||!m?0:4,x1=(m&2)||!m?15:11;R(g,px+x0,py+4,x1-x0+1,8,'#8c7a60');for(let x=x0;x<=x1;x+=3)R(g,px+x,py+5,2,6,'#5a3a22');R(g,px+x0,py+5,x1-x0+1,1,'#d4d4dc');R(g,px+x0,py+10,x1-x0+1,1,'#d4d4dc');R(g,px+x0,py+6,x1-x0+1,1,'#7a7a88');R(g,px+x0,py+11,x1-x0+1,1,'#7a7a88')}
+  if(V_){const y0=m&1?0:4,y1=m&4?15:11;R(g,px+4,py+y0,8,y1-y0+1,'#8c7a60');for(let y=y0;y<=y1;y+=3)R(g,px+5,py+y,6,2,'#5a3a22');R(g,px+5,py+y0,1,y1-y0+1,'#d4d4dc');R(g,px+10,py+y0,1,y1-y0+1,'#d4d4dc');R(g,px+6,py+y0,1,y1-y0+1,'#7a7a88');R(g,px+11,py+y0,1,y1-y0+1,'#7a7a88')}
+}
+function drawPower(g,px,py,m){
+  const wire='#26262c';
+  if((m&10)||!m){const x0=(m&8)||!m?0:8,x1=(m&2)||!m?15:8;R(g,px+x0,py+4,x1-x0+1,1,wire);R(g,px+x0,py+6,x1-x0+1,1,wire)}
+  if(m&5){const y0=m&1?0:4,y1=m&4?15:4;R(g,px+6,py+y0,1,y1-y0+1,wire);R(g,px+10,py+y0,1,y1-y0+1,wire)}
+  R(g,px+9,py+13,4,1,'rgba(0,0,0,.3)');R(g,px+7,py+3,2,11,'#8a5a2c');R(g,px+8,py+3,1,11,'#5c3a1a');R(g,px+5,py+4,6,1,'#5c3a1a');P(g,px+5,py+3,'#ffffff');P(g,px+10,py+3,'#ffffff');
+}
+
+/* ================= base map canvas ================= */
+let base,bg,dirty=new Set(),dirtyAll=true;
+function inb(x,y){return x>=0&&y>=0&&x<W&&y<H}
+function isW(x,y){return inb(x,y)?S.terr[y*W+x]===1:true}
+function netMask(x,y,bit,alsoBld){let m=0;const f=(X,Y)=>inb(X,Y)&&((S.net[Y*W+X]&bit)||(alsoBld&&S.bid[Y*W+X]));if(f(x,y-1))m|=1;if(f(x+1,y))m|=2;if(f(x,y+1))m|=4;if(f(x-1,y))m|=8;return m}
+function drawTileBase(x,y){
+  const i=y*W+x,px=x*T,py=y*T,t=S.terr[i],g=bg;
+  const v=(hsh(x,y,3)*4)|0;
+  if(t===1){g.drawImage(tiles.water[v%3],px,py);
+    if(!isW(x,y-1))R(g,px,py,T,1,WA2);if(!isW(x,y+1))R(g,px,py+15,T,1,WA3);if(!isW(x-1,y))R(g,px,py,1,T,WA2);if(!isW(x+1,y))R(g,px+15,py,1,T,WA3);
+  }else{g.drawImage(tiles.grass[v],px,py);
+    if(isW(x,y-1)){R(g,px,py,T,3,SAND);R(g,px,py+3,T,1,SAND2)}if(isW(x,y+1)){R(g,px,py+13,T,3,SAND);R(g,px,py+12,T,1,SAND2)}
+    if(isW(x-1,y)){R(g,px,py,3,T,SAND)}if(isW(x+1,y)){R(g,px+13,py,3,T,SAND)}
+    if(t===2&&!S.net[i])g.drawImage(tiles.tree[v],px,py);
+  }
+  if(S.rub[i])g.drawImage(tiles.rubble[v%2],px,py);
+  const n=S.net[i];
+  if(n&ROAD)drawRoad(g,px,py,netMask(x,y,ROAD),t===1);
+  if(n&RAIL)drawRail(g,px,py,netMask(x,y,RAIL),t===1);
+  if(n&PWR)drawPower(g,px,py,netMask(x,y,PWR,true));
+}
+function drawBuildingBase(b){const e=spriteFor(b);bg.drawImage(e.c,b.x*T,b.y*T)}
+function flushDirty(){
+  if(dirtyAll){for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(!S.bid[y*W+x])drawTileBase(x,y);for(const id in S.bld)drawBuildingBase(S.bld[id]);dirtyAll=false;dirty.clear();minimapDirty=true;return}
+  if(!dirty.size)return;const done=new Set();
+  for(const i of dirty){const id=S.bid[i];if(id){if(!done.has(id)){done.add(id);drawBuildingBase(S.bld[id])}}else drawTileBase(i%W,(i/W)|0)}
+  dirty.clear();minimapDirty=true;
+}
+function markTile(x,y,ring){for(let dy=-ring;dy<=ring;dy++)for(let dx=-ring;dx<=ring;dx++){const X=x+dx,Y=y+dy;if(inb(X,Y))dirty.add(Y*W+X)}}
+function markRect(x,y,w,h){for(let Y=y-1;Y<=y+h;Y++)for(let X=x-1;X<=x+w;X++)if(inb(X,Y))dirty.add(Y*W+X)}
+
+/* ================= simulation ================= */
+let netChanged=true;
+const pmap={poll:new Float32Array(CW*CH),lv:new Float32Array(CW*CH),crime:new Float32Array(CW*CH),pol:new Float32Array(CW*CH),fir:new Float32Array(CW*CH),den:new Float32Array(CW*CH)};
+const traffic=new Uint8Array(N);let comp=new Int32Array(N),compInfo=[];
+function cnt(type){let n=0;for(const id in S.bld)if(S.bld[id].type===type)n++;return n}
+function cellOf(x,y){return((y/CS)|0)*CW+((x/CS)|0)}
+
+function recalcPower(){
+  const B=S.bld;for(const id in B)B[id].pw=false;
+  const seen=new Uint8Array(N);let cap=0,used=0,brown=false;
+  for(const id in B){const p=B[id];const d=DEFS[p.type];if(!d.cap)continue;if(seen[p.y*W+p.x])continue;
+    const q=[];let qi=0;const order=[];
+    for(let y=p.y;y<p.y+d.s;y++)for(let x=p.x;x<p.x+d.s;x++){const i=y*W+x;seen[i]=1;q.push(i)}
+    while(qi<q.length){const i=q[qi++];order.push(i);const x=i%W,y=(i/W)|0;
+      for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy;if(!inb(X,Y))continue;const j=Y*W+X;if(seen[j])continue;if((S.net[j]&PWR)||S.bid[j]){seen[j]=1;q.push(j)}}}
+    let ccap=0;const vis=new Set();
+    for(const i of order){const b=B[S.bid[i]];if(b&&DEFS[b.type].cap&&!vis.has(b.id)){vis.add(b.id);ccap+=DEFS[b.type].cap*(b.cb&&b.cb.includes('kombi')?1.2:1)*(PK('power')?1.3:1);b.pw=true}}
+    let cu=0;
+    for(const i of order){const b=B[S.bid[i]];if(!b||vis.has(b.id))continue;vis.add(b.id);const need=DEFS[b.type].s**2;if(cu+need<=ccap){cu+=need;b.pw=true}else{b.pw=false;brown=true}}
+    cap+=ccap;used+=cu;
+  }
+  S.powerCap=cap;S.powerUsed=used;S.brownout=brown;
+}
+function perimeter(b){const s=DEFS[b.type].s,out=[];for(let x=b.x-1;x<=b.x+s;x++){out.push([x,b.y-1]);out.push([x,b.y+s])}for(let y=b.y;y<b.y+s;y++){out.push([b.x-1,y]);out.push([b.x+s,y])}return out.filter(([x,y])=>inb(x,y))}
+function recalcTransport(){
+  comp.fill(-1);compInfo=[];let id=0;
+  for(let i=0;i<N;i++){if(comp[i]>=0||!(S.net[i]&(ROAD|RAIL)))continue;const info={R:0,C:0,I:0,edge:false};const q=[i];comp[i]=id;let qi=0;
+    while(qi<q.length){const j=q[qi++];const x=j%W,y=(j/W)|0;if(x===0||y===0||x===W-1||y===H-1)info.edge=true;
+      for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy;if(!inb(X,Y))continue;const k=Y*W+X;if(comp[k]<0&&(S.net[k]&(ROAD|RAIL))){comp[k]=id;q.push(k)}}}
+    compInfo.push(info);id++}
+  let rt=0,rl=0;for(let i=0;i<N;i++){if(S.net[i]&ROAD)rt++;if(S.net[i]&RAIL)rl++}S.roadTiles=rt;S.railTiles=rl;
+  for(const k in S.bld){const b=S.bld[k];const per=perimeter(b);const cs=new Set();let rail=false;b.per=[];
+    for(const[x,y]of per){const i=y*W+x;if(comp[i]>=0){cs.add(comp[i]);if(S.net[i]&ROAD)b.per.push(i);if(S.net[i]&RAIL)rail=true}}
+    b.comps=[...cs];b.rail=rail;if(DEFS[b.type].zone)for(const c of cs)compInfo[c][b.type]++;
+    if(b.type==='station'||b.type==='airport'||b.type==='port')for(const c of cs){compInfo[c].edge=true}}
+}
+function recalcTraffic(){
+  traffic.fill(0);const acc=new Float32Array(N);
+  for(const k in S.bld){const b=S.bld[k];if(!DEFS[b.type].zone||!b.lvl||!b.per)continue;const pp=ZPOP[b.type][b.lvl]/(b.rail?60:30);for(const i of b.per)acc[i]+=pp/Math.max(1,b.per.length)*4}
+  for(let it=0;it<5;it++){const c=acc.slice();for(let i=0;i<N;i++){if(!(S.net[i]&ROAD))continue;const x=i%W,y=(i/W)|0;let m=c[i];for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy;if(!inb(X,Y))continue;const j=Y*W+X;if(S.net[j]&ROAD)m=Math.max(m,c[j]*.82)}acc[i]=Math.max(acc[i],m)}}
+  for(const k in S.bld){const b=S.bld[k];if(b.type==='station')for(let y=b.y-6;y<b.y+9;y++)for(let x=b.x-6;x<b.x+9;x++)if(inb(x,y))acc[y*W+x]*=.6}
+  for(let i=0;i<N;i++)traffic[i]=clamp(acc[i]*3,0,255);
+}
+function blur(a){const c=a.slice();for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){let s=0,n=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X<0||Y<0||X>=CW||Y>=CH)continue;s+=c[Y*CW+X]*(dx||dy?1:2);n+=dx||dy?1:2}a[y*CW+x]=s/n}}
+function stamp(a,cx,cy,rad,str){for(let y=Math.max(0,cy-rad);y<=Math.min(CH-1,cy+rad);y++)for(let x=Math.max(0,cx-rad);x<=Math.min(CW-1,cx+rad);x++){const d=Math.hypot(x-cx,y-cy);if(d<=rad)a[y*CW+x]+=str*(1-d/(rad+1))}}
+function recalcMaps(){
+  const{poll,lv,crime,pol,fir,den}=pmap;poll.fill(0);pol.fill(0);fir.fill(0);den.fill(0);
+  const gift=new Float32Array(CW*CH),casino=new Float32Array(CW*CH);
+  let sx=0,sy=0,sw=0;
+  for(const k in S.bld){const b=S.bld[k],d=DEFS[b.type],cx=((b.x+d.s/2)/CS)|0,cy=((b.y+d.s/2)/CS)|0,ci=cy*CW+cx;
+    if(d.zone){den[ci]+=b.lvl;sx+=cx*(b.lvl+1);sy+=cy*(b.lvl+1);sw+=b.lvl+1;if(b.type==='I')poll[ci]+=b.lvl*14}
+    if(b.type==='coal'&&b.pw)poll[ci]+=170;if(b.type==='airport')poll[ci]+=70;if(b.type==='port')poll[ci]+=45;
+    if(b.type==='park')poll[ci]-=6;if(b.type==='park2')poll[ci]-=40;
+    const pf=S.fund.police/100*(PK('watch')?1.5:1),ff=S.fund.fire/100*(PK('watch')?1.5:1);
+    if(b.type==='police'&&b.pw)stamp(pol,cx,cy,4,150*pf);if(b.type==='polhq'&&b.pw)stamp(pol,cx,cy,7,190*pf);
+    if(b.type==='fire'&&b.pw)stamp(fir,cx,cy,4,150*ff);if(b.type==='firehq'&&b.pw)stamp(fir,cx,cy,7,190*ff);
+    if(d.lv)stamp(gift,cx,cy,2,d.lv);if(b.type==='stadium')stamp(gift,cx,cy,2,15);if(b.type==='casino')stamp(casino,cx,cy,3,50);
+  }
+  if(S.combos)for(const c of S.combos){const d=COMBO[c.id];const cx=(c.cx/CS)|0,cy=(c.cy/CS)|0;if(d.lv)stamp(gift,cx,cy,2,d.lv);if(c.id==='midori')stamp(poll,cx,cy,2,-60);if(c.id==='anshin'){stamp(pol,cx,cy,3,70);stamp(fir,cx,cy,3,70)}}
+  for(let i=0;i<N;i++)if(traffic[i]>40)poll[cellOf(i%W,(i/W)|0)]+=traffic[i]/22;
+  blur(poll);blur(poll);
+  const ccx=sw?sx/sw:CW/2,ccy=sw?sy/sw:CH/2;S.center=[ccx*CS,ccy*CS];
+  const wcount=new Float32Array(CW*CH),tcount=new Float32Array(CW*CH);
+  for(let i=0;i<N;i++){const c=cellOf(i%W,(i/W)|0);if(S.terr[i]===1)wcount[c]++;else if(S.terr[i]===2)tcount[c]++}
+  for(let y=0;y<CH;y++)for(let x=0;x<CW;x++){const i=y*CW+x;let w=0;for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;if(X>=0&&Y>=0&&X<CW&&Y<CH)w+=wcount[Y*CW+X]}
+    poll[i]=clamp(poll[i]*(PK('clean')?.7:1),0,255);
+    lv[i]=clamp(30+Math.max(0,100-Math.hypot(x-ccx,y-ccy)*7)+Math.min(30,w*1.2)+Math.min(15,tcount[i])+gift[i]-poll[i]*.7-crime[i]*.25,0,250);
+    crime[i]=clamp(den[i]*16+Math.max(0,120-lv[i])*.35+casino[i]-pol[i],0,250);
+  }
+}
+function demand(){
+  let Rp=0,Cp=0,Ip=0,z=0;for(const k in S.bld){const b=S.bld[k];if(!DEFS[b.type].zone)continue;z++;const p=ZPOP[b.type][b.lvl];if(b.type==='R')Rp+=p;else if(b.type==='C')Cp+=p;else Ip+=p}
+  S.Rp=Rp;S.Cp=Cp;S.Ip=Ip;S.zones=z;S.pop=Rp+Cp+Ip;
+  const tR=(Cp*(S.rule&&S.rule.noI?3.2:1)+Ip)*1.25+400,tC=Rp*.32,tI=Rp*.4+300+(cnt('expo')?Rp*.08:0);
+  const v=(t,c)=>(t-c)/Math.max(c,500);const tx=(7-S.tax)*.055;
+  if(S.rule&&S.rule.noI){}
+  const nk=PK('ninki')?.1:0;
+  let r=clamp(v(tR,Rp)*.8+tx+nk,-1,1),c=clamp(v(tC,Cp)*.8+tx+nk-(Rp<300?.4:0),-1,1),i=clamp(v(tI,Ip)*.8+tx+nk,-1,1);
+  S.capR=S.capC=S.capI=false;
+  if(Rp>25000&&!cnt('stadium')){r=Math.min(r,-.05);S.capR=true}
+  if(Ip>8000&&!cnt('port')){i=Math.min(i,-.05);S.capI=true}
+  if(Cp>15000&&!cnt('airport')){c=Math.min(c,-.05);S.capC=true}
+  S.valR=S.valR*.6+r*.4;S.valC=S.valC*.6+c*.4;S.valI=S.valI*.6+i*.4;
+}
+function updateZones(){
+  let noPow=0,noRoad=0,jam=0;
+  for(const k in S.bld){const b=S.bld[k];const d=DEFS[b.type];if(!d.zone)continue;
+    const cx=((b.x+1)/CS)|0,cy=((b.y+1)/CS)|0,ci=cy*CW+cx;const lvv=pmap.lv[ci],po=pmap.poll[ci],cr=pmap.crime[ci];
+    const old=b.lvl,oc=b.cls;b.cls=lvv<70?0:lvv<145?1:2;
+    if(!b.pw){noPow++;if(b.lvl>0&&rnd()<.3)b.lvl--}
+    else{
+      const cs=b.comps||[];let trip=false;
+      for(const c of cs){const inf=compInfo[c];if(b.type==='R'&&(inf.C||inf.I))trip=true;if(b.type==='C'&&inf.R)trip=true;if(b.type==='I'&&(inf.R||inf.edge))trip=true}
+      if(!cs.length||!trip){noRoad++;if(b.lvl>0&&rnd()<.2)b.lvl--}
+      else{
+        let cg=0;for(const i of b.per)cg+=traffic[i];cg=b.per.length?cg/b.per.length/255:0;if(cg>.62)jam++;
+        let sc;const cong=Math.max(0,cg-.55)*1.6;
+        if(b.type==='R')sc=S.valR*.7+(lvv-80)/260-po/170-cr/260-cong;
+        else if(b.type==='C')sc=S.valC*.7+(lvv-60)/300-cr/320-cong;
+        else sc=S.valI*.7+.08-cong*.6;
+        sc+=(rnd()-.5)*.35;if(b.happy>0){b.happy--;sc+=.25}if(PK('grow'))sc+=.08;if(b.cb&&b.cb.some(x=>COMBO[x].grow))sc+=.12;
+        const maxL=b.type==='I'?6:Math.min(6,(lvv<55?3:lvv<95?4:lvv<150?5:6)+(PK('dense')?1:0));
+        if(sc>.12&&b.lvl<maxL&&rnd()<.42)b.lvl++;else if(((sc<-.3&&rnd()<.38)||(b.lvl>maxL&&!(b.happy>0)&&rnd()<.13))&&b.lvl>0)b.lvl--;
+      }
+    }
+    if(b.lvl!==old||(b.cls!==oc&&b.lvl>0))markRect(b.x,b.y,3,3);
+  }
+  S.noPow=noPow;S.noRoad=noRoad;S.jam=jam;
+}
+
+/* ================= disasters ================= */
+let tornado=null,quake=0;
+function flammable(i){return S.bid[i]||S.terr[i]===2}
+function ignite(i){if(!flammable(i)||S.fire[i]||S.terr[i]===1)return false;S.fire[i]=24+(rnd()*20|0);return true}
+function destroyBuilding(b,rubble){const s=DEFS[b.type].s;for(let y=b.y;y<b.y+s;y++)for(let x=b.x;x<b.x+s;x++){const i=y*W+x;S.bid[i]=0;S.fire[i]=0;if(rubble)S.rub[i]=1;S.terr[i]=S.terr[i]===2?0:S.terr[i]}delete S.bld[b.id];markRect(b.x,b.y,s,s);netChanged=true}
+function wreck(i){const id=S.bid[i];if(id&&S.bld[id]){destroyBuilding(S.bld[id],true);return}const x=i%W,y=(i/W)|0;if(S.terr[i]===1)return;if(S.net[i]||S.terr[i]===2){S.net[i]=0;S.terr[i]=0;S.rub[i]=1;markTile(x,y,1);netChanged=true}}
+function fireTick(){
+  for(let i=0;i<N;i++){if(!S.fire[i])continue;const x=i%W,y=(i/W)|0;
+    const cov=pmap.fir[cellOf(x,y)]/255;
+    if(rnd()<.03+cov*.35+(PK('safety')?.08:0)){S.fire[i]=0;continue}
+    if(rnd()<.14){const d=[[1,0],[-1,0],[0,1],[0,-1]][rnd()*4|0];const X=x+d[0],Y=y+d[1];if(inb(X,Y)){const j=Y*W+X;if(S.bid[j]!==S.bid[i]||!S.bid[i])ignite(j)}}
+    S.fire[i]--;if(!S.fire[i])wreck(i);
+  }
+  if(tornado){tornado.life--;tornado.a+=(rnd()-.5)*.8;tornado.x=clamp(tornado.x+Math.cos(tornado.a)*.8,1,W-2);tornado.y=clamp(tornado.y+Math.sin(tornado.a)*.8,1,H-2);
+    const i=(tornado.y|0)*W+(tornado.x|0);wreck(i);if(rnd()<.3)wreck(i+1);if(tornado.life<=0)tornado=null}
+  for(let i=0;i<N;i++)if(S.flood[i]){S.flood[i]--;if(S.flood[i]>20&&rnd()<.12){const x=i%W,y=(i/W)|0;const d=[[1,0],[-1,0],[0,1],[0,-1]][rnd()*4|0];const X=x+d[0],Y=y+d[1];if(inb(X,Y)){const j=Y*W+X;if(S.terr[j]!==1&&!S.flood[j]){S.flood[j]=S.flood[i]-4;if(S.bid[j])wreck(j)}}}}
+}
+function randomTileNear(cx,cy,r){for(let k=0;k<40;k++){const x=Math.round(cx+(rnd()*2-1)*r),y=Math.round(cy+(rnd()*2-1)*r);if(inb(x,y))return y*W+x}return-1}
+function disaster(kind){
+  const c=S.center||[W/2,H/2];
+  if(kind==='fire'){let ok=false;for(let k=0;k<30&&!ok;k++){const i=randomTileNear(c[0],c[1],18);if(i>=0&&S.bid[i])ok=ignite(i)}if(!ok)for(let k=0;k<20;k++){const i=randomTileNear(c[0],c[1],25);if(i>=0&&ignite(i))break}advise('火事です！ 消防署の近くなら早く消えます。',1);focusOn(c)}
+  if(kind==='tornado'){tornado={x:c[0]+(rnd()-.5)*30,y:c[1]+(rnd()-.5)*20,a:rnd()*6.28,life:70};advise('竜巻が発生しました！',1);focusOn([tornado.x,tornado.y])}
+  if(kind==='quake'){quake=2.2;for(let k=0;k<45;k++){const i=randomTileNear(c[0],c[1],20);if(i<0)continue;if(rnd()<.45)ignite(i);else wreck(i)}advise('地震です！ 建物がこわれました。',1)}
+  if(kind==='flood'){let best=-1;for(let k=0;k<300;k++){const i=randomTileNear(c[0],c[1],30);if(i<0||S.terr[i]!==1)continue;const x=i%W,y=(i/W)|0;let land=0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]])if(inb(x+dx,y+dy)&&S.terr[(y+dy)*W+x+dx]!==1)land++;if(land){best=i;break}}
+    if(best<0){advise('この街には洪水の起きる水辺がありません。');return}const x=best%W,y=(best/W)|0;for(const[dx,dy]of[[1,0],[-1,0],[0,1],[0,-1]]){const X=x+dx,Y=y+dy;if(inb(X,Y)&&S.terr[Y*W+X]!==1)S.flood[Y*W+X]=60}advise('洪水です！ 水が引くまで待ちましょう。',1);focusOn([x,y])}
+  if(kind==='plane'){const a=Object.values(S.bld).find(b=>b.type==='airport');if(!a){advise('空港がないので飛行機事故は起きません。');return}const i=randomTileNear(a.x+3,a.y+3,14);for(let k=0;k<5;k++)ignite(i+(k%3)-1+((k/3)|0)*W);advise('飛行機が墜落しました！',1);focusOn([i%W,i/W|0])}
+  if(kind==='melt'){const p=Object.values(S.bld).find(b=>b.type==='nuclear');if(!p){advise('原子力発電所がないので事故は起きません。');return}const cx=p.x+2,cy=p.y+2;destroyBuilding(p,true);for(let y=cy-6;y<=cy+6;y++)for(let x=cx-6;x<=cx+6;x++)if(inb(x,y)&&Math.hypot(x-cx,y-cy)<6&&rnd()<.6){S.rad[y*W+x]=1;if(rnd()<.3)ignite(y*W+x)}advise('原子力発電所で事故が起きました！ 放射能の土地には何も建てられません。',1);focusOn([cx,cy])}
+  netChanged=true;sfx('boom');
+}
+
+/* ================= month / year ================= */
+function monthTick(){
+  if(netChanged){recalcPower();recalcTransport();netChanged=false}else recalcPower();
+  recalcTraffic();detectCombos(true);recalcMaps();demand();updateZones();recalcPower();
+  // road decay when underfunded
+  if(S.fund.road<100&&S.roadTiles){const n=Math.floor((100-S.fund.road)/20);for(let k=0;k<n;k++){const i=rnd()*N|0;if(S.net[i]&ROAD&&!(S.net[i]&RAIL)){S.net[i]&=~ROAD;S.rub[i]=1;markTile(i%W,(i/W)|0,1);netChanged=true}}}
+  if((S.disasters||(S.rule&&S.rule.disaster))&&S.pop>500){const p=rnd()/((S.rule&&S.rule.disaster)||1)*(PK('safety')?2:1);const fc=pmap.fir.reduce((a,b)=>a+b,0)/(CW*CH);if(p<.012-Math.min(.008,fc/3000))disaster('fire');else if(p<.013&&S.pop>3000)disaster('tornado');else if(p<.0137&&S.pop>8000)disaster('quake');else if(p<.015)disaster('flood');else if(cnt('airport')&&rnd()<.003)disaster('plane');else if(cnt('nuclear')&&rnd()<.0002)disaster('melt')}
+  checkClass();checkGifts();adviceTick();
+  S.month++;if(S.month>11){S.month=0;S.year++;yearEnd()}
+  reqMonthly();
+  checkQuest();
+}
+function budgetCalc(){
+  const lvAvg=pmap.lv.reduce((a,b)=>a+b,0)/(CW*CH);
+  const tax=Math.round(S.pop*S.tax/100*(.6+lvAvg/250)*1.7*DIFF[S.diff].mul);
+  const roadNeed=S.roadTiles+S.railTiles*2,polNeed=(cnt('police')+cnt('polhq'))*100,firNeed=(cnt('fire')+cnt('firehq'))*100;
+  const road=Math.round(roadNeed*S.fund.road/100),pol=Math.round(polNeed*S.fund.police/100),fir=Math.round(firNeed*S.fund.fire/100);
+  const casino=cnt('casino')*100+(S.combos||[]).reduce((a,c)=>a+(COMBO[c.id].inc||0),0)*(PK('combo2')?2:1)+(PK('grant')?500:0),loan=S.loan>0?1000:0;
+  return{tax,road,pol,fir,roadNeed,polNeed,firNeed,casino,loan,total:tax+casino-road-pol-fir-loan};
+}
+function yearEnd(){
+  const b=budgetCalc();S.lastBudget=b;S.lastYear=S.year-1;
+  S.popGrowth=S.pop-S.popYearAgo;S.popYearAgo=S.pop;
+  if(S.autoBudget){applyBudget(b);advise(`${S.year-1}年の収支は ${b.total>=0?'+':''}$${fmt(b.total)} でした。`)}
+  else{S.prevSpeed=speed||1;setSpeed(0,true);openBudget(true)}
+  save(true);
+}
+function applyBudget(b){S.funds+=b.total;if(S.loan>0)S.loan--;if(S.funds<0){S.fund.road=Math.max(0,S.fund.road-30);S.funds=0;advise('資金不足で道路の維持費を削りました。道路が傷んでいきます。',1)}}
+function checkClass(){let c=0;for(let k=0;k<CLASSES.length;k++)if(S.pop>=CLASSES[k][0])c=k;if(c>S.cls){S.cls=c;gainXP(25*c);showModal(`<h3>祝！「${CLASSES[c][1]}」になりました</h3><p>人口が ${fmt(CLASSES[c][0])} 人を超えました。市民も市長の手腕をたたえています。</p><div class="btns"><button class="bt gold" data-close>つづける</button></div>`);sfx('fanfare')}else if(c<S.cls)S.cls=c}
+function checkGifts(){for(const[k,cond,why]of GIFTS){if(S.giftGiven[k])continue;if(cond()){S.giftGiven[k]=1;S.giftStock[k]=(S.giftStock[k]||0)+1;giftModal(k,why);break}}
+  if(S.giftGiven.zoo&&!S.giftGiven.zoo2&&cnt('stadium')>=3){S.giftGiven.zoo2=1;S.giftStock.zoo=(S.giftStock.zoo||0)+1;giftModal('zoo','スタジアムが3つになりました')}
+  if(S.giftGiven.park2&&!S.giftGiven.park2b&&cnt('park')>=60){S.giftGiven.park2b=1;S.giftStock.park2=(S.giftStock.park2||0)+1;giftModal('park2','公園が60か所になりました')}
+}
+let lastAdviceMonth=-99;
+function adviceTick(){
+  const m=S.year*12+S.month;if(m-lastAdviceMonth<7)return;
+  const tips=[];
+  if(!cnt('coal')&&!cnt('nuclear')&&S.zones>0)tips.push('まずは発電所を建てて、区画まで送電線をつなぎましょう。');
+  else if(S.noPow>0)tips.push(`電気の届いていない区画が ${S.noPow} か所あります。送電線をつないでください。`);
+  if(S.brownout)tips.push('電力が足りません。発電所をもうひとつ建てましょう。');
+  if(S.noRoad>2)tips.push('道路につながっていない区画があります。区画のまわりに道路を通しましょう。');
+  if(S.capR)tips.push('市民がスタジアムを欲しがっています。住宅の発展が止まっています。');
+  if(S.capI)tips.push('工業が港を求めています。水辺に港を建てましょう。');
+  if(S.capC)tips.push('商業が空港を求めています。');
+  if(S.jam>3)tips.push('渋滞がひどくなっています。線路を引くと交通が分散します。');
+  if(S.zones>8&&S.valR>.5)tips.push('住宅地の需要が高まっています。');
+  if(S.zones>8&&S.valC>.5)tips.push('商業地の需要が高まっています。');
+  if(S.zones>8&&S.valI>.5)tips.push('工業地の需要が高まっています。');
+  const crimeAvg=pmap.crime.reduce((a,b)=>a+b,0)/(CW*CH);if(crimeAvg>45&&S.pop>3000)tips.push('犯罪が増えています。警察署を建てましょう。');
+  if(S.funds<300&&S.pop>1000)tips.push('資金が少なくなっています。税率を少し上げてみては？');
+  if(tips.length){advise(tips[(rnd()*Math.min(3,tips.length))|0]);lastAdviceMonth=m}
+}
+
+/* ================= placement ================= */
+const TOOLS={
+  inspect:{name:'見る',hint:'タップで調べる ・ ドラッグで移動'},
+  bulldoze:{name:'ブルドーザー',cost:1,kind:'rect',hint:'なぞった範囲をこわす'},
+  road:{name:'道路',cost:10,kind:'line',bit:ROAD,water:50,hint:'ドラッグで道路をひく'},
+  rail:{name:'線路',cost:20,kind:'line',bit:RAIL,water:100,hint:'ドラッグで線路をひく'},
+  power:{name:'送電線',cost:5,kind:'line',bit:PWR,water:25,hint:'発電所と区画をつなぐ'},
+  park:{name:'公園',cost:10,kind:'line',park:1,hint:'ドラッグで公園をならべる'},
+  R:{kind:'zone',hint:'ドラッグした範囲に区画をしきつめる'},C:{kind:'zone',hint:'ドラッグした範囲に区画をしきつめる'},I:{kind:'zone',hint:'ドラッグした範囲に区画をしきつめる'},
+};
+for(const k in DEFS)if(!TOOLS[k])TOOLS[k]={kind:'bld',hint:DEFS[k].gift?DEFS[k].d:'置きたい場所をタップ'};
+for(const k of['R','C','I'])Object.assign(TOOLS[k],{name:DEFS[k].name,cost:100});
+for(const k in DEFS)if(TOOLS[k].kind==='bld')Object.assign(TOOLS[k],{name:DEFS[k].name,cost:DEFS[k].cost});
+
+function linePath(a,b){const out=[];const[x0,y0]=a,[x1,y1]=b;const hFirst=Math.abs(x1-x0)>=Math.abs(y1-y0);
+  if(hFirst){const sx=Math.sign(x1-x0);for(let x=x0;x!==x1;x+=sx)out.push([x,y0]);const sy=Math.sign(y1-y0);for(let y=y0;y!==y1;y+=sy)out.push([x1,y]);out.push([x1,y1])}
+  else{const sy=Math.sign(y1-y0);for(let y=y0;y!==y1;y+=sy)out.push([x0,y]);const sx=Math.sign(x1-x0);for(let x=x0;x!==x1;x+=sx)out.push([x,y1]);out.push([x1,y1])}
+  return out}
+function lineCost(tool,path){const t=TOOLS[tool];let cost=0;const ok=[];
+  for(const[x,y]of path){if(!inb(x,y))continue;const i=y*W+x;if(S.bid[i]||S.rad[i]||S.flood[i]){ok.push(false);continue}
+    if(t.park){if(S.net[i]||S.terr[i]===1){ok.push(false);continue}ok.push(true);cost+=lc(tool,0);continue}
+    if(S.net[i]&t.bit){ok.push(null);continue}ok.push(true);cost+=lc(tool,S.terr[i]===1)}
+  return{cost,ok}}
+function zoneGrid(a,b){const x0=Math.min(a[0],b[0]),y0=Math.min(a[1],b[1]),x1=Math.max(a[0],b[0]),y1=Math.max(a[1],b[1]);
+  const nx=Math.max(1,Math.floor((x1-x0+1)/3)),ny=Math.max(1,Math.floor((y1-y0+1)/3));
+  const tap=a[0]===b[0]&&a[1]===b[1];const ox=tap?a[0]-1:b[0]<a[0]?a[0]-nx*3+1:a[0],oy=tap?a[1]-1:b[1]<a[1]?a[1]-ny*3+1:a[1];
+  const out=[];for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)out.push([ox+i*3,oy+j*3]);return out}
+function canPlace(type,x,y){const s=DEFS[type].s;if(x<0||y<0||x+s>W||y+s>H)return false;
+  for(let Y=y;Y<y+s;Y++)for(let X=x;X<x+s;X++){const i=Y*W+X;if(S.terr[i]===1||S.bid[i]||S.net[i]||S.rad[i]||S.flood[i])return false}
+  if(type==='port'){let w=false;for(let X=x-1;X<=x+s;X++)for(const Y of[y-1,y+s])if(isW(X,Y)&&inb(X,Y))w=true;for(let Y=y;Y<y+s;Y++)for(const X of[x-1,x+s])if(isW(X,Y)&&inb(X,Y))w=true;if(!w)return false}
+  return true}
+function addBuilding(type,x,y){const s=DEFS[type].s;const id=S.nextId++;const b={id,type,x,y,lvl:0,cls:0,seed:(rnd()*1e6)|0,pw:false};S.bld[id]=b;
+  for(let Y=y;Y<y+s;Y++)for(let X=x;X<x+s;X++){const i=Y*W+X;S.bid[i]=id;S.rub[i]=0;if(S.terr[i]===2)S.terr[i]=0}markRect(x,y,s,s);netChanged=true;return b}
+let undoStack=[];
+function pushUndo(rec){undoStack.push(rec);if(undoStack.length>20)undoStack.shift();refreshUndo()}
+function spend(c){if(c>S.funds){advise('資金が足りません。',1);sfx('err');return false}S.funds-=c;return true}
+function commitLine(tool,path){const t=TOOLS[tool];const{cost,ok}=lineCost(tool,path);if(!cost)return false;if(!spend(cost))return false;const rec={items:[]};
+  path.forEach(([x,y],k)=>{if(ok[k]!==true)return;const i=y*W+x;
+    if(t.park){const b=addBuilding('park',x,y);rec.items.push(['b',b.id,lc(tool,0)])}else{const c=lc(tool,S.terr[i]===1);S.net[i]|=t.bit;if(S.terr[i]===2)S.terr[i]=0;S.rub[i]=0;rec.items.push(['n',i,t.bit,c]);markTile(x,y,1)}});
+  pushUndo(rec);netChanged=true;sfx('place');quickRecalc();return true}
+function commitZones(type,list){const good=list.filter(([x,y])=>canPlace(type,x,y));const cost=good.length*costOf(type);if(!good.length){sfx('err');return false}if(!spend(cost))return false;const rec={items:[]};
+  for(const[x,y]of good){const b=addBuilding(type,x,y);rec.items.push(['b',b.id,costOf(type)])}
+  if(DEFS[type].gift){S.giftStock[type]--;rec.gift=type}
+  pushUndo(rec);sfx('place');quickRecalc();return true}
+function revertItem(it){if(it[0]==='n'){if(S.net[it[1]]&it[2]){S.net[it[1]]&=~it[2];markTile(it[1]%W,(it[1]/W)|0,1);S.funds+=it[3]}}else{const b=S.bld[it[1]];if(b){destroyBuilding(b,false);S.funds+=it[2]}}}
+function doUndo(one){const rec=undoStack[undoStack.length-1];if(!rec)return;
+  if(one&&rec.items.length>1){revertItem(rec.items.pop())}
+  else{undoStack.pop();for(let k=rec.items.length-1;k>=0;k--)revertItem(rec.items[k]);if(rec.gift){S.giftStock[rec.gift]=(S.giftStock[rec.gift]||0)+1;buildTray();updateGiftBadge()}}
+  netChanged=true;refreshUndo();quickRecalc();sfx('undo')}
+function bulldozeInfo(a,b){const x0=Math.min(a[0],b[0]),y0=Math.min(a[1],b[1]),x1=Math.max(a[0],b[0]),y1=Math.max(a[1],b[1]);let cost=0;const kill=new Set();const tiles=[];
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){if(!inb(x,y))continue;const i=y*W+x;if(S.bid[i]){if(!kill.has(S.bid[i])){kill.add(S.bid[i]);cost+=DEFS[S.bld[S.bid[i]].type].s**2}}else if(S.net[i]||S.terr[i]===2||S.rub[i]){tiles.push(i);cost++}}
+  return{cost,kill,tiles,x0,y0,x1,y1}}
+function bulldozeRect(a,b){const{cost,kill,tiles,x0,y0,x1,y1}=bulldozeInfo(a,b);
+  if(!cost)return false;if(!spend(cost))return false;
+  for(const id of kill){const bb=S.bld[id];if(bb)destroyBuilding(bb,false)}
+  for(const i of tiles){S.net[i]=0;if(S.terr[i]===2)S.terr[i]=0;S.rub[i]=0;S.fire[i]=0;markTile(i%W,(i/W)|0,1)}
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)if(inb(x,y)){S.rub[y*W+x]=0;S.fire[y*W+x]=0;markTile(x,y,1)}
+  netChanged=true;sfx('boom');quickRecalc();return true}
+function quickRecalc(){recalcPower();recalcTransport();netChanged=false;if(S.reqs)detectCombos(true)}
+
+/* ================= rendering ================= */
+const cv=$('#view'),ctx=cv.getContext('2d');let dpr=1,VW=0,VH=0;
+const cam={x:0,y:0,z:2};
+function resize(){if(typeof computeRet==='function')setTimeout(computeRet,0);dpr=Math.min(window.devicePixelRatio||1,2.5);VW=cv.clientWidth;VH=cv.clientHeight;const rr=cv.getBoundingClientRect();if(typeof cvR!=='undefined'){cvR.left=rr.left;cvR.top=rr.top}cv.width=Math.round(VW*dpr);cv.height=Math.round(VH*dpr);clampCam();
+  const dk=$('#dock');if(dk&&!dk.hidden)document.documentElement.style.setProperty('--dockH',dk.offsetHeight+'px')}
+function clampCam(){const z=cam.z,ww=W*T,wh=H*T,vw=VW/z,vh=VH/z;const m=80/z;
+  // every tile must be able to sit under the crosshair (retS), and the map edges must clear the HUD/dock
+  const rx=(typeof retS!=='undefined'&&retS[0])||VW/2,ry=(typeof retS!=='undefined'&&retS[1])||VH/2;
+  const lx=Math.min(-m,T/2-rx/z,(ww-vw)/2),hx=Math.max(ww-vw+m,ww-T/2-rx/z,(ww-vw)/2);
+  const ly=Math.min(-m*1.6,T/2-ry/z,(wh-vh)/2),hy=Math.max(wh-vh+m*2.2,wh-T/2-ry/z,(wh-vh)/2);
+  cam.x=clamp(cam.x,lx,hx);cam.y=clamp(cam.y,ly,hy)}
+function focusOn([tx,ty]){cam.x=tx*T-VW/cam.z/2;cam.y=ty*T-VH/cam.z/2;clampCam()}
+function s2w(sx,sy){return[cam.x+sx/cam.z,cam.y+sy/cam.z]}
+function s2t(sx,sy){const[wx,wy]=s2w(sx,sy);return[Math.floor(wx/T),Math.floor(wy/T)]}
+let overlay='none',particles=[],ghost=null,preview=null,time=0;
+const fireFr=[],boltSpr=mk(10,14),planeSpr=mk(14,14),twSpr=[];
+function buildFx(){
+  for(let f=0;f<3;f++){const[c,g]=mk(16,16);const r=mulberry(91+f);for(let k=0;k<4;k++){const x=3+r()*9|0,h=6+r()*7|0;R(g,x,15-h,4,h,'#e83a20');R(g,x+1,16-h+2,2,h-3,'#ff9a20');R(g,x+1,16-h+5,2,Math.max(1,h-7),'#ffe860')}tiles.rubble[0]&&0;fireFr.push(c)}
+  {const g=boltSpr[1];const pts=['0000111100','0001111000','0011110000','0111111110','0000111100','0001111000','0011110000','0111100000','0111000000','0110000000'];
+    pts.forEach((row,y)=>{for(let x=0;x<10;x++)if(row[x]==='1'){for(const[ox,oy]of[[1,0],[-1,0],[0,1],[0,-1]])R(g,x+ox,y+2+oy,1,1,'#201808')}});pts.forEach((row,y)=>{for(let x=0;x<10;x++)if(row[x]==='1'){R(g,x,y+2,1,1,'#f8e040')}});for(let y=0;y<14;y++)for(let x=0;x<10;x++){}
+    outlineRect(g,0,0,0,0,'#000');}
+  {const g=planeSpr[1];R(g,6,0,2,14,'#f4f4f4');R(g,1,5,12,3,'#f4f4f4');R(g,4,11,6,2,'#f4f4f4');R(g,6,0,2,2,'#a8c8e8');R(g,1,5,2,3,'#d84030');R(g,11,5,2,3,'#d84030')}
+  for(let f=0;f<4;f++){const[c,g]=mk(24,40);for(let y=0;y<38;y++){const w=Math.round(2+y*.28+Math.sin(y*.5+f*1.5)*1.5);const off=Math.round(Math.sin(y*.18+f)*3);R(g,12-w+off,y,w*2,1,y%3===f%3?'#d8d8e0':'#9a9aa8')}twSpr.push(c)}
+}
+const CARC=['#e84a3a','#f4f4f4','#3a78e0','#f0c030','#2a2a30','#3cae58'];
+function render(dt){
+  time+=dt;flushDirty();
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#0b0f2e';ctx.fillRect(0,0,cv.width,cv.height);
+  let shx=0,shy=0;if(quake>0){quake-=dt;shx=(rnd()-.5)*6;shy=(rnd()-.5)*6}
+  const z=cam.z*dpr;const ox=Math.round(-cam.x*z+shx*dpr),oy=Math.round(-cam.y*z+shy*dpr);
+  ctx.setTransform(z,0,0,z,ox,oy);ctx.imageSmoothingEnabled=false;
+  // ocean beyond map
+  const vx0=Math.max(0,Math.floor(cam.x/T)-1),vy0=Math.max(0,Math.floor(cam.y/T)-1),vx1=Math.min(W-1,Math.ceil((cam.x+VW/cam.z)/T)+1),vy1=Math.min(H-1,Math.ceil((cam.y+VH/cam.z)/T)+1);
+  ctx.fillStyle=WA3;ctx.fillRect(-400,-400,W*T+800,H*T+800);
+  ctx.drawImage(base,vx0*T,vy0*T,(vx1-vx0+1)*T,(vy1-vy0+1)*T,vx0*T,vy0*T,(vx1-vx0+1)*T,(vy1-vy0+1)*T);
+  ctx.strokeStyle='rgba(0,0,0,.5)';ctx.lineWidth=2/cam.z;ctx.strokeRect(0,0,W*T,H*T);
+  const tf=time*1.0;
+  // water sparkle, cars, flood, rad, fire
+  for(let y=vy0;y<=vy1;y++)for(let x=vx0;x<=vx1;x++){const i=y*W+x,px=x*T,py=y*T;
+    if(S.terr[i]===1&&!S.net[i]){const ph=(hsh(x,y,7)*6+tf*.7)%6;if(ph<.8){ctx.fillStyle='rgba(255,255,255,.75)';ctx.fillRect(px+(hsh(x,y,8)*12|0),py+(hsh(x,y,9)*14|0),ph<.4?2:3,1)}}
+    if((S.net[i]&ROAD)&&traffic[i]>18){const m=netMask(x,y,ROAD);const n=Math.min(3,1+(traffic[i]/90|0));const horiz=(m&10)&&!((m&5)&&hsh(x,y,4)<.5)||!(m&5);
+      for(let k=0;k<n;k++){const sp=.35+hsh(x,y,k)*.3;let u=(hsh(x,y,k+10)+tf*sp*(k%2?-1:1))%1;if(u<0)u+=1;const col=CARC[(hsh(x,y,k+20)*6)|0];ctx.fillStyle=col;
+        if(horiz){const yy=k%2?py+8:py+4;ctx.fillRect(px+u*14,yy,3,2)}else{const xx=k%2?px+4:px+9;ctx.fillRect(xx,py+u*14,2,3)}}}
+    if(S.flood[i]){ctx.globalAlpha=.8;ctx.drawImage(tiles.water[(hsh(x,y,2)*3)|0],px,py);ctx.globalAlpha=1}
+    if(S.rad[i]){ctx.fillStyle='rgba(240,220,40,.35)';ctx.fillRect(px,py,T,T);ctx.fillStyle='#2a2a10';if((x+y)%2===0){ctx.fillRect(px+6,py+6,4,4)}}
+    if(S.fire[i]){ctx.drawImage(fireFr[((tf*8+i)|0)%3],px,py)}
+  }
+  // buildings fx
+  const blink=((time*2)|0)%2===0;
+  for(const k in S.bld){const b=S.bld[k],d=DEFS[b.type];if(b.x+d.s<vx0||b.x>vx1||b.y+d.s<vy0||b.y>vy1)continue;
+    if(!b.pw&&!d.cap&&b.type!=='park'&&blink){ctx.drawImage(boltSpr[0],b.x*T+d.s*8-5,b.y*T+d.s*8-7)}
+    const e=spriteFor(b);if(e.smoke.length&&(b.pw||d.cap)&&(!d.zone||b.lvl>=3)&&rnd()<dt*3*e.smoke.length&&particles.length<240){const p=e.smoke[(rnd()*e.smoke.length)|0];particles.push({x:b.x*T+p[0],y:b.y*T+p[1],vx:4+rnd()*4,vy:-6-rnd()*4,life:0,max:2.2+rnd(),r:1.5,steam:b.type==='nuclear'})}
+  }
+  for(let k=particles.length-1;k>=0;k--){const p=particles[k];p.life+=dt;if(p.life>p.max){particles.splice(k,1);continue}p.x+=p.vx*dt;p.y+=p.vy*dt;p.r+=dt*2.2;const a=1-p.life/p.max;
+    ctx.fillStyle=p.steam?`rgba(255,255,255,${a*.8})`:`rgba(${150-p.life*20|0},${150-p.life*20|0},${160-p.life*20|0},${a*.75})`;const s=Math.round(p.r);ctx.fillRect(Math.round(p.x-s/2),Math.round(p.y-s/2),s,s)}
+  // airplane
+  const ap=Object.values(S.bld).find(b=>b.type==='airport');
+  if(ap){const per=24,u=(time%per)/per;const cx=ap.x*T+48,cy=ap.y*T+67;const ang=-.3;const dist=(u-.15)*1600;const px=cx+Math.cos(ang)*dist,py=cy+Math.sin(ang)*dist-(Math.max(0,u-.15)*400);
+    if(u>.05){ctx.save();ctx.translate(Math.round(px),Math.round(py));ctx.rotate(ang+Math.PI/2);ctx.globalAlpha=.25;ctx.fillStyle='#000';ctx.fillRect(4,8+Math.max(0,u-.15)*60,6,6);ctx.globalAlpha=1;ctx.drawImage(planeSpr[0],-7,-7);ctx.restore()}}
+  // boats near ports
+  for(const k in S.bld){const b=S.bld[k];if(b.type!=='port')continue;const u=Math.sin(time*.3+b.id)*.5+.5;ctx.fillStyle='#3a3a44';const bx=b.x*T+6+u*40,by=b.y*T+66;ctx.fillRect(bx,by,14,4);ctx.fillStyle='#f0f0f0';ctx.fillRect(bx+3,by-3,7,3);ctx.fillStyle='rgba(255,255,255,.6)';ctx.fillRect(bx-3,by+3,3,1)}
+  if(tornado){ctx.drawImage(twSpr[((time*10)|0)%4],tornado.x*T-12,tornado.y*T-34)}
+  // overlay map
+  if(overlay!=='none')drawOverlay(vx0,vy0,vx1,vy1);
+  // previews
+  if(preview){ctx.lineWidth=1/cam.z;
+    if(preview.type==='line'){preview.path.forEach(([x,y],k)=>{const ok=preview.ok[k];ctx.fillStyle=ok===true?'rgba(255,255,255,.45)':ok===null?'rgba(255,255,255,.15)':'rgba(255,60,60,.5)';ctx.fillRect(x*T,y*T,T,T);ctx.strokeStyle=ok===false?'#ff4040':'#ffffff';ctx.strokeRect(x*T+.5,y*T+.5,T-1,T-1)})}
+    if(preview.type==='rect'){const[x0,y0,x1,y1]=preview.r;ctx.fillStyle='rgba(255,80,60,.3)';ctx.fillRect(x0*T,y0*T,(x1-x0+1)*T,(y1-y0+1)*T);ctx.strokeStyle='#ff6050';ctx.lineWidth=2/cam.z;ctx.strokeRect(x0*T,y0*T,(x1-x0+1)*T,(y1-y0+1)*T)}
+  }
+  if(ghost){const s=DEFS[ghost.type].s;const e=spriteFor({type:ghost.type,lvl:0,cls:1,seed:0});
+    for(const[x,y]of ghost.list){const ok=canPlace(ghost.type,x,y);ctx.globalAlpha=.78;ctx.drawImage(e.c,x*T,y*T);ctx.globalAlpha=1;ctx.fillStyle=ok?'rgba(80,255,120,.18)':'rgba(255,40,40,.45)';ctx.fillRect(x*T,y*T,s*T,s*T);ctx.strokeStyle=ok?'#7cff9a':'#ff4040';ctx.lineWidth=2/cam.z;ctx.strokeRect(x*T,y*T,s*T,s*T)}}
+  if(anchor&&tool!=='inspect'){const k=TOOLS[tool].kind;const ax=anchor[0]*T,ay=anchor[1]*T,sz=k==='zone'?3*T:T;ctx.strokeStyle='#f8d848';ctx.lineWidth=3/cam.z;ctx.strokeRect(ax,ay,sz,sz);ctx.fillStyle='#f8d848';ctx.fillRect(ax+2,ay-8,2,10);ctx.fillRect(ax+4,ay-8,7,5)}
+  drawWorldFx(dt);
+  if(inspectSel){ctx.strokeStyle=blink?'#f8d848':'#ffffff';ctx.lineWidth=2/cam.z;const[x,y,w,h]=inspectSel;ctx.strokeRect(x*T,y*T,w*T,h*T)}
+}
+function drawReticle(){if(titleOn||tool==='inspect')return;ctx.setTransform(dpr,0,0,dpr,0,0);const[x,y]=retS;const t=curRT();const sx=(t[0]*T-cam.x)*cam.z,sy=(t[1]*T-cam.y)*cam.z,ts=T*cam.z;
+  ctx.lineWidth=2;for(const[c,o]of[['#0b0f2e',1],['#ffffff',0]]){ctx.strokeStyle=c;ctx.beginPath();const L_=Math.max(6,ts*.3);for(const[cx,cy,dx,dy]of[[sx,sy,1,1],[sx+ts,sy,-1,1],[sx,sy+ts,1,-1],[sx+ts,sy+ts,-1,-1]]){ctx.moveTo(cx+o,cy+dy*L_+o);ctx.lineTo(cx+o,cy+o);ctx.lineTo(cx+dx*L_+o,cy+o)}ctx.stroke()}
+  if(!mouseMode){ctx.fillStyle='#f8d848';ctx.fillRect(x-1,y-6,2,12);ctx.fillRect(x-6,y-1,12,2)}}
+function heat(v){v=clamp(v,0,1);const r=v<.5?Math.round(80+v*2*175):255,g=v<.5?220:Math.round(220-(v-.5)*2*200);return`rgba(${r},${g},60,.55)`}
+function drawOverlay(vx0,vy0,vx1,vy1){
+  if(overlay==='power'){ctx.fillStyle='rgba(0,0,20,.55)';ctx.fillRect(vx0*T,vy0*T,(vx1-vx0+1)*T,(vy1-vy0+1)*T);
+    for(const k in S.bld){const b=S.bld[k],s=DEFS[b.type].s;ctx.fillStyle=DEFS[b.type].cap?'rgba(255,230,60,.85)':b.pw?'rgba(90,240,120,.6)':'rgba(255,60,60,.7)';ctx.fillRect(b.x*T,b.y*T,s*T,s*T)}
+    for(let y=vy0;y<=vy1;y++)for(let x=vx0;x<=vx1;x++)if(S.net[y*W+x]&PWR){ctx.fillStyle='rgba(255,230,60,.9)';ctx.fillRect(x*T+5,y*T+5,6,6)}return}
+  if(overlay==='traffic'){ctx.fillStyle='rgba(0,0,20,.5)';ctx.fillRect(vx0*T,vy0*T,(vx1-vx0+1)*T,(vy1-vy0+1)*T);for(let y=vy0;y<=vy1;y++)for(let x=vx0;x<=vx1;x++){const i=y*W+x;if(S.net[i]&ROAD){ctx.fillStyle=heat(traffic[i]/220);ctx.fillRect(x*T,y*T,T,T)}}return}
+  const a={poll:pmap.poll,crime:pmap.crime,lv:pmap.lv,police:pmap.pol,firecov:pmap.fir}[overlay];const div={poll:180,crime:160,lv:220,police:200,firecov:200}[overlay];
+  for(let cy=Math.floor(vy0/CS);cy<=Math.floor(vy1/CS);cy++)for(let cx=Math.floor(vx0/CS);cx<=Math.floor(vx1/CS);cx++){let v=a[cy*CW+cx]/div;if(overlay==='lv'||overlay==='police'||overlay==='firecov')v=1-v;ctx.fillStyle=heat(v);ctx.fillRect(cx*CS*T,cy*CS*T,CS*T,CS*T)}
+}
+
+/* ================= minimap ================= */
+let minimapDirty=true;const[mmc,mmg]=mk(W,H);
+function drawMini(){const img=mmg.createImageData(W,H);const d=img.data;
+  for(let i=0;i<N;i++){let c;const id=S.bid[i];if(id){const t=S.bld[id].type;c=t==='R'?[80,210,90]:t==='C'?[80,140,250]:t==='I'?[240,200,50]:t==='park'?[60,150,60]:[230,230,240]}
+    else if(S.net[i]&ROAD)c=[90,90,100];else if(S.net[i]&RAIL)c=[150,110,80];else if(S.terr[i]===1)c=[42,98,200];else if(S.terr[i]===2)c=[42,110,34];else c=[90,168,58];
+    if(S.fire[i])c=[255,80,20];d[i*4]=c[0];d[i*4+1]=c[1];d[i*4+2]=c[2];d[i*4+3]=255}
+  mmg.putImageData(img,0,0);minimapDirty=false}
+
+/* ================= icons ================= */
+const ICON={};
+function iconCanvas(name){const[c,g]=mk(16,16);const Wt='#ffffff';
+  switch(name){
+  case'pause':R(g,4,3,3,10,Wt);R(g,9,3,3,10,Wt);break;
+  case'play1':for(let y=0;y<10;y++)R(g,5,3+y,Math.min(y,9-y)+1,1,Wt);break;
+  case'play2':for(let y=0;y<10;y++){R(g,2,3+y,Math.min(y,9-y)*.8+1,1,Wt);R(g,8,3+y,Math.min(y,9-y)*.8+1,1,Wt)}break;
+  case'play3':for(let y=0;y<10;y++){const w=Math.min(y,9-y)*.6+1;R(g,1,3+y,w,1,Wt);R(g,6,3+y,w,1,Wt);R(g,11,3+y,w,1,Wt)}break;
+  case'layers':for(let k=0;k<3;k++){const y=3+k*4;R(g,3,y,10,3,['#f8d848','#7ad0ff','#ffffff'][k]);R(g,2,y+1,12,1,['#f8d848','#7ad0ff','#ffffff'][k])}break;
+  case'coin':ell(g,8,8,6,6,'#a87818');ell(g,8,8,5,5,'#f8d848');ell(g,7,7,3,3,'#ffe890');R(g,7,4,2,8,'#a87818');break;
+  case'chart':R(g,2,13,12,1,Wt);R(g,3,9,3,4,'#5ee07a');R(g,7,5,3,8,'#f8d848');R(g,11,7,3,6,'#ff6a58');break;
+  case'menu':R(g,2,3,12,2,Wt);R(g,2,7,12,2,Wt);R(g,2,11,12,2,Wt);break;
+  case'undo':R(g,5,4,7,2,Wt);R(g,11,5,2,6,Wt);R(g,5,10,7,2,Wt);R(g,2,4,1,2,Wt);R(g,3,3,2,4,Wt);R(g,4,2,1,6,Wt);break;
+  case'close':for(let k=0;k<10;k++){R(g,3+k,3+k,2,2,Wt);R(g,12-k,3+k,2,2,Wt)}break;
+  case'check':for(let k=0;k<4;k++)R(g,2+k,8+k,2,2,Wt);for(let k=0;k<8;k++)R(g,6+k,11-k,2,2,Wt);break;
+  case'eye':ell(g,8,8,6,4,Wt);ell(g,8,8,3,3,'#2d3fa6');ell(g,8,8,1,1,'#000');break;
+  case'doz':R(g,1,4,8,6,'#f2c62c');R(g,2,5,4,3,'#a8d8f8');R(g,9,6,3,4,'#f2c62c');R(g,12,4,2,9,'#c8c8c8');R(g,1,10,10,3,'#3a3a3a');for(let x=2;x<11;x+=2)P(g,x,11,'#8a8a8a');break;
+  }
+  return c}
+function spriteIcon(type){const s=DEFS[type].s;const e=spriteFor({type,lvl:DEFS[type].zone?(type==='R'?2:3):0,cls:1,seed:type==='park'?0:1});const[c,g]=mk(48,48);g.imageSmoothingEnabled=false;const sc=Math.max(1,Math.floor(48/(s*T)))||1;
+  if(s*T<=48){const k=Math.floor(48/(s*T));g.drawImage(e.c,(48-s*T*k)/2,(48-s*T*k)/2,s*T*k,s*T*k)}else g.drawImage(e.c,0,0,48,48);return c}
+function netIcon(type){const[c,g]=mk(16,16);g.drawImage(tiles.grass[0],0,0);if(type==='road')drawRoad(g,0,0,10,false);if(type==='rail')drawRail(g,0,0,10,false);if(type==='power')drawPower(g,0,0,10);return c}
+function url(c){return c.toDataURL()}
+function setupIcons(){for(const n of['pause','play1','play2','play3','layers','coin','chart','menu','undo','close','check','eye','doz'])ICON[n]=url(iconCanvas(n));
+  document.querySelectorAll('img[data-ic]').forEach(im=>im.src=ICON[im.dataset.ic]);
+  for(const t of['road','rail','power'])ICON[t]=url(netIcon(t));
+  for(const t in DEFS)ICON[t]=url(spriteIcon(t));
+}
+function drawAdvisor(){const g=$('#advC').getContext('2d');g.imageSmoothingEnabled=false;g.clearRect(0,0,24,24);
+  // original pigeon secretary with a tiny bow tie and glasses
+  R(g,0,0,24,24,'#8cc8f8');R(g,0,18,24,6,'#5a9ae0');
+  ell(g,12,15,8,7,'#8a8fa8');ell(g,12,14,7,6,'#a8aec8');ell(g,12,8,6,6,'#9aa0bc');ell(g,11,7,5,5,'#b8bed6');
+  R(g,7,11,10,3,'#5ab87a');R(g,8,12,8,1,'#9a5ac8');
+  R(g,15,7,4,2,'#f0a030');R(g,15,9,3,1,'#c07018');
+  R(g,9,5,3,3,'#ffffff');R(g,13,5,3,3,'#ffffff');P(g,10,6,'#202020');P(g,14,6,'#202020');R(g,8,4,9,1,'#303040');R(g,12,5,1,2,'#303040');
+  R(g,10,17,4,2,'#e83a3a');P(g,12,17,'#a02020');P(g,12,18,'#a02020');
+}
+function drawLogo(){const c=$('#logo'),g=c.getContext('2d');g.imageSmoothingEnabled=false;g.clearRect(0,0,c.width,c.height);
+  const r=mulberry(5);for(let x=0;x<170;x+=8){const h=8+r()*26|0;const col=['#2d3fa6','#3a50c0','#24328a'][x/8%3|0];R(g,x,40-h,7,h,col);for(let y=40-h+2;y<40;y+=3)for(let xx=x+1;xx<x+6;xx+=2)if(r()<.5)P(g,xx,y,'#f8e27a')}
+  R(g,0,40,170,24,'#5aa83a');R(g,0,40,170,2,'#72c24c');R(g,0,52,170,4,ASP);for(let x=2;x<170;x+=6)R(g,x,54,3,1,LINE);
+  g.font='22px DotGothic16, monospace';g.textBaseline='top';g.fillStyle='#0b0f2e';for(const[dx,dy]of[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1],[2,2],[1,2],[2,1]])g.fillText('ハコニワ市長',18+dx,10+dy);g.fillStyle='#f8d848';g.fillText('ハコニワ市長',18,10);g.fillStyle='#fff4b0';g.fillRect(0,0,0,0);
+}
+
+/* ================= UI ================= */
+const CATS=[
+  {k:'view',n:'見る',ic:'eye',tools:[]},
+  {k:'road',n:'交通',ic:'road',tools:['road','rail']},
+  {k:'zone',n:'区画',ic:'R',tools:['R','C','I']},
+  {k:'power',n:'電力',ic:'coal',tools:['power','coal','nuclear']},
+  {k:'pub',n:'公共',ic:'police',tools:['police','fire','park','stadium','port','airport']},
+  {k:'gift',n:'特別',ic:'home',tools:[]},
+  {k:'doz',n:'解体',ic:'doz',tools:[]},
+];
+let curCat='view',tool='inspect';
+function buildCats(){const el=$('#cats');el.innerHTML='';for(const c of CATS){const b=document.createElement('button');b.className='cat'+(c.k===curCat?' on':'');b.innerHTML=`<img class="px" src="${ICON[c.ic]}" alt=""><span>${c.n}</span>`;b.onclick=()=>pickCat(c.k);b.dataset.k=c.k;el.appendChild(b)}updateGiftBadge()}
+function updateGiftBadge(){const b=document.querySelector('.cat[data-k="gift"]');if(!b)return;const n=Object.values(S.giftStock).reduce((a,c)=>a+c,0);let bd=b.querySelector('.badge');if(n>0){if(!bd){bd=document.createElement('i');bd.className='badge';b.style.position='relative';b.appendChild(bd)}bd.textContent=n}else if(bd)bd.remove()}
+function pickCat(k){cancelPending();if(k==='view'){curCat='view';setTool('inspect');$('#trayWin').hidden=true}
+  else if(k==='doz'){curCat='doz';setTool('bulldoze');$('#trayWin').hidden=true}
+  else{if(curCat===k&&!$('#trayWin').hidden){$('#trayWin').hidden=true;curCat=k}else{curCat=k;$('#trayWin').hidden=false;buildTray();const c=CATS.find(c=>c.k===k);if(c.tools.length&&!c.tools.includes(tool)){const f=c.tools.find(t=>!lockReason(t));setTool(f||'inspect')}else if(k==='gift'){const g=giftList()[0];if(g)setTool(g);else setTool('inspect')}}}
+  document.querySelectorAll('.cat').forEach(b=>b.classList.toggle('on',b.dataset.k===curCat));sfx('tick');setTimeout(resize,0)}
+function giftList(){return Object.keys(S.giftStock).filter(k=>S.giftStock[k]>0)}
+function buildTray(){const el=$('#tray');el.innerHTML='';const c=CATS.find(c=>c.k===curCat);if(!c)return;let list=c.k==='gift'?giftList():c.tools;
+  if(c.k==='gift'&&!list.length){el.innerHTML='<div class="empty">街が育つと、記念の建物がプレゼントされます。最初は人口2,000人で「市長の家」。</div>';return}
+  for(const t of list){const lk=lockReason(t);const b=document.createElement('button');b.className='win card'+(t===tool?' sel':'')+(costOf(t)>S.funds?' no':'')+(lk?' lock':'');b.dataset.t=t;
+    b.innerHTML=`<img class="px" src="${ICON[t]}" alt=""><span class="n">${TOOLS[t].name}</span><span class="p num">$${fmt(costOf(t))}</span>${c.k==='gift'?`<span class="cnt">×${S.giftStock[t]}</span>`:''}${lk?`<span class="lk">${lk}</span>`:''}`;
+    b.onclick=()=>{if(lk){advise(lk==='禁止'?'このクエストでは使えません。':`市長${lk}になると使えるようになります。お願いをかなえたり名所を見つけてレベルを上げましょう。`,1);sfx('err');return}cancelPending();setTool(t);sfx('tick')};el.appendChild(b)}}
+// Build mode: a fixed crosshair sits mid-screen; the player moves the MAP under it (drag, tap-to-center, or the arrow pad).
+let anchor=null,rt=[-99,-99],retS=[0,0],camAnim=null;
+function computeRet(){const hud=$('#hud'),dock=$('#dock');const hb=hud&&!hud.hidden?hud.getBoundingClientRect().bottom-cvR.top:0;const dk=dock&&!dock.hidden?dock.getBoundingClientRect().top-cvR.top:VH;retS=[Math.round(VW/2),Math.round((hb+dk)/2)]}
+let mouseMode=false,hoverS=null;
+function curRT(){return mouseMode&&hoverS?s2t(hoverS[0],hoverS[1]):s2t(retS[0],retS[1])}
+function setMouseMode(on){if(mouseMode===on)return;mouseMode=on;$('#pad').hidden=on||tool==='inspect';if(S&&!titleOn)showConfirm()}
+function zoneRange(a,t){const e=[t[0]-1,t[1]-1];const dx=e[0]-a[0],dy=e[1]-a[1];const sx=dx>=0?1:-1,sy=dy>=0?1:-1;const nx=Math.round(Math.abs(dx)/3)+1,ny=Math.round(Math.abs(dy)/3)+1;const out=[];for(let j=0;j<ny;j++)for(let i=0;i<nx;i++)out.push([a[0]+sx*3*i,a[1]+sy*3*j]);return out}
+function refreshBuild(force){if(!S||titleOn)return;if(tool==='inspect'){if(ghost||preview){ghost=null;preview=null}return}
+  const t=curRT();if(!force&&t[0]===rt[0]&&t[1]===rt[1])return;rt=t;const k=TOOLS[tool].kind;ghost=null;preview=null;
+  if(k==='bld'){const s=DEFS[tool].s;ghost={type:tool,list:[[t[0]-((s/2)|0),t[1]-((s/2)|0)]]}}
+  else if(k==='zone')ghost={type:tool,list:anchor?zoneRange(anchor,t):[[t[0]-1,t[1]-1]]};
+  else if(k==='line'){const path=linePath(anchor||t,t).filter(([x,y])=>inb(x,y));const{ok}=lineCost(tool,path);preview={type:'line',path,ok}}
+  else if(k==='rect'){const a=anchor||t;preview={type:'rect',r:[Math.min(a[0],t[0]),Math.min(a[1],t[1]),Math.max(a[0],t[0]),Math.max(a[1],t[1])]}}
+  showConfirm()}
+function setTool(t){tool=t;anchor=null;document.querySelectorAll('.card').forEach(b=>b.classList.toggle('sel',b.dataset.t===t));inspectSel=null;$('#info').hidden=true;
+  $('#pad').hidden=t==='inspect'||mouseMode;ghost=null;preview=null;setTimeout(()=>{resize();refreshBuild(true)},0);showConfirm()}
+function hintText(){const T_=TOOLS[tool],k=T_.kind;const c=T_.cost?` <span class="c">$${fmt(costOf(tool))}</span>`:'';
+  if(mouseMode){if(k==='bld')return`${T_.name}${c}<br>クリックで建てる`;if(k==='line')return anchor?`${T_.name}${c}<br>終点をクリックで建てる（Escでやめる）`:`${T_.name}${c}<br>始点をクリック`;
+    if(k==='zone')return anchor?`${T_.name}<br>反対の角をクリックで建てる`:`${T_.name}${c}<br>クリックで角を決める（同じ場所でもう一度クリックすると1区画）`;
+    if(k==='rect')return anchor?`解体<br>反対の角をクリックでこわす`:`解体 $1/マス<br>クリックで角を決める`}
+  if(k==='bld')return`${T_.name}${c}<br>地図を動かして十字に合わせる`;
+  if(k==='line')return anchor?`${T_.name}${c}<br>十字を終点まで動かす`:`${T_.name}${c}<br>十字を始点に合わせる`;
+  if(k==='zone')return anchor?`${T_.name}<br>十字まで区画が広がる`:`${T_.name}${c}<br>十字の位置に1区画`;
+  if(k==='rect')return anchor?`解体<br>十字まで範囲が広がる`:`解体 $1/マス<br>十字の位置をこわす`;
+  return T_.name}
+function pendInfo(){const k=TOOLS[tool].kind;
+  if(k==='bld'||k==='zone'){if(!ghost)return null;const n=ghost.list.filter(([x,y])=>canPlace(ghost.type,x,y)).length;return{n,cost:n*costOf(tool),verb:k==='zone'&&n>1?`${n}区画 建てる`:'建てる',bad:'置けない場所'}}
+  if(k==='line'){if(!anchor||!preview)return null;const{cost}=lineCost(tool,preview.path);return{n:cost>0,cost,verb:'建てる',bad:'置けない'}}
+  if(k==='rect'){const{cost}=bulldozeInfo(anchor||rt,rt);return{n:cost>0,cost,verb:'こわす',bad:'何もない'}}
+  return null}
+function showConfirm(){const on=tool!=='inspect';$('#hint').hidden=!on;if(!on){setTimeout(resize,0);return}
+  $('#hintT').innerHTML=hintText();const k=TOOLS[tool].kind;
+  const ab=$('#anchorBtn');ab.hidden=!!anchor||k==='bld';ab.textContent=k==='line'?'ここを始点に':'範囲で';
+  const inf=pendInfo();const ok=$('#okBtn');
+  if(!inf){ok.hidden=true}else{ok.hidden=false;$('#okT').textContent=inf.n?`${inf.verb} $${fmt(inf.cost)}`:inf.bad;ok.classList.toggle('dis',!inf.n||inf.cost>S.funds)}
+  $('#hintX').setAttribute('aria-label',anchor?'範囲をやめる':'道具をしまう')}
+function setHint(){showConfirm()}
+function cancelPending(){anchor=null;refreshBuild(true)}
+$('#anchorBtn').onclick=()=>{const k=TOOLS[tool].kind;anchor=k==='zone'?[rt[0]-1,rt[1]-1]:rt.slice();sfx('tick');refreshBuild(true)};
+$('#okBtn').onclick=()=>{const k=TOOLS[tool].kind;
+  if(k==='bld'){if(!ghost||!commitZones(ghost.type,ghost.list))return;if(DEFS[tool].gift){buildTray();updateGiftBadge();if(!S.giftStock[tool]){pickCat('view');return}}}
+  else if(k==='zone'){if(!ghost||!commitZones(tool,ghost.list))return;anchor=null}
+  else if(k==='line'){if(!anchor||!preview||!commitLine(tool,preview.path))return;anchor=null}
+  else if(k==='rect'){if(!bulldozeRect(anchor||rt,rt))return;anchor=null}
+  refreshBuild(true)};
+$('#hintX').onclick=()=>{sfx('tick');if(anchor){anchor=null;refreshBuild(true);return}pickCat('view')};
+$('#undo').onclick=()=>{doUndo(false);refreshBuild(true)};$('#undo1').onclick=()=>{doUndo(true);refreshBuild(true)};
+function refreshUndo(){const r=undoStack[undoStack.length-1];$('#undo').hidden=!r;$('#undo1').hidden=!(r&&r.items.length>1&&r.items[0][0]==='n')}
+function nudge(dx,dy){camAnim=null;cam.x+=dx*T;cam.y+=dy*T;clampCam();sfx('tick',.5)}
+document.querySelectorAll('#pad button').forEach(b=>{const[dx,dy]=b.dataset.d.split(',').map(Number);let rep=null;
+  const stop=()=>{clearTimeout(rep);clearInterval(rep);rep=null};
+  b.addEventListener('pointerdown',e=>{e.preventDefault();nudge(dx,dy);stop();rep=setTimeout(()=>{rep=setInterval(()=>nudge(dx,dy),90)},350)});
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>b.addEventListener(ev,stop))});
+
+let inspectSel=null;
+function inspect(x,y){if(!inb(x,y))return;const i=y*W+x;const id=S.bid[i];const ci=cellOf(x,y);const lvl=v=>v<50?'低い':v<120?'ふつう':'高い';let h='',kv=[];
+  if(id){const b=S.bld[id],d=DEFS[b.type];inspectSel=[b.x,b.y,d.s,d.s];h=d.name;
+    if(d.zone){kv.push(['発展度',b.lvl?`レベル ${b.lvl}`:'更地']);kv.push([b.type==='R'?'住人':'働く人',fmt(ZPOP[b.type][b.lvl])+'人']);kv.push(['電力',b.pw?'あり':'<span style="color:var(--bad)">なし</span>']);
+      const cs=b.comps||[];kv.push(['道路',cs.length?'つながっている':'<span style="color:var(--bad)">なし</span>'])}
+    else if(d.cap){kv.push(['供給',`${fmt(S.powerUsed||0)} / ${fmt(S.powerCap||0)} (街全体)`])}
+    else kv.push(['電力',b.pw||b.type==='park'?'あり':'<span style="color:var(--bad)">なし</span>']);
+    if(d.d)kv.push(['効果',d.d]);
+  }else{inspectSel=[x,y,1,1];const n=S.net[i];h=n&ROAD?'道路':n&RAIL?'線路':n&PWR?'送電線':S.terr[i]===1?'水辺':S.terr[i]===2?'森':S.rub[i]?'がれき':'空き地';if(S.rad[i])h+='（放射能）';if(n&ROAD)kv.push(['交通量',traffic[i]<60?'すいている':traffic[i]<160?'ふつう':'<span style="color:var(--bad)">渋滞</span>'])}
+  kv.push(['地価',lvl(pmap.lv[ci])]);kv.push(['公害',lvl(pmap.poll[ci])]);kv.push(['犯罪',lvl(pmap.crime[ci])]);
+  $('#info').innerHTML=`<h4>${h}</h4><div class="kv">${kv.map(([a,b])=>`<span>${a}</span><span>${b}</span>`).join('')}</div>`;$('#info').hidden=false;sfx('tick')}
+
+/* ================= input ================= */
+// One finger pans the map (in build mode this moves the spot under the crosshair). Tap = inspect, or in build mode bring that spot to the crosshair. Two fingers zoom.
+const ptrs=new Map();let gest=null,act=null,blockUntilUp=false;
+let cvR={left:0,top:0};
+function EX(e){return e.clientX-cvR.left}function EY(e){return e.clientY-cvR.top}
+cv.addEventListener('pointerdown',e=>{if(!S||titleOn)return;setMouseMode(e.pointerType==='mouse');if(e.pointerType==='mouse')hoverS=[EX(e),EY(e)];cv.setPointerCapture(e.pointerId);const x=EX(e),y=EY(e);ptrs.set(e.pointerId,{x,y});audioInit();camAnim=null;
+  if(ptrs.size===2){act=null;const[a,b]=[...ptrs.values()];gest={d:Math.hypot(a.x-b.x,a.y-b.y),mx:(a.x+b.x)/2,my:(a.y+b.y)/2,z:cam.z,cx:cam.x,cy:cam.y};blockUntilUp=true;return}
+  if(ptrs.size>2||blockUntilUp)return;
+  act={x,y,cx:cam.x,cy:cam.y,moved:e.pointerType==='mouse'&&e.button!==0}});
+cv.addEventListener('pointermove',e=>{if(e.pointerType==='mouse'){setMouseMode(true);if(!act||!act.moved)hoverS=[EX(e),EY(e)]}if(!ptrs.has(e.pointerId))return;const x=EX(e),y=EY(e);ptrs.set(e.pointerId,{x,y});
+  if(gest&&ptrs.size>=2){const[a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;const nz=clamp(gest.z*d/gest.d,.5,5);
+    const wx=gest.cx+gest.mx/gest.z,wy=gest.cy+gest.my/gest.z;cam.z=nz;cam.x=wx-mx/nz;cam.y=wy-my/nz;clampCam();return}
+  if(!act)return;if(Math.abs(x-act.x)+Math.abs(y-act.y)>7)act.moved=true;if(!act.moved)return;
+  cam.x=act.cx-(x-act.x)/cam.z;cam.y=act.cy-(y-act.y)/cam.z;clampCam()});
+function tapAt(x,y){const t=s2t(x,y);
+  if(tool==='inspect'){inspect(t[0],t[1]);return}
+  if(mouseMode){hoverS=[x,y];refreshBuild(true);const k=TOOLS[tool].kind;
+    if(k==='bld'||anchor){if(!$('#okBtn').hidden)$('#okBtn').click();else sfx('err')}
+    else $('#anchorBtn').click();return}
+  const[wx,wy]=[(t[0]+.5)*T,(t[1]+.5)*T];camAnim={x:wx-retS[0]/cam.z,y:wy-retS[1]/cam.z};sfx('tick')}
+function endPtr(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
+  if(gest){if(ptrs.size<2)gest=null;if(!ptrs.size)blockUntilUp=false;return}
+  if(!ptrs.size)blockUntilUp=false;
+  const a=act;act=null;if(!a||e.type==='pointercancel')return;if(!a.moved){const r=bubbleHit(EX(e),EY(e));if(r){openReq(r);return}tapAt(EX(e),EY(e))}}
+cv.addEventListener('pointerup',endPtr);cv.addEventListener('pointercancel',endPtr);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',e=>{e.preventDefault();camAnim=null;const f=Math.exp(-e.deltaY*.0015);const nz=clamp(cam.z*f,.5,5);const ex=EX(e),ey=EY(e);const wx=cam.x+ex/cam.z,wy=cam.y+ey/cam.z;cam.z=nz;cam.x=wx-ex/nz;cam.y=wy-ey/nz;clampCam()},{passive:false});
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('keydown',e=>{if(!S||titleOn||modalOpen)return;if(e.target.tagName==='INPUT')return;
+  const ar={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(ar){e.preventDefault();nudge(ar[0],ar[1]);return}
+  if(e.key===' '){e.preventDefault();setSpeed(S.speed?0:1)}if(e.key==='Escape')$('#hintX').click();if(e.key==='Enter'&&!$('#okBtn').hidden)$('#okBtn').click();if((e.ctrlKey||e.metaKey)&&e.key==='z')doUndo(false)});
+
+/* ================= HUD / speed ================= */
+let speed=1;
+function setSpeed(s,silent){speed=s;S.speed=s;document.querySelectorAll('#speed button').forEach(b=>b.classList.toggle('on',+b.dataset.sp===s));if(!silent)sfx('tick')}
+document.querySelectorAll('#speed button').forEach(b=>b.onclick=()=>setSpeed(+b.dataset.sp));
+function drawRCI(){const c=$('#rciC'),g=c.getContext('2d');g.clearRect(0,0,42,38);const mid=16;R(g,0,mid,42,1,'#aeb8f2');
+  [['R',S.valR,'#4fd05a'],['C',S.valC,'#4f8ff8'],['I',S.valI,'#f2c62c']].forEach(([l,v,col],k)=>{const x=4+k*13;const h=Math.round(clamp(v,-1,1)*14);if(h>0){R(g,x,mid-h,9,h,col);R(g,x,mid-h,9,1,sh(col,1.4))}else if(h<0){R(g,x,mid+1,9,-h,sh(col,.55))}glyph(g,l,x+(l==='I'?3:2),31,col);});}
+function updHUD(){reqCheck();updGoals();updRank();$('#cityName').firstChild.nodeValue=S.name;$('#cls').textContent=CLASSES[S.cls][1];$('#date').textContent=`${S.year}年 ${S.month+1}月`;const f=$('#funds');f.textContent='$'+fmt(S.funds);f.classList.toggle('neg',S.funds<500);$('#pop').textContent=fmt(S.pop);drawRCI();
+  document.querySelectorAll('.card').forEach(b=>b.classList.toggle('no',TOOLS[b.dataset.t]&&costOf(b.dataset.t)>S.funds));if(ghost)showConfirm()}
+
+/* ================= advisor ================= */
+const advQ=[];let advTimer=0;
+function advise(t,urgent){if(urgent)advQ.unshift(t);else advQ.push(t);if(advQ.length>4)advQ.length=4}
+function advTick(dt){if(advTimer>0){advTimer-=dt;if(advTimer<=0)$('#adv').classList.remove('show');return}if(advQ.length&&!titleOn){$('#advT').textContent=advQ.shift();$('#adv').classList.add('show');advTimer=5.5;sfx('msg')}}
+$('#adv').onclick=()=>{advTimer=.01};
+
+/* ================= modals ================= */
+const modalQ=[];
+function showModal(html,onClose,onShow){if(modalOpen&&html){modalQ.push([html,onClose,onShow]);return}const w=$('#modalWrap'),m=$('#modal');m.innerHTML=html;w.hidden=false;modalOpen=true;modalClose=onClose||null;m.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal);if(onShow)onShow();const f=m.querySelector('button');if(f)f.focus({preventScroll:true})}
+let modalOpen=false,modalClose=null;
+function closeModal(){$('#modalWrap').hidden=true;modalOpen=false;const c=modalClose;modalClose=null;if(c)c();sfx('tick');if(modalQ.length){const[h,o,f]=modalQ.shift();setTimeout(()=>showModal(h,o,f),120)}}
+$('#modalWrap').addEventListener('pointerdown',e=>{if(e.target.id==='modalWrap'&&!budgetLock)closeModal()});
+function giftModal(k,why){const d=DEFS[k];showModal(`<h3>プレゼントが届きました！</h3><div style="display:flex;gap:12px;align-items:center"><img class="px" src="${ICON[k]}" style="width:96px;height:96px;flex:none" alt=""><div><p style="color:var(--gold);font-size:16px;margin:0 0 4px">${d.name}</p><p>${why}。</p><p style="color:var(--sub)">${d.d}。「特別」から $100 で建てられます。</p></div></div><div class="btns"><button class="bt" data-close>あとで</button><button class="bt gold" id="gGo">建てに行く</button></div>`,null,()=>{$('#gGo').onclick=()=>{closeModal();if(!S.giftStock[k])return;curCat='';pickCat('gift');setTool(k)}});updateGiftBadge();if(curCat==='gift')buildTray();sfx('fanfare')}
+let budgetLock=false;
+function openBudget(yearEnd){budgetLock=!!yearEnd;const bank=cnt('bank')>0;
+  const draw=()=>{const b=budgetCalc();const yr=yearEnd?`${S.year-1}年度の決算`:`${S.year}年度の見込み`;
+    $('#modal').innerHTML=`<h3>${yr}</h3>
+    <table class="tbl"><tr><td>税収</td><td>+$${fmt(b.tax)}</td></tr>${b.casino?`<tr><td>名所・補助金などの収入</td><td>+$${fmt(b.casino)}</td></tr>`:''}
+    <tr><td>道路・線路の維持費</td><td>−$${fmt(b.road)}</td></tr><tr><td>警察費</td><td>−$${fmt(b.pol)}</td></tr><tr><td>消防費</td><td>−$${fmt(b.fir)}</td></tr>${b.loan?`<tr><td>融資の返済（残り${S.loan}年）</td><td>−$${fmt(b.loan)}</td></tr>`:''}
+    <tr class="sum"><td>収支</td><td>${b.total>=0?'+':'−'}$${fmt(Math.abs(b.total))}</td></tr><tr><td>現在の資金</td><td>$${fmt(S.funds)}</td></tr></table>
+    <div class="ctl"><label for="tx">税率</label><button id="txm">−</button><span class="v" id="tx">${S.tax}%</span><button id="txp">＋</button></div>
+    ${[['road','道路の予算'],['police','警察の予算'],['fire','消防の予算']].map(([k,n])=>`<div class="ctl"><label>${n}</label><button data-f="${k}" data-d="-10">−</button><span class="v">${S.fund[k]}%</span><button data-f="${k}" data-d="10">＋</button></div>`).join('')}
+    <p style="color:var(--sub);font-size:12px">税率が7%を超えると人が集まりにくくなります。予算を削ると道路が傷み、治安や防火が弱まります。</p>
+    ${bank&&!S.loan?`<div class="btns"><button class="bt sm" id="loanBtn">銀行から $10,000 借りる（年$1,000×12年返済）</button></div>`:''}
+    <div class="btns"><button class="bt gold" id="bOk">${yearEnd?'決定して次の年へ':'閉じる'}</button></div>`;
+    $("#txm").onclick=()=>{S.tax=clamp(S.tax-1,0,20);draw();sfx('tick')};$("#txp").onclick=()=>{S.tax=clamp(S.tax+1,0,20);draw();sfx('tick')};
+    $('#modal').querySelectorAll('[data-f]').forEach(btn=>btn.onclick=()=>{const k=btn.dataset.f;S.fund[k]=clamp(S.fund[k]+(+btn.dataset.d),0,100);draw();sfx('tick')});
+    const lb=$('#loanBtn');if(lb)lb.onclick=()=>{S.funds+=10000;S.loan=12+(yearEnd?1:0);draw();sfx('coin')};
+    $('#bOk').onclick=()=>{if(yearEnd){applyBudget(budgetCalc());sfx('coin');setSpeed(S.prevSpeed||1,true)}budgetLock=false;closeModal()}};
+  showModal('',null);draw()}
+$('#bBudget').onclick=()=>openBudget(false);
+$('#bEval').onclick=()=>{const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;const crime=avg(pmap.crime),poll=avg(pmap.poll);let tr=0,rn=0;for(let i=0;i<N;i++)if(S.net[i]&ROAD){tr+=traffic[i];rn++}tr=rn?tr/rn:0;
+  const unemp=clamp((S.Rp-(S.Cp+S.Ip)*1.4)/Math.max(1,S.Rp),0,1),housing=clamp(S.valR,0,1),taxP=clamp((S.tax-6)/8,0,1);const fireP=S.pop>3000&&!cnt('fire')?1:clamp(1-avg(pmap.fir)/60,0,1)*(S.pop>3000?.6:0);
+  const probs=[['犯罪',clamp(crime/90,0,1)],['公害',clamp(poll/90,0,1)],['住宅不足',housing*.8],['税金',taxP],['交通渋滞',clamp(tr/140,0,1)],['失業',unemp],['火事の心配',fireP]].sort((a,b)=>b[1]-a[1]);
+  const appr=Math.round(clamp(92-probs.reduce((a,p)=>a+p[1]*14,0)+(S.popGrowth>0?6:0),5,99));
+  showModal(`<h3>市政の評価</h3><div class="grid2"><div class="win" style="padding:8px"><small style="color:var(--sub)">市長の支持率</small><div style="font-size:28px;color:var(--gold)" class="num">${appr}%</div></div><div class="win" style="padding:8px"><small style="color:var(--sub)">都市の規模</small><div style="font-size:22px">${CLASSES[S.cls][1]}</div><small class="num">人口 ${fmt(S.pop)}・前年比 ${S.popGrowth>=0?'+':''}${fmt(S.popGrowth||0)}</small></div></div>
+  <p style="margin-top:12px">市民が困っていること</p>${probs.slice(0,5).map(([n,v])=>`<div style="display:flex;align-items:center;gap:8px;margin:5px 0"><span style="width:86px;font-size:13px">${n}</span><div class="bar" style="flex:1"><i style="width:${Math.round(v*100)}%"></i></div></div>`).join('')}
+  <table class="tbl" style="margin-top:10px"><tr><td>住人</td><td>${fmt(S.Rp)}人</td></tr><tr><td>商業で働く人</td><td>${fmt(S.Cp)}人</td></tr><tr><td>工業で働く人</td><td>${fmt(S.Ip)}人</td></tr><tr><td>電力</td><td>${fmt(S.powerUsed||0)} / ${fmt(S.powerCap||0)}</td></tr></table>
+  <div class="btns"><button class="bt gold" data-close>閉じる</button></div>`)};
+$('#bMap').onclick=()=>{
+  const L=[['none','ふつう'],['power','電力'],['traffic','交通'],['poll','公害'],['crime','犯罪'],['lv','地価'],['police','警察'],['firecov','消防']];
+  const draw=()=>{$('#modal').innerHTML=`<h3>マップ</h3><canvas id="mini" width="${W*3}" height="${H*3}" class="px"></canvas><p style="text-align:center;color:var(--sub);font-size:12px;margin:0 0 8px">タップした場所へ移動</p><div class="lay">${L.map(([k,n])=>`<button data-l="${k}" class="${overlay===k?'on':''}">${n}</button>`).join('')}</div>
+    <div class="legend"><span>${overlay==='lv'?'高い':overlay==='police'||overlay==='firecov'?'守られている':'少ない'}</span><span class="ramp" style="background:linear-gradient(90deg,rgb(80,220,60),rgb(255,220,60),rgb(255,20,60))"></span><span>${overlay==='lv'?'低い':overlay==='police'||overlay==='firecov'?'手うす':'多い'}</span></div><div class="btns"><button class="bt gold" data-close>閉じる</button></div>`;
+    const mc=$('#mini'),g=mc.getContext('2d');g.imageSmoothingEnabled=false;if(minimapDirty)drawMini();g.drawImage(mmc,0,0,W*3,H*3);
+    if(overlay!=='none'&&overlay!=='power'&&overlay!=='traffic'){const a={poll:pmap.poll,crime:pmap.crime,lv:pmap.lv,police:pmap.pol,firecov:pmap.fir}[overlay];const dv={poll:180,crime:160,lv:220,police:200,firecov:200}[overlay];for(let i=0;i<CW*CH;i++){let v=a[i]/dv;if(overlay==='lv'||overlay==='police'||overlay==='firecov')v=1-v;g.fillStyle=heat(v);g.fillRect((i%CW)*CS*3,((i/CW)|0)*CS*3,CS*3,CS*3)}}
+    g.strokeStyle='#ffffff';g.lineWidth=2;g.strokeRect(cam.x/T*3,cam.y/T*3,VW/cam.z/T*3,VH/cam.z/T*3);
+    mc.onpointerdown=e=>{const r=mc.getBoundingClientRect();focusOn([(e.clientX-r.left)/r.width*W,(e.clientY-r.top)/r.height*H]);draw()};
+    $('#modal').querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{overlay=b.dataset.l;$('#bMap').classList.toggle('on',overlay!=='none');draw();sfx('tick')});
+    $('#modal').querySelector('[data-close]').onclick=closeModal};
+  showModal('');draw()};
+$('#bMenu').onclick=()=>{const draw=()=>{$('#modal').innerHTML=`<h3>メニュー</h3>
+  <div class="toggle"><span>年末に予算画面を出さない</span><button id="tAuto" class="${S.autoBudget?'on':''}">${S.autoBudget?'オン':'オフ'}</button></div>
+  <div class="toggle"><span>災害を自動で起こす</span><button id="tDis" class="${S.disasters?'on':''}">${S.disasters?'オン':'オフ'}</button></div>
+  <div class="toggle"><span>効果音</span><button id="tSnd" class="${S.sound?'on':''}">${S.sound?'オン':'オフ'}</button></div>
+  <p style="margin-top:12px;color:var(--sub);font-size:12px">災害を起こす</p>
+  <div class="lay">${[['fire','火事'],['flood','洪水'],['tornado','竜巻'],['quake','地震'],['plane','飛行機'],['melt','原発']].map(([k,n])=>`<button data-dz="${k}">${n}</button>`).join('')}</div>
+  <div class="btns"><button class="bt" id="mSave">保存する</button><button class="bt" id="mHelp">遊び方</button></div>
+  <div class="btns" style="margin-top:8px"><button class="bt red" id="mNew">タイトルへ</button><button class="bt gold" data-close>閉じる</button></div>`;
+  $('#tAuto').onclick=()=>{S.autoBudget=!S.autoBudget;draw()};$('#tDis').onclick=()=>{S.disasters=!S.disasters;draw()};$('#tSnd').onclick=()=>{S.sound=!S.sound;draw()};
+  $('#modal').querySelectorAll('[data-dz]').forEach(b=>b.onclick=()=>{closeModal();disaster(b.dataset.dz)});
+  $('#mSave').onclick=()=>{const ok=save();$('#mSave').textContent=ok?'保存しました':'この環境では保存できません'};
+  $('#mHelp').onclick=help;$('#mNew').onclick=()=>{save(true);closeModal();showTitle()};$('#modal').querySelector('[data-close]').onclick=closeModal};showModal('');draw()};
+function help(){showModal(`<h3>遊び方</h3>
+  <p><b style="color:var(--gold)">1. 電気をつくる</b><br>「電力」から発電所を建て、送電線で区画までつなぎます。区画どうしは隣り合えば電気が伝わります。</p>
+  <p><b style="color:var(--gold)">2. 道路と区画</b><br>道路をひき、そのまわりに住宅地（緑）・商業地（青）・工業地（黄）を置きます。住む人と働く場所が道路でつながると街が育ちます。</p>
+  <p><b style="color:var(--gold)">3. 需要メーター</b><br>上のR・C・Iのバーが伸びている区画ほど求められています。</p>
+  <p><b style="color:var(--gold)">4. 年末は予算</b><br>税率と警察・消防・道路の予算を決めます。</p>
+  <p><b style="color:var(--gold)">5. プレゼント</b><br>人口などの節目に記念の建物が届きます。人口50万人のメガロポリスを目指しましょう。</p>
+  <p style="color:var(--sub)">操作：道具を選ぶと画面中央に十字が出ます。1本指で地図を動かすか、場所をタップ、または十字キーで位置を合わせて「建てる」。道路は「ここを始点に」→終点まで動かす→「建てる」。区画をまとめて置くときは「範囲で」。2本指でズーム。建物の上に吹き出しが出たらタップして住民のお願いを確認。組み合わせで生まれる名所は「図鑑」に集まります。お願いをかなえたり名所を見つけると市長レベルが上がり、新しい建物が解放され、政策をひとつ選べます。</p>
+  <div class="btns"><button class="bt gold" data-close>わかった</button></div>`)}
+
+/* ================= sound ================= */
+let AC=null;function audioInit(){if(AC||!window.AudioContext&&!window.webkitAudioContext)return;try{AC=new(window.AudioContext||window.webkitAudioContext)()}catch(e){AC=null}}
+function tone(f,d,type='square',v=.05,when=0,slide){if(!AC)return;const t=AC.currentTime+when;const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(slide)o.frequency.exponentialRampToValueAtTime(slide,t+d);g.gain.setValueAtTime(v,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+d+.02)}
+function sfx(k,vol=1){if(!AC||!S||!S.sound)return;const v=.05*vol;
+  if(k==='tick')tone(1200,.03,'square',v*.6);if(k==='place'){tone(660,.06,'square',v);tone(990,.08,'square',v,.05)}if(k==='err')tone(180,.18,'square',v,0,120);
+  if(k==='boom')tone(140,.4,'sawtooth',v*1.4,0,40);if(k==='undo')tone(700,.08,'triangle',v,0,350);if(k==='msg'){tone(880,.05,'square',v*.7);tone(1320,.06,'square',v*.7,.06)}
+  if(k==='coin'){tone(988,.07,'square',v);tone(1319,.18,'square',v,.07)}if(k==='fanfare'){[523,659,784,1047].forEach((f,i)=>tone(f,.14,'square',v,i*.11));tone(1047,.4,'triangle',v,.44)}}
+
+/* ================= save / load ================= */
+const KEY='hakoniwa-mayor-v1';
+function b64(a){const u=new Uint8Array(a.buffer);let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)}
+function unb64(s,Ctor){const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Ctor(u.buffer)}
+function serialize(){const o={};for(const k in S){const v=S[k];if(v instanceof Uint8Array)o[k]={u8:b64(v)};else if(v instanceof Int32Array)o[k]={i32:b64(v)};else o[k]=v}
+  o.bld={};for(const id in S.bld){const b=S.bld[id];o.bld[id]={id:b.id,type:b.type,x:b.x,y:b.y,lvl:b.lvl,cls:b.cls,seed:b.seed}}return JSON.stringify(o)}
+function deserialize(str){const o=JSON.parse(str);for(const k in o){const v=o[k];if(v&&v.u8)o[k]=unb64(v.u8,Uint8Array);else if(v&&v.i32)o[k]=unb64(v.i32,Int32Array)}return o}
+function save(silent){if(!S)return false;try{localStorage.setItem(KEY,serialize());if(!silent)advise('街を保存しました。');return true}catch(e){return false}}
+function loadSaved(){try{const s=localStorage.getItem(KEY);return s?deserialize(s):null}catch(e){return null}}
+
+
+/* ================= goals: missions & challenges ================= */
+function starStr(n){return'★'.repeat(n)+'☆'.repeat(3-n)}
+function updGoals(){updReqPill();
+  updQuestPill()}
+
+/* ================= citizens' requests & combo discoveries ================= */
+let comboBoot=false;
+function bc(b){const s=DEFS[b.type].s;return[b.x+s/2,b.y+s/2]}
+function near(b,type,r){const c=bc(b);let n=0;for(const k in S.bld){const o=S.bld[k];if(o===b||o.type!==type)continue;const q=bc(o);if(Math.hypot(q[0]-c[0],q[1]-c[1])<=r)n++}return n}
+function cellv(a,b){const c=bc(b);return a[cellOf(Math.min(W-1,c[0]|0),Math.min(H-1,c[1]|0))]}
+function zoneCong(b){if(!b.per||!b.per.length)return 0;let c=0;for(const i of b.per)c+=traffic[i];return c/b.per.length/255}
+const REQS={
+  power:{ic:'bolt',msg:'電気が来なくて困ってます！',hint:'送電線で発電所とこの建物をつなぐ',ok:b=>b.pw,need:b=>!b.pw,for:'RCI'},
+  park:{ic:'tree',msg:'近くに公園がほしいな。',hint:'この建物から5マス以内に公園（「公共」）を置く',ok:b=>near(b,'park',5)+near(b,'park2',6)>0,for:'RC'},
+  shop:{ic:'bag',msg:'買い物できるお店が近くにほしい。',hint:'8マス以内に商業地を置く',ok:b=>near(b,'C',8)>0,for:'R'},
+  workers:{ic:'house',msg:'働き手が足りない！近くに住宅を。',hint:'8マス以内に住宅地を2つ',ok:b=>near(b,'R',8)>=2,for:'CI'},
+  police:{ic:'badge',msg:'夜道がこわいの。警察署を近くに！',hint:'近くに警察署を建てる（電気も必要）。来月には効果が出ます',ok:b=>cellv(pmap.pol,b)>40,need:b=>cellv(pmap.pol,b)<20&&S.pop>600,for:'RC'},
+  fire:{ic:'flame',msg:'火事が心配です。消防署がほしい。',hint:'近くに消防署を建てる（電気も必要）。来月には効果が出ます',ok:b=>cellv(pmap.fir,b)>40,need:b=>cellv(pmap.fir,b)<20&&S.pop>900,for:'RCI'},
+  rail:{ic:'train',msg:'通勤が大変…線路を引いてほしい！',hint:'この区画のすぐとなりに線路を通す',ok:b=>!!b.rail,need:b=>b.lvl>=2&&!b.rail&&S.pop>1500,for:'RCI'},
+  jam:{ic:'car',msg:'渋滞でお客さんが来ない！',hint:'まわりの道路を増やすか、線路を通す',ok:b=>zoneCong(b)<.45||b.rail,need:b=>zoneCong(b)>.62,for:'CI'},
+  smog:{ic:'smog',msg:'空気が悪くて、せきが出る…',hint:'近くの工業地を減らすか、公園を増やす。来月には効果が出ます',ok:b=>cellv(pmap.poll,b)<45,need:b=>cellv(pmap.poll,b)>75,for:'R'},
+  stadium:{ic:'ball',msg:'試合を観に行きたい！',hint:'街のどこかにスタジアムを建てる',ok:()=>cnt('stadium')>0,need:()=>S.pop>6000&&!cnt('stadium'),for:'R'},
+};
+const NAMES={R:['ハナコ','タロウ','ユキ','ケンジ','ミドリ','ソウタ','アヤ','ゴロウ','サクラ','リク','モモ','ハルト','チヨ','マサル'],C:['八百屋のサブロー','パン屋のミカ','本屋のシゲル','花屋のエミ','喫茶店のマスター','床屋のトオル'],I:['工場長のイワオ','職人のテツ','運送屋のダイキ','鉄工所のヨシエ']};
+const nowM=()=>S.year*12+S.month;
+function reqMonthly(){if(!S.reqs)return;const now=nowM();
+  for(const r of S.reqs.slice()){const b=S.bld[r.bid];if(!b){S.reqs.splice(S.reqs.indexOf(r),1);continue}
+    if(now>=r.dl){S.reqs.splice(S.reqs.indexOf(r),1);if(b.lvl>0){b.lvl--;markRect(b.x,b.y,3,3)}S.sad=(S.sad||0)+1;fx.push({kind:'puff',x:bc(b)[0]*T,y:b.y*T,t:0});advise(`${r.name}さんはがっかりして、街を出て行ってしまいました…`)}}
+  const maxReq=(S.pop<300?1:S.pop<3000?2:3)+(PK('reqMore')?1:0);
+  if(S.reqs.length>=maxReq||rnd()>.32)return;
+  const cand=Object.values(S.bld).filter(b=>DEFS[b.type].zone&&b.lvl>=1&&!S.reqs.some(r=>r.bid===b.id));
+  for(let k=cand.length-1;k>0;k--){const j=rnd()*(k+1)|0;[cand[k],cand[j]]=[cand[j],cand[k]]}
+  for(const b of cand){const kinds=Object.keys(REQS).filter(k=>{const q=REQS[k];return q.for.includes(b.type)&&(q.need?q.need(b):!q.ok(b))&&!S.reqs.some(r=>r.kind===k&&k==='stadium')});
+    if(!kinds.length)continue;const kind=kinds[rnd()*kinds.length|0];const nm=NAMES[b.type][rnd()*NAMES[b.type].length|0];
+    const r={id:(rnd()*1e9)|0,bid:b.id,kind,name:nm,face:(rnd()*1e6)|0,dl:now+(kind==='stadium'?24:12)+(PK('reqTime')?6:0),rew:Math.round((150+b.lvl*120+(kind==='stadium'?800:0))*(PK('reqRew')?1.5:1)/50)*50};
+    S.reqs.push(r);advise(`${nm}さんからお願いが届きました。吹き出しをタップ！`);sfx('msg');return}
+}
+function reqCheck(){if(!S.reqs)return;for(const r of S.reqs.slice()){const b=S.bld[r.bid];if(!b)continue;if(!REQS[r.kind].ok(b))continue;
+  S.reqs.splice(S.reqs.indexOf(r),1);S.funds+=r.rew;S.thanks=(S.thanks||0)+1;b.happy=24;gainXP(14+b.lvl*3,c0(b));if(b.lvl<6){b.lvl++;markRect(b.x,b.y,3,3)}
+  const c=bc(b);for(let k=0;k<10;k++)fx.push({kind:'heart',x:c[0]*T+(rnd()-.5)*30,y:b.y*T+10+rnd()*20,t:-k*.06,vx:(rnd()-.5)*10});fx.push({kind:'text',x:c[0]*T,y:b.y*T,t:0,s:`+$${fmt(r.rew)}`});
+  advise(`${r.name}「ありがとう、市長さん！」 お礼 $${fmt(r.rew)}。建物が育ちました。`,1);sfx('fanfare')}}
+function reqLeft(r){return Math.max(0,r.dl-nowM())}
+function updReqPill(){const rs=(S.reqs||[]).slice().sort((a,b)=>a.dl-b.dl);if(!rs.length){$('#reqT').textContent=S.pop<50?'街が育つと届きます':'いまはありません';$('#reqP').textContent=''}else{const r=rs[0];$('#reqT').textContent=`${r.name}「${REQS[r.kind].msg.replace(/[。！…]+$/,'')}」`;$('#reqP').textContent=`${rs.length}件`}
+  $('#bookT').textContent=`${Object.keys(S.found||{}).length}/${COMBOS.length}`}
+const faceCache={};
+function faceURL(seed){if(faceCache[seed])return faceCache[seed];const r=mulberry(seed);const[c,g]=mk(24,24);
+  R(g,0,0,24,24,['#8cc8f8','#f8c8a8','#b8e8a8','#e8c8f8','#f8e8a0'][r()*5|0]);const skin=['#f8dcc0','#f0c49c','#dca478','#c08858'][r()*4|0],hair=['#2a2020','#5a3a20','#a06030','#e8c060','#707080','#c04030','#3a3a8a'][r()*7|0];
+  R(g,4,19,16,5,['#3a64b4','#c84a3a','#3a8a5a','#e8b030','#8a4ab0','#f0f0f0'][r()*6|0]);R(g,10,17,4,3,skin);ell(g,12,12,6,6,skin);
+  R(g,6,4,12,5,hair);R(g,5,6,2,6,hair);R(g,17,6,2,6,hair);if(r()<.45){R(g,5,10,2,9,hair);R(g,17,10,2,9,hair)}if(r()<.3)R(g,9,3,6,2,hair);
+  R(g,9,11,2,2,'#202020');R(g,13,11,2,2,'#202020');P(g,8,14,'#f8a0a0');P(g,15,14,'#f8a0a0');R(g,11,15,2,1,'#a04040');if(r()<.25){R(g,8,10,4,1,'#303030');R(g,12,10,4,1,'#303030')}
+  return faceCache[seed]=c.toDataURL()}
+function openReq(r){const b=S.bld[r.bid];if(!b)return;const q=REQS[r.kind];const left=reqLeft(r);focusOn(bc(b));
+  showModal(`<div style="display:flex;gap:12px;align-items:flex-start"><img class="px" src="${faceURL(r.face)}" style="width:72px;height:72px;flex:none;border:2px solid var(--rim);border-radius:4px" alt=""><div style="min-width:0"><p style="color:var(--gold);margin:0">${r.name}さん（${DEFS[b.type].name}）</p><p style="font-size:16px;margin:4px 0">「${q.msg}」</p></div></div>
+   <table class="tbl" style="margin-top:8px"><tr><td>期限</td><td>あと ${(left/12|0)?(left/12|0)+'年':''}${left%12}か月</td></tr><tr><td>お礼</td><td>$${fmt(r.rew)} ＋ 建物が1段階育つ</td></tr></table>
+   <p style="color:var(--sub);font-size:12px">どうすれば：${q.hint}</p><div class="btns"><button class="bt gold" data-close>まかせて！</button></div>`);sfx('tick')}
+$('#reqPill').onclick=()=>{const rs=(S.reqs||[]).slice().sort((a,b)=>a.dl-b.dl);if(rs.length){openReq(rs[0]);return}
+  showModal(`<h3>住民のお願い</h3><p>街が育つと、住民が建物の上の吹き出しでお願いをしてきます。期限内にかなえると、お礼のお金がもらえて建物が育ちます。</p><p style="color:var(--sub)">これまでにかなえたお願い：${S.thanks||0}件</p><div class="btns"><button class="bt gold" data-close>わかった</button></div>`)};
+const GIFTK=Object.keys(DEFS).filter(k=>DEFS[k].gift);
+const COMBOS=[
+ {id:'shoten',name:'商店街',anchor:['C'],r:5,need:{C:3},eff:'毎年 $100 の収入。お店が育ちやすい',hint:'お店は集まるとにぎわう…',inc:100,grow:1},
+ {id:'kansei',name:'閑静な住宅街',anchor:['R'],r:6,need:{R:4,park:2},no:{I:10},eff:'地価が大きく上がる',hint:'家と緑。工場は遠くに…',lv:35},
+ {id:'mizube',name:'水辺の住宅地',anchor:['R'],r:5,need:{R:2,park:1},water:1,eff:'地価が大きく上がる',hint:'水のそばで暮らしたい…',lv:40},
+ {id:'danchi',name:'工業団地',anchor:['I'],r:6,need:{I:4},rail:1,eff:'工場が育ちやすい',hint:'工場をまとめて、貨物は鉄道で…',grow:1},
+ {id:'ekimae',name:'駅前通り',anchor:['C'],r:6,need:{C:2,R:2},rail:1,eff:'毎年 $80 の収入。お店が育ちやすい',hint:'線路ぞいにお店と家…',inc:80,grow:1},
+ {id:'anshin',name:'安心タウン',anchor:['police'],r:7,need:{fire:1,R:3},eff:'犯罪と火事がぐっと減る',hint:'おまわりさんと消防士が住宅街に…'},
+ {id:'midori',name:'緑の回廊',anchor:['park'],r:4,need:{park:7},eff:'公害を吸収し地価も上がる',hint:'緑をたくさん集めると…',lv:25},
+ {id:'sports',name:'スポーツの街',anchor:['stadium'],r:9,need:{R:3,park:2},eff:'住宅が育ちやすい',hint:'スタジアムのまわりに…',grow:1},
+ {id:'kowan',name:'港湾工業地帯',anchor:['port'],r:9,need:{I:3},eff:'毎年 $200 の収入',hint:'港と工場の関係…',inc:200},
+ {id:'kuko',name:'空港ビジネス街',anchor:['airport'],r:11,need:{C:3},eff:'毎年 $300 の収入',hint:'空の玄関口に…',inc:300},
+ {id:'kombi',name:'発電コンビナート',anchor:['coal','nuclear'],r:9,need:{plant:2},eff:'発電量が2割増える',hint:'発電所どうしを…'},
+ {id:'meisho',name:'観光名所',anchor:GIFTK,r:6,need:{park:2,C:1},eff:'毎年 $150 の収入',hint:'記念の建物を公園とお店で囲むと…',inc:150},
+];
+const COMBO={};COMBOS.forEach(c=>COMBO[c.id]=c);
+function nearWater(b){const s=DEFS[b.type].s;for(let y=b.y-2;y<b.y+s+2;y++)for(let x=b.x-2;x<b.x+s+2;x++)if(inb(x,y)&&S.terr[y*W+x]===1)return true;return false}
+function detectCombos(announce){if(!S||!S.bld)return;const B=Object.values(S.bld);for(const b of B)b.cb=null;const inst=[];
+  for(const d of COMBOS){const used=new Set();
+    for(const a of B){if(!d.anchor.includes(a.type)||used.has(a.id))continue;if(d.water&&!nearWater(a))continue;const ac=bc(a);
+      const pool=B.filter(o=>!used.has(o.id)&&Math.hypot(bc(o)[0]-ac[0],bc(o)[1]-ac[1])<=d.r).sort((x,y)=>Math.hypot(bc(x)[0]-ac[0],bc(x)[1]-ac[1])-Math.hypot(bc(y)[0]-ac[0],bc(y)[1]-ac[1]));
+      if(d.no){let bad=false;for(const t in d.no)if(B.some(o=>o.type===t&&Math.hypot(bc(o)[0]-ac[0],bc(o)[1]-ac[1])<=d.no[t]))bad=true;if(bad)continue}
+      const mem=[a];let ok=true;
+      for(const t in d.need){let need=d.need[t];const match=o=>t==='plant'?(o.type==='coal'||o.type==='nuclear'):o.type===t;if(match(a))need--;
+        for(const o of pool){if(need<=0)break;if(o===a||mem.includes(o)||!match(o))continue;mem.push(o);need--}if(need>0){ok=false;break}}
+      if(!ok)continue;if(d.rail&&!mem.some(o=>o.rail))continue;
+      mem.forEach(o=>used.add(o.id));let cx=0,cy=0;mem.forEach(o=>{const q=bc(o);cx+=q[0];cy+=q[1];o.cb=(o.cb||[]).concat(d.id)});inst.push({id:d.id,cx:cx/mem.length,cy:cy/mem.length,n:mem.length})}}
+  S.combos=inst;
+  if(announce&&!comboBoot){S.comboMax=S.comboMax||{};const ct={};inst.forEach(c=>ct[c.id]=(ct[c.id]||0)+1);for(const id in ct){if(ct[id]>(S.comboMax[id]||0)){if(S.comboMax[id])gainXP(10*(ct[id]-S.comboMax[id]));S.comboMax[id]=ct[id]}}}
+  if(announce&&!comboBoot)for(const c of inst){if(S.found[c.id])continue;S.found[c.id]=S.year;gainXP(40,[c.cx,c.cy]);const d=COMBO[c.id];
+    fx.push({kind:'burst',x:c.cx*T,y:c.cy*T,t:0});
+    showModal(`<h3>新発見！「${d.name}」</h3><p style="font-size:15px">${d.eff}。</p><p style="color:var(--sub)">図鑑に登録しました（${Object.keys(S.found).length}/${COMBOS.length}）。同じ組み合わせを増やすほど効果も増えます。</p><div class="btns"><button class="bt gold" data-close>やった！</button></div>`);sfx('fanfare')}}
+$('#bookPill').onclick=()=>{const act={};(S.combos||[]).forEach(c=>act[c.id]=(act[c.id]||0)+1);
+  showModal(`<h3>まちづくり図鑑 ${Object.keys(S.found).length}/${COMBOS.length}</h3><p style="color:var(--sub);font-size:12px">建物の組み合わせで生まれる街の名所。見つけるとボーナスがつきます。</p><div class="mlist">${COMBOS.map(d=>S.found[d.id]?`<div class="c" style="flex-direction:column;align-items:flex-start;gap:2px"><span style="color:var(--gold)">★ ${d.name}${act[d.id]?` ×${act[d.id]}`:'（いまはなし）'}</span><span style="font-size:11px">${d.eff}</span></div>`:`<div style="flex-direction:column;align-items:flex-start;gap:2px"><span>？？？</span><span style="font-size:11px;color:var(--sub)">ヒント：${PK('scout')?recipe(d):d.hint}</span></div>`).join('')}</div><div class="btns"><button class="bt gold" data-close>閉じる</button></div>`)};
+/* fx */
+const fx=[];const REQIC={};
+function buildReqIcons(){const mkI=(f)=>{const[c,g]=mk(10,10);f(g);return c};
+  REQIC.bolt=mkI(g=>{['0001110','0011100','0111000','1111110','0001100','0011000','0110000'].forEach((r,y)=>{for(let x=0;x<7;x++)if(r[x]==='1')R(g,x+2,y+1,1,1,'#e8b800')})});
+  REQIC.tree=mkI(g=>{ell(g,5,4,3,3,'#3f9434');P(g,4,3,'#7ccd52');R(g,4,7,2,3,'#8a5a2c')});
+  REQIC.bag=mkI(g=>{R(g,2,4,6,5,'#e05050');R(g,3,2,1,2,'#803030');R(g,6,2,1,2,'#803030');R(g,3,2,4,1,'#803030')});
+  REQIC.house=mkI(g=>{R(g,1,4,8,1,'#c84030');R(g,2,3,6,1,'#c84030');R(g,3,2,4,1,'#c84030');R(g,2,5,6,4,'#e8dcc0');R(g,4,6,2,3,'#6a4428')});
+  REQIC.badge=mkI(g=>{R(g,2,1,6,7,'#3456b4');R(g,3,8,4,1,'#3456b4');R(g,4,3,2,3,'#f8d848')});
+  REQIC.flame=mkI(g=>{R(g,3,3,4,6,'#e83a20');R(g,4,1,2,2,'#e83a20');R(g,4,5,2,4,'#ffb020')});
+  REQIC.train=mkI(g=>{R(g,2,1,6,6,'#3aa060');R(g,3,2,4,2,'#c8e8ff');R(g,2,7,2,2,'#303030');R(g,6,7,2,2,'#303030')});
+  REQIC.car=mkI(g=>{R(g,1,4,8,3,'#e04848');R(g,3,2,4,2,'#e04848');R(g,4,2,2,2,'#c8e8ff');R(g,2,7,2,2,'#202020');R(g,6,7,2,2,'#202020')});
+  REQIC.smog=mkI(g=>{ell(g,4,5,3,2,'#8a8a94');ell(g,6,4,3,2,'#a8a8b0')});
+  REQIC.ball=mkI(g=>{ell(g,5,5,4,4,'#ffffff');R(g,4,4,2,2,'#202020');P(g,2,6,'#202020');P(g,7,6,'#202020')});
+}
+function bubblePos(r){const b=S.bld[r.bid];if(!b)return null;const s=DEFS[b.type].s;return[(b.x+s/2)*T,b.y*T+2+Math.sin(time*3+r.id)*1.5]}
+function bubbleHit(x,y){for(const r of S.reqs||[]){const p=bubblePos(r);if(!p)continue;const sx=(p[0]-cam.x)*cam.z,sy=(p[1]-10-cam.y)*cam.z;if(Math.hypot(sx-x,sy-y)<Math.max(22,12*cam.z))return r}return null}
+function drawWorldFx(dt){
+  // combo flags
+  for(const c of S.combos||[]){const x=Math.round(c.cx*T),y=Math.round(c.cy*T);ctx.fillStyle='#3a2a10';ctx.fillRect(x,y-14,1,14);ctx.fillStyle='#f8d848';ctx.fillRect(x+1,y-14,7,5);ctx.fillStyle='#c88a10';ctx.fillRect(x+1,y-10,7,1);ctx.fillStyle='#ffffff';ctx.fillRect(x+4,y-13,1,3);ctx.fillRect(x+3,y-12,3,1)}
+  // bubbles
+  for(const r of S.reqs||[]){const p=bubblePos(r);if(!p)continue;const x=Math.round(p[0]),y=Math.round(p[1]);const urgent=reqLeft(r)<=3&&((time*3)|0)%2;
+    ctx.fillStyle='#0b0f2e';ctx.fillRect(x-9,y-21,18,15);ctx.fillRect(x-2,y-6,4,3);ctx.fillStyle=urgent?'#ffd0c8':'#ffffff';ctx.fillRect(x-8,y-20,16,13);ctx.fillRect(x-1,y-7,2,2);
+    ctx.drawImage(REQIC[REQS[r.kind].ic],x-5,y-19)}
+  for(let k=fx.length-1;k>=0;k--){const f=fx[k];f.t+=dt;if(f.t<0)continue;
+    if(f.kind==='heart'){if(f.t>1.4){fx.splice(k,1);continue}const x=Math.round(f.x+f.vx*f.t),y=Math.round(f.y-f.t*30);ctx.globalAlpha=1-f.t/1.4;ctx.fillStyle='#ff5a8a';ctx.fillRect(x,y,2,2);ctx.fillRect(x+3,y,2,2);ctx.fillRect(x,y+1,5,2);ctx.fillRect(x+1,y+3,3,1);ctx.fillRect(x+2,y+4,1,1);ctx.globalAlpha=1}
+    else if(f.kind==='burst'){if(f.t>1.2){fx.splice(k,1);continue}for(let a=0;a<16;a++){const t=a/16*6.283,d=f.t*50;ctx.fillStyle=['#f8d848','#ffffff','#ff8a5a'][a%3];ctx.globalAlpha=1-f.t/1.2;ctx.fillRect(Math.round(f.x+Math.cos(t)*d),Math.round(f.y+Math.sin(t)*d),2,2)}ctx.globalAlpha=1}
+    else if(f.kind==='puff'){if(f.t>1.5){fx.splice(k,1);continue}ctx.globalAlpha=1-f.t/1.5;ctx.fillStyle='#606070';ctx.fillRect(Math.round(f.x-3),Math.round(f.y-12-f.t*16),7,5);ctx.globalAlpha=1}}
+}
+function drawScreenFx(){if(titleOn||!S)return;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.textAlign='center';ctx.textBaseline='middle';
+  if(cam.z>=1.5){ctx.font='11px DotGothic16, monospace';for(const c of S.combos||[]){const sx=(c.cx*T-cam.x)*cam.z,sy=(c.cy*T-cam.y)*cam.z+6;if(sx<-60||sy<-20||sx>VW+60||sy>VH+20)continue;const t='★'+COMBO[c.id].name;const w=ctx.measureText(t).width+10;ctx.fillStyle='rgba(11,15,46,.8)';ctx.fillRect(sx-w/2,sy,w,16);ctx.fillStyle='#f8d848';ctx.fillText(t,sx,sy+8)}}
+  ctx.font='14px DotGothic16, monospace';for(const f of fx){if(f.kind!=='text')continue;if(f.t>1.6){f.dead=1;continue}const sx=(f.x-cam.x)*cam.z,sy=(f.y-cam.y)*cam.z-f.t*30;ctx.globalAlpha=1-f.t/1.6;ctx.fillStyle='#0b0f2e';ctx.fillText(f.s,sx+1,sy+1);ctx.fillStyle='#f8d848';ctx.fillText(f.s,sx,sy);ctx.globalAlpha=1}
+  for(let k=fx.length-1;k>=0;k--)if(fx[k].dead)fx.splice(k,1);ctx.textAlign='start';ctx.textBaseline='alphabetic'}
+
+/* ================= mayor level & policy perks ================= */
+const UNLOCK={police:2,fire:2,rail:3,stadium:4,nuclear:4,port:5,airport:6};
+function xpFor(r){return r<=1?0:Math.round(20*(r-1)**1.5+12*(r-1))}
+function PK(k){return!!(S&&S.perks&&S.perks.includes(k))}
+function lockReason(t){if(S.rule&&S.rule.ban&&S.rule.ban.includes(t))return'禁止';const r=UNLOCK[t];return r&&S.rank<r?`Lv${r}`:''}
+function costOf(t){const T_=TOOLS[t];let c=T_.cost||0;if(T_.kind==='zone'&&PK('zoneDisc'))c*=.7;if(T_.bit&&PK('roadDisc'))c*=.7;return Math.round(c)}
+function lc(tool,water){const t=TOOLS[tool];return Math.round((water?t.water:t.cost)*(t.bit&&PK('roadDisc')?.7:1))}
+function c0(b){return bc(b)}
+const PERKS=[
+ {id:'reqRew',ic:'$',n:'感謝の気持ち',d:'住民のお願いのお礼が1.5倍'},
+ {id:'reqTime',ic:'⌛',n:'ていねいな対応',d:'お願いの期限が6か月のびる'},
+ {id:'reqMore',ic:'✉',n:'目安箱',d:'お願いが同時に1件多く届く（経験値もふえる）'},
+ {id:'roadDisc',ic:'━',n:'土木の達人',d:'道路・線路・送電線が30%安い'},
+ {id:'zoneDisc',ic:'▦',n:'区画整理',d:'区画が30%安い'},
+ {id:'ninki',ic:'♥',n:'人気市長',d:'住宅・商業・工業の需要がすべて上がる'},
+ {id:'grow',ic:'↑',n:'まちの勢い',d:'区画が育つスピードが上がる'},
+ {id:'dense',ic:'▲',n:'高層化許可',d:'地価が低くても1段階高く育つ'},
+ {id:'power',ic:'⚡',n:'送電効率化',d:'発電所の発電量が30%増える'},
+ {id:'safety',ic:'⛨',n:'防災計画',d:'災害が半分に減り、火事が消えやすい'},
+ {id:'watch',ic:'◎',n:'地域の見守り',d:'警察署・消防署の効果が1.5倍'},
+ {id:'clean',ic:'☁',n:'環境条例',d:'公害が30%減る'},
+ {id:'scout',ic:'?',n:'都市計画家',d:'図鑑のヒントが具体的なレシピになる'},
+ {id:'combo2',ic:'★',n:'名所プロデュース',d:'名所からの収入が2倍'},
+ {id:'grant',ic:'¥',n:'国の補助金',d:'毎年 $500 の補助金が入る'},
+];
+function gainXP(n,at){if(!S||titleOn)return;S.xp=(S.xp||0)+n;if(at)fx.push({kind:'text',x:at[0]*T,y:at[1]*T-14,t:-.4,s:`+${n}XP`});
+  while(S.xp>=xpFor(S.rank+1)){S.rank++;rankUp(S.rank)}updRank()}
+function updRank(){$('#rankN').textContent=S.rank;const a=xpFor(S.rank),b=xpFor(S.rank+1);$('#xpBar').style.width=Math.round(clamp((S.xp-a)/(b-a),0,1)*100)+'%'}
+function perkChoices(){const pool=PERKS.filter(p=>!PK(p.id));for(let k=pool.length-1;k>0;k--){const j=rnd()*(k+1)|0;[pool[k],pool[j]]=[pool[j],pool[k]]}return pool.slice(0,3)}
+function rankUp(r){const un=Object.keys(UNLOCK).filter(t=>UNLOCK[t]===r);const ch=perkChoices();sfx('fanfare');const rb=$('#rankBtn');rb.classList.remove('up');void rb.offsetWidth;rb.classList.add('up');
+  showModal(`<h3>市長レベル ${r} にアップ！</h3>${un.length?`<p>新しく建てられるもの：<b style="color:var(--gold)">${un.map(t=>TOOLS[t].name).join('・')}</b></p>`:''}
+   ${ch.length?`<p>政策をひとつ選んでください。</p><div class="perks">${ch.map(p=>`<button class="perk" data-p="${p.id}"><span class="pi">${p.ic}</span><span><b>${p.n}</b><span>${p.d}</span></span></button>`).join('')}</div>`:'<div class="btns"><button class="bt gold" data-close>OK</button></div>'}`,
+   ()=>{budgetLock=false},()=>{if(ch.length)budgetLock=true;$('#modal').querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{S.perks.push(b.dataset.p);budgetLock=false;const p=PERKS.find(x=>x.id===b.dataset.p);advise(`政策「${p.n}」を実行しました。${p.d}。`,1);closeModal();quickRecalc();buildTray();sfx('coin')})});
+  if(curCat&&!$('#trayWin').hidden)setTimeout(buildTray,50)}
+$('#rankBtn').onclick=()=>{const next=Object.keys(UNLOCK).filter(t=>UNLOCK[t]>S.rank).sort((a,b)=>UNLOCK[a]-UNLOCK[b]);
+  showModal(`<h3>市長レベル ${S.rank}</h3><p class="num">経験値 ${S.xp} / ${xpFor(S.rank+1)}</p><div class="bar"><i style="width:${Math.round(clamp((S.xp-xpFor(S.rank))/(xpFor(S.rank+1)-xpFor(S.rank)),0,1)*100)}%;background:var(--good)"></i></div>
+   <p style="color:var(--sub);font-size:12px">経験値は、住民のお願いをかなえる・名所を見つける・名所を増やす・街の規模が上がるともらえます。レベルが上がるたびに政策をひとつ選べます。</p>
+   <p style="margin-top:10px">実行中の政策</p><div class="mlist">${S.perks.length?S.perks.map(id=>{const p=PERKS.find(x=>x.id===id);return`<div class="c"><span>${p.ic} ${p.n}</span><span style="font-size:11px;text-align:right">${p.d}</span></div>`}).join(''):'<div><span style="color:var(--sub)">まだありません</span></div>'}</div>
+   ${next.length?`<p>これから解放される建物</p><div class="mlist">${next.map(t=>`<div><span>${TOOLS[t].name}</span><span class="num" style="color:var(--gold)">Lv${UNLOCK[t]}</span></div>`).join('')}</div>`:''}
+   <div class="btns"><button class="bt gold" data-close>閉じる</button></div>`)};
+const TNAME={R:'住宅地',C:'商業地',I:'工業地',park:'公園',police:'警察署',fire:'消防署',plant:'発電所'};
+function recipe(d){const parts=[];const an=d.anchor.length>2?'記念の建物':d.anchor.map(a=>DEFS[a].name).join('か');parts.push(an);for(const t in d.need){if(d.anchor.includes(t)||(t==='plant'&&d.anchor.includes('coal'))){const n=d.need[t]-1;if(n>0)parts.push(`${TNAME[t]}×${n}`)}else parts.push(`${TNAME[t]}×${d.need[t]}`)}
+  let r=`${parts.join('＋')}（${d.r}マス以内）`;if(d.water)r+='・水辺';if(d.rail)r+='・線路ぞい';if(d.no)r+='・工業地を遠ざける';return r}
+
+/* ================= quests ================= */
+const QKEY='hakoniwa-quest-v1';
+function qProg(){try{return JSON.parse(localStorage.getItem(QKEY)||'{}')}catch(e){return{}}}
+const ccount=id=>(S.combos||[]).filter(c=>c.id===id).length;
+function zoneCrime(){const z=Object.values(S.bld).filter(b=>DEFS[b.type].zone&&b.lvl>0);if(!z.length)return 0;return z.reduce((a,b)=>a+cellv(pmap.crime,b),0)/z.length}
+function zonePoll(){const z=Object.values(S.bld).filter(b=>b.type==='R'&&b.lvl>0);if(!z.length)return 0;return z.reduce((a,b)=>a+cellv(pmap.poll,b),0)/z.length}
+const QUESTS=[
+ {id:'q1',name:'新米市長',years:4,funds:15000,goal:'住民のお願いを3件かなえる',short:'お願い',prog:()=>[S.thanks||0,3],tip:'区画が育つと建物の上に吹き出しが出ます。タップして話を聞きましょう。'},
+ {id:'q2',name:'商店街をつくろう',years:5,funds:15000,goal:'名所「商店街」を2か所つくる',short:'商店街',prog:()=>[ccount('shoten'),2],tip:'お店（商業地）を近くに3つ集めると商店街になります。'},
+ {id:'q3',name:'にぎわいの町',years:7,funds:12000,goal:'人口3,000人',short:'人口',prog:()=>[S.pop,3000]},
+ {id:'q4',name:'渋滞の街',years:5,funds:10000,rank:3,pre:'jam',goal:'渋滞でさびれていく街を、渋滞ゼロで人口14,000人に立て直す',short:'人口',prog:()=>[S.pop,14000],done:()=>nowM()-S.qStart>=3&&S.jam===0&&S.pop>=14000,tip:'大通り1本に車が集中して、街がさびれ始めています。道路を増やすか線路を通し、区画も広げましょう。'},
+ {id:'q5',name:'工場のない街',years:8,funds:15000,rule:{ban:['I'],noI:1},goal:'工業地なしで人口3,000人',short:'人口',prog:()=>[S.pop,3000],tip:'このクエストでは工業地が使えません。住民はお店で働きます。'},
+ {id:'q6',name:'犯罪都市',years:4,funds:7000,rank:2,pre:'crime',goal:'犯罪を40以下にする（人口15,000人以上を保つ）',short:'犯罪',prog:()=>[Math.round(zoneCrime()),40,'down'],done:()=>nowM()-S.qStart>=2&&zoneCrime()<=40&&S.pop>=15000,tip:'警察署がひとつもありません。マップの「犯罪」で危ない場所を確認しましょう。'},
+ {id:'q7',name:'水の都',years:7,funds:15000,goal:'名所「水辺の住宅地」を3か所',short:'水辺の住宅',prog:()=>[ccount('mizube'),3],tip:'水辺のすぐそばに住宅地2つと公園を置くと…'},
+ {id:'q8',name:'クリーンシティ',years:8,funds:20000,rank:4,rule:{ban:['coal']},goal:'石炭発電なしで人口5,000人、住宅の公害40以下',short:'人口',prog:()=>[S.pop,5000],done:()=>S.pop>=5000&&zonePoll()<=40,tip:'石炭発電所は使えません。原子力発電所で電気をまかないましょう。'},
+ {id:'q9',name:'災害列島',years:7,funds:20000,rule:{disaster:7},goal:'災害だらけの島で人口5,000人',short:'人口',prog:()=>[S.pop,5000],tip:'火事や竜巻がひんぱんに起きます。消防署を早めに。'},
+ {id:'q10',name:'黒字の市政',years:8,funds:10000,goal:'資金を $30,000 にする',short:'資金',prog:()=>[S.funds,30000]},
+ {id:'q11',name:'名所めぐり',years:10,funds:20000,goal:'図鑑を6種類うめる',short:'図鑑',prog:()=>[Object.keys(S.found||{}).length,6]},
+ {id:'q12',name:'首都をめざせ',years:16,funds:20000,goal:'人口50,000人で「首都」になる',short:'人口',prog:()=>[S.pop,50000]},
+];
+QUESTS.forEach((q,i)=>q.seed=9100+i*37);
+function qDone(q){if(q.done)return q.done();const[c,t]=q.prog();return c>=t}
+function qLeft(){return Math.max(0,S.qEnd-nowM())}
+function updQuestPill(){const q=S.quest&&!S.qDone&&QUESTS.find(x=>x.id===S.quest);$('#questPill').hidden=!q;$('#bookPill').hidden=!!q;if(!q)return;
+  const[c,t,dir]=q.prog();const left=qLeft();$('#questT').textContent=dir?`${q.short} ${fmt(c)}→${fmt(t)}`:`${q.short} ${fmt(Math.min(c,t))}/${fmt(t)}`;$('#questP').textContent=`${left/12|0}年${left%12}月`}
+function qStars(){const q=QUESTS.find(x=>x.id===S.quest);const f=qLeft()/(q.years*12);return f>=.5?3:f>=.2?2:1}
+function checkQuest(){if(!S.quest||S.qDone)return;const q=QUESTS.find(x=>x.id===S.quest);if(!q)return;if(S.qStartPop==null)S.qStartPop=S.pop;
+  if(qDone(q)){S.qDone=1;const st=qStars();const pr=qProg();const best=Math.max(st,(pr[q.id]||{}).stars||0);pr[q.id]={stars:best};try{localStorage.setItem(QKEY,JSON.stringify(pr))}catch(e){}
+    const idx=QUESTS.indexOf(q),nx=QUESTS[idx+1];setSpeed(0,true);
+    showModal(`<h3>クエストクリア！「${q.name}」</h3><p style="font-size:34px;text-align:center;margin:6px 0" class="stars">${starStr(st)}</p><p style="text-align:center">のこり ${qLeft()/12|0}年${qLeft()%12}か月で達成</p><p style="text-align:center;color:var(--sub);font-size:12px">★3：期限の半分以内 ・ ★2：のこり2割以上</p>
+     <div class="btns">${nx?`<button class="bt gold" id="qNext">次へ「${nx.name}」</button>`:''}</div><div class="btns" style="margin-top:8px"><button class="bt sm" id="qKeep" style="flex:1">このまま遊ぶ</button><button class="bt sm" id="qList" style="flex:1">クエスト一覧</button></div>`,null,()=>{
+     if(nx)$('#qNext').onclick=()=>{closeModal();startQuest(nx)};$('#qKeep').onclick=()=>{closeModal();setSpeed(1,true);advise('クエストの目標は達成済み。ここからは自由に街づくりを続けられます。')};$('#qList').onclick=()=>{closeModal();modeSel='quest';showTitle()}});sfx('fanfare');return}
+  if(qLeft()<=0){S.qDone=1;setSpeed(0,true);showModal(`<h3>期限切れ…「${q.name}」</h3><p>目標：${q.goal}</p><p style="color:var(--sub)">もう一度挑戦してみましょう。</p><div class="btns"><button class="bt" id="qList">クエスト一覧</button><button class="bt gold" id="qAgain">もう一度</button></div>`,null,()=>{$('#qAgain').onclick=()=>{closeModal();startQuest(q)};$('#qList').onclick=()=>{closeModal();modeSel='quest';showTitle()}});sfx('err')}}
+$('#questPill').onclick=()=>{const q=QUESTS.find(x=>x.id===S.quest);if(!q)return;const[c,t,dir]=q.prog();
+  showModal(`<h3>${q.name}</h3><p style="font-size:15px">目標：${q.goal}</p><table class="tbl"><tr><td>いま</td><td>${fmt(c)}${dir?'（目標 '+fmt(t)+' 以下）':' / '+fmt(t)}</td></tr><tr><td>のこり</td><td>${qLeft()/12|0}年${qLeft()%12}か月</td></tr><tr><td>図鑑</td><td>${Object.keys(S.found).length}/${COMBOS.length}</td></tr></table>${q.tip?`<p style="color:var(--sub);font-size:12px">ヒント：${q.tip}</p>`:''}
+   <div class="btns"><button class="bt" id="qBook">図鑑を見る</button><button class="bt gold" data-close>閉じる</button></div>`,null,()=>{$('#qBook').onclick=()=>{closeModal();setTimeout(()=>$('#bookPill').onclick(),150)}})};
+function clearLand(x0,y0,x1,y1){for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++)if(inb(x,y))S.terr[y*W+x]=0}
+function lay(bit,pts){for(const[x,y]of pts)if(inb(x,y)){S.net[y*W+x]|=bit;S.terr[y*W+x]=0}}
+function zoneAt(t,x,y,l){const b=addBuilding(t,x,y);b.lvl=l;b.cls=1;return b}
+const PREBUILT={
+ jam(){clearLand(22,30,72,50);const row=[];for(let x=22;x<=72;x++)row.push([x,40]);lay(ROAD,row);
+   let k=0;for(let x=26;x+3<=70;x+=3){zoneAt('R',x,37,4);zoneAt(k%3===2?'I':'C',x,41,k%3===2?4:4);k++}
+   addBuilding('coal',22,36);addBuilding('coal',22,41)},
+ crime(){clearLand(24,22,70,54);const X0=26,Y0=24;for(let y=Y0;y<=Y0+28;y+=7){const p=[];for(let x=X0;x<=X0+42;x++)p.push([x,y]);lay(ROAD,p);lay(PWR,p)}const pv=[];for(let y=Y0;y<=Y0+28;y++)pv.push([X0,y]);lay(PWR,pv);for(let x=X0;x<=X0+42;x+=7){const p=[];for(let y=Y0;y<=Y0+28;y++)p.push([x,y]);lay(ROAD,p)}
+   const ty=['R','C','R','I','R','C'];let k=0;for(let y=Y0+1;y+3<=Y0+28;y+=7)for(let x=X0+1;x+3<=X0+42;x+=7)for(const[dx,dy]of[[0,0],[3,0],[0,3],[3,3]]){const t=ty[k++%6];zoneAt(t,x+dx,y+dy,3)}
+   addBuilding('coal',20,30);const pl=[];for(let x=24;x<=X0+42;x++)pl.push([x,31]);lay(PWR,pl)},
+};
+function startQuest(q){const st=newState(q.seed,1,q.name);st.quest=q.id;st.funds=q.funds;st.qEnd=(st.year+q.years)*12+st.month;st.rank=q.rank||1;st.xp=xpFor(st.rank);st.perks=[];st.rule=q.rule||{};st.disasters=!!(q.rule&&q.rule.disaster);st.qStart=st.year*12+st.month;
+  if(q.pre){S=st;PREBUILT[q.pre]()}startGame(st,true);S.qStartPop=null;if(q.pre){let c=0;for(let k=0;k<CLASSES.length;k++)if(S.pop>=CLASSES[k][0])c=k;S.cls=c;for(const[k,cond]of GIFTS)if(cond())S.giftGiven[k]=1;updHUD()}}
+let checkQuestSoon=0;
+let modeSel='free';
+function buildModes(){const el=$('#modeSel');el.innerHTML=`<button data-m="free" class="${modeSel==='free'?'on':''}">フリー<small>じっくり街づくり</small></button><button data-m="quest" class="${modeSel==='quest'?'on':''}">クエスト<small>${QUESTS.length}のステージに挑戦</small></button>`;
+  el.querySelectorAll('button').forEach(x=>x.onclick=()=>{modeSel=x.dataset.m;buildModes()});const free=modeSel==='free';$('#freeOpts').hidden=!free;$('#questList').hidden=free;if(!free)buildQuestList()}
+function buildQuestList(){const pr=qProg();const el=$('#questList');el.innerHTML=QUESTS.map((q,i)=>{const open=i===0||pr[QUESTS[i-1].id];const st=(pr[q.id]||{}).stars||0;
+  return`<button class="qi${open?'':' lock'}" data-q="${q.id}"><span class="no num">${i+1}</span><span class="tx"><b>${q.name}</b><small>${open?q.goal+`（${q.years}年）`:'前のクエストをクリアすると挑戦できます'}</small></span><span class="st">${st?starStr(st):''}</span></button>`}).join('');
+  el.querySelectorAll('.qi').forEach(b=>b.onclick=()=>{if(b.classList.contains('lock')){sfx('err');return}audioInit();startQuest(QUESTS.find(q=>q.id===b.dataset.q))})}
+/* ================= boot / title ================= */
+let titleOn=true,diffSel=0,titleSeed=(Math.random()*1e9)|0;
+function initWorld(state){S=state;
+  if(!base){[base,bg]=mk(W*T,H*T)}dirtyAll=true;netChanged=true;
+  for(const id in S.bld){S.bld[id].pw=false}
+  S.reqs=S.reqs||[];S.found=S.found||{};S.thanks=S.thanks||0;if(S.rank==null){S.rank=S.pop>0?6:1;S.xp=xpFor(S.rank);S.perks=[]}S.perks=S.perks||[];S.rule=S.rule||{};comboBoot=true;
+  quickRecalc();recalcTraffic();recalcMaps();demand();comboBoot=false;
+}
+function showTitle(){buildModes();titleOn=true;$('#title').hidden=false;['#hud','#side','#dock'].forEach(s=>$(s).hidden=true);$('#adv').classList.remove('show');$('#undo').hidden=true;$('#undo1').hidden=true;$('#pad').hidden=true;$('#info').hidden=true;
+  const sv=loadSaved();$('#contWrap').innerHTML=sv?`<button class="bt gold" id="contBtn" style="width:100%;margin-bottom:8px">つづきから（${sv.name} ${sv.year}年）</button>`:'';
+  if(sv)$('#contBtn').onclick=()=>{audioInit();startGame(sv)};
+  initWorld(newState(titleSeed,diffSel,'preview'));cam.z=Math.max(1,Math.min(VW/(W*T),VH/(H*T))*1.6);focusOn([W/2,H/2]);drawLogo();
+}
+$('#diffSel').querySelectorAll('button').forEach(b=>b.onclick=()=>{diffSel=+b.dataset.d;$('#diffSel').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b))});
+$('#reroll').onclick=()=>{titleSeed=(Math.random()*1e9)|0;initWorld(newState(titleSeed,diffSel,'preview'))};
+$('#startBtn').onclick=()=>{audioInit();const nm=($('#nameIn').value||'').trim()||'ハコニワ市';startGame(newState(titleSeed,diffSel,nm),true)};
+function startGame(state,fresh){initWorld(state);titleOn=false;$('#title').hidden=true;['#hud','#side','#dock'].forEach(s=>$(s).hidden=false);
+  undoStack=[];refreshUndo();overlay='none';buildCats();curCat='view';setTool('inspect');$('#trayWin').hidden=true;setSpeed(S.speed!=null?S.speed||1:1,true);
+  cam.z=VW<600?2:2.5;focusOn(S.center&&S.zones?S.center:[W/2,H/2]);updHUD();resize();
+  if(fresh){advise(`${S.name}の市長就任、おめでとうございます！ ひしょのポッポです。`);const q=S.quest&&QUESTS.find(x=>x.id===S.quest);if(q){advise(`クエスト「${q.name}」：${q.goal}。期限は${q.years}年です。`);if(q.tip)advise(q.tip)}else{advise('まず「電力」から発電所を建てましょう。安い石炭か、きれいな原子力か…');setTimeout(help,300)}}
+  else advise('おかえりなさい、市長。');
+}
+
+/* ================= main loop ================= */
+let last=performance.now(),monthAcc=0,fastAcc=0,hudAcc=0;
+const MONTH=[0,10,5,2],FAST=[0,.55,.4,.2];
+function loop(now){const dt=Math.min(.1,(now-last)/1000);last=now;
+  try{if(S){if(titleOn){cam.x+=dt*6;if(cam.x>W*T-VW/cam.z)cam.x=0}
+    else if(!modalOpen&&speed>0){monthAcc+=dt;fastAcc+=dt;if(monthAcc>=MONTH[speed]){monthAcc=0;monthTick()}if(fastAcc>=FAST[speed]){fastAcc=0;fireTick()}}
+    if(camAnim){const k=Math.min(1,dt*14);cam.x+=(camAnim.x-cam.x)*k;cam.y+=(camAnim.y-cam.y)*k;clampCam();if(Math.abs(camAnim.x-cam.x)+Math.abs(camAnim.y-cam.y)<.3)camAnim=null}
+    if(!titleOn)refreshBuild(false);render(dt);drawReticle();drawScreenFx(dt);hudAcc+=dt;if(hudAcc>.25&&!titleOn){hudAcc=0;updHUD()}advTick(dt)}}catch(err){console.error(err)}
+  requestAnimationFrame(loop)}
+function start(data){
+  buildTileArt();buildFx();buildReqIcons();
+  window.addEventListener('resize',resize);resize();
+  S=newState(1,0,'x');setupIcons();drawAdvisor();
+  if(data&&data.save){try{startGame(deserialize(data.save))}catch(e){showTitle()}}else showTitle();
+  requestAnimationFrame(loop);
+  try{window.claude?.hot?.snapshot?.(()=>({save:S&&!titleOn?serialize():null}))}catch(e){}
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>{if(titleOn)drawLogo()});
+}
+window.claude?.hot?.ready?window.claude.hot.ready(start):start(window.claude?.hot?.data??{});
+})();
+</script>
+
+</body>
+</html>
