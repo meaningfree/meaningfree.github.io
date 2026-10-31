@@ -743,6 +743,7 @@ function monthTick(){
   S.month++;if(S.month>11){S.month=0;S.year++;yearEnd()}
   reqMonthly();
   checkQuest();
+  save(true);
 }
 function budgetCalc(){
   const lvAvg=pmap.lv.reduce((a,b)=>a+b,0)/(CW*CH);
@@ -1198,9 +1199,9 @@ const KEY='hakoniwa-mayor-v1';
 function b64(a){const u=new Uint8Array(a.buffer);let s='';for(let i=0;i<u.length;i+=8192)s+=String.fromCharCode.apply(null,u.subarray(i,i+8192));return btoa(s)}
 function unb64(s,Ctor){const bin=atob(s);const u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return new Ctor(u.buffer)}
 function serialize(){const o={};for(const k in S){const v=S[k];if(v instanceof Uint8Array)o[k]={u8:b64(v)};else if(v instanceof Int32Array)o[k]={i32:b64(v)};else o[k]=v}
-  o.bld={};for(const id in S.bld){const b=S.bld[id];o.bld[id]={id:b.id,type:b.type,x:b.x,y:b.y,lvl:b.lvl,cls:b.cls,seed:b.seed}}return JSON.stringify(o)}
+  o.bld={};for(const id in S.bld){const b=S.bld[id];o.bld[id]={id:b.id,type:b.type,x:b.x,y:b.y,lvl:b.lvl,cls:b.cls,seed:b.seed,happy:b.happy||0}}return JSON.stringify(o)}
 function deserialize(str){const o=JSON.parse(str);for(const k in o){const v=o[k];if(v&&v.u8)o[k]=unb64(v.u8,Uint8Array);else if(v&&v.i32)o[k]=unb64(v.i32,Int32Array)}return o}
-function save(silent){if(!S)return false;try{localStorage.setItem(KEY,serialize());if(!silent)advise('街を保存しました。');return true}catch(e){return false}}
+function save(silent){if(!S||titleOn)return false;try{localStorage.setItem(KEY,serialize());if(!silent)advise('街を保存しました。');return true}catch(e){return false}}
 function loadSaved(){try{const s=localStorage.getItem(KEY);return s?deserialize(s):null}catch(e){return null}}
 
 
@@ -1428,6 +1429,9 @@ function buildModes(){const el=$('#modeSel');el.innerHTML=`<button data-m="free"
 function buildQuestList(){const pr=qProg();const el=$('#questList');el.innerHTML=QUESTS.map((q,i)=>{const open=i===0||pr[QUESTS[i-1].id];const st=(pr[q.id]||{}).stars||0;
   return`<button class="qi${open?'':' lock'}" data-q="${q.id}"><span class="no num">${i+1}</span><span class="tx"><b>${q.name}</b><small>${open?q.goal+`（${q.years}年）`:'前のクエストをクリアすると挑戦できます'}</small></span><span class="st">${st?starStr(st):''}</span></button>`}).join('');
   el.querySelectorAll('.qi').forEach(b=>b.onclick=()=>{if(b.classList.contains('lock')){sfx('err');return}audioInit();startQuest(QUESTS.find(q=>q.id===b.dataset.q))})}
+// save when the page is hidden or closed (switching apps on a phone, closing the tab)
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')save(true)});
+window.addEventListener('pagehide',()=>save(true));
 /* ================= boot / title ================= */
 let titleOn=true,diffSel=0,titleSeed=(Math.random()*1e9)|0;
 function initWorld(state){S=state;
