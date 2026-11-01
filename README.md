@@ -12,6 +12,7 @@
 | `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
 | `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
 | `hakoniwa/index.html` | <https://meaningfree.github.io/hakoniwa/> |
+| `machigai/index.html` | <https://meaningfree.github.io/machigai/> |
 
 ## むげんワードル
 
@@ -143,6 +144,27 @@ python3 tools/make-manmaru.py manmaru/index.html
 
 ```sh
 python3 tools/make-hakoniwa.py hakoniwa/index.html
+```
+
+## まちがいさがし
+
+ふたつの絵を見くらべて、ちがうところを5つ探す。絵は8枚（こうえん、うみ、おへや、のうじょう、ゆきのひ、おまつり、キッチン、キャンプ）。
+
+- スマホでは上と下、広い画面では左と右に並ぶ。どちらの絵をタップしてもよい
+- 見つかると両方に赤いまるがつく。ヒントは点線のまるをひとつ出す
+- 星はおてつきとヒントの回数で 3 / 2 / 1。きろくは端末に保存
+- 効果音つき（Web Audio）。「音」ボタンで切りかえ
+
+### ファイル
+
+- `src/machigai.html` — 生成元（Artifact 用の断片形式）
+- `machigai/index.html` — 公開用のスタンドアロン版
+- `tools/make-machigai.py` — 変換スクリプト
+
+`src/machigai.html` を編集したら、公開版を作り直す:
+
+```sh
+python3 tools/make-machigai.py machigai/index.html
 ```
 
 ## GitHub Pages
