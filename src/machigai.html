@@ -4,8 +4,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <style>
-/* Phone stacks the two pictures (上 / 下) so each stays wide enough to tap.
-   Wide screens place them side by side (左 / 右). Light paper only — the pictures stay the same in any OS theme. */
 :root{
   --bg:#F3E6D4; --ink:#4E382C; --muted:#8A6D5C; --line:rgba(78,56,44,.16);
   --card:#FFFCF7; --accent:#E25B4A; --accent-deep:#B93E32; --gold:#E0A52F; --gold-deep:#B68420; --ok:#2E8B57;
@@ -25,6 +23,7 @@ button{font:inherit; color:inherit; cursor:pointer}
 a{color:inherit}
 
 .wrap{max-width:460px; margin:0 auto; display:flex; flex-direction:column; gap:10px}
+body.on-start .wrap{visibility:hidden; pointer-events:none}
 
 header{display:flex; align-items:center; gap:8px}
 .logo{display:flex; align-items:center; gap:8px; min-width:0; margin-right:auto}
@@ -71,32 +70,45 @@ h1 a{text-decoration:none}
 .btn:disabled{opacity:.45; box-shadow:none}
 
 .found{transform-box:fill-box; transform-origin:center; animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
-.hint{animation:pulse 1s ease-in-out infinite}
+.hint{animation:pulse 1.4s ease-in-out infinite}
 @keyframes pop{from{transform:scale(.4); opacity:0}}
-@keyframes pulse{50%{opacity:.35}}
+@keyframes pulse{50%{opacity:.4}}
 
 .sheet{position:fixed; inset:0; z-index:20; background:rgba(40,24,16,.45); display:flex; align-items:flex-end; justify-content:center}
 .sheet-card{
   background:var(--bg); width:100%; max-width:560px; max-height:86vh; overflow:auto;
-  border-radius:22px 22px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom));
-  display:flex; flex-direction:column; gap:12px;
+  border-radius:24px 24px 0 0; padding:18px 16px max(22px,env(safe-area-inset-bottom));
+  box-shadow:0 -8px 40px rgba(40,24,16,.18);
 }
-.sheet-top{display:flex; align-items:center; justify-content:space-between; gap:8px}
-.sheet h2{margin:0; font-size:20px; font-weight:900}
-.sheet p,.sheet li{margin:0; font-size:14.5px}
-.sheet ol{margin:0; padding-left:1.2em; display:flex; flex-direction:column; gap:6px}
-.tiles{display:grid; grid-template-columns:1fr 1fr; gap:8px}
-.tile{
-  text-align:left; border-radius:14px; border:1.5px solid var(--line); background:var(--card);
-  padding:10px 12px; display:flex; flex-direction:column; gap:2px;
+.sheet-top{display:flex; align-items:center; gap:8px; margin-bottom:12px}
+.sheet-top h2{margin:0; font-size:20px; font-weight:900; margin-right:auto}
+.sheet-card ol{margin:0 0 16px; padding-left:1.3em; font-weight:700; color:var(--ink)}
+.sheet-card li{margin:8px 0}
+.stats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px}
+.stat{
+  background:var(--card); border:1.5px solid var(--line); border-radius:16px; padding:12px;
+  text-align:center;
 }
-.tile.current{box-shadow:0 0 0 2px var(--ink)}
-.tile .no{font-size:12px; color:var(--muted); font-weight:700}
-.tile .name{font-weight:900; font-size:16px}
-.tile .st{color:var(--gold); letter-spacing:.08em; font-weight:900}
-#fx{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:30}
+.stat .v{display:block; font-size:26px; font-weight:900; font-variant-numeric:tabular-nums}
+.stat .k{display:block; font-size:12px; font-weight:700; color:var(--muted); margin-top:2px}
 
-@media (min-width:860px){
+#start{
+  position:fixed; inset:0; z-index:25; display:flex; align-items:center; justify-content:center;
+  padding:max(16px,env(safe-area-inset-top)) 18px max(24px,env(safe-area-inset-bottom));
+  background:
+    radial-gradient(120% 80% at 50% -10%, #FFE9C8 0%, transparent 55%),
+    linear-gradient(180deg, #F7EBDA 0%, #E9D2B6 100%);
+}
+.start-card{width:min(420px,100%); text-align:center}
+.start-art{width:min(220px,70vw); height:auto; margin:0 auto 14px; display:block; filter:drop-shadow(0 10px 0 rgba(78,56,44,.08))}
+.start-card h1{font-size:clamp(28px,8vw,40px); margin:0 0 8px}
+.start-card .lead{margin:0 auto 22px; max-width:18em; font-weight:700; color:var(--muted); font-size:15px}
+.start-actions{display:grid; gap:10px}
+.start-note{margin:14px 0 0; font-size:12.5px; font-weight:700; color:var(--muted)}
+
+#fx{position:fixed; inset:0; pointer-events:none; z-index:40; width:100%; height:100%}
+
+@media (min-width:720px){
   .wrap{max-width:980px}
   .pair{grid-template-columns:1fr 1fr; align-items:start}
   .when-narrow{display:none}
@@ -107,7 +119,31 @@ h1 a{text-decoration:none}
 }
 </style>
 
-<div class="wrap">
+<div id="start">
+  <div class="start-card">
+    <svg class="start-art" viewBox="0 0 220 120" aria-hidden="true">
+      <rect x="8" y="14" width="90" height="92" rx="10" fill="#FFFCF7" stroke="#5C4636" stroke-width="2.4"/>
+      <rect x="122" y="14" width="90" height="92" rx="10" fill="#FFFCF7" stroke="#5C4636" stroke-width="2.4"/>
+      <rect x="16" y="24" width="74" height="48" fill="#8FCBF2"/>
+      <rect x="130" y="24" width="74" height="48" fill="#8FCBF2"/>
+      <circle cx="38" cy="42" r="10" fill="#FFE566" stroke="#5C4636" stroke-width="1.6"/>
+      <circle cx="152" cy="42" r="10" fill="#FFE566" stroke="#5C4636" stroke-width="1.6"/>
+      <path d="M34 42 L26 34 M42 42 L50 34" stroke="#F5C14A" stroke-width="2.4" stroke-linecap="round"/>
+      <circle cx="78" cy="86" r="7" fill="#F05B5B" stroke="#5C4636" stroke-width="1.5"/>
+      <ellipse cx="188" cy="86" rx="10" ry="6" fill="#7FCF78" stroke="#5C4636" stroke-width="1.5"/>
+      <circle cx="170" cy="70" r="16" fill="none" stroke="#E25B4A" stroke-width="2.2" stroke-dasharray="4 3"/>
+    </svg>
+    <h1>まちがいさがし</h1>
+    <p class="lead">はじめるたびに、あたらしい絵がつくられる。ちがいをじっくり探してね。</p>
+    <div class="start-actions">
+      <button class="btn primary" id="btnStart" type="button">はじめる</button>
+      <button class="btn" id="btnStartHelp" type="button">あそびかた</button>
+    </div>
+    <p class="start-note" id="startNote">クリア 0　いちばんの れんぞく 0</p>
+  </div>
+</div>
+
+<div class="wrap" id="game">
   <header>
     <div class="logo">
       <svg viewBox="0 0 32 32" aria-hidden="true">
@@ -115,17 +151,18 @@ h1 a{text-decoration:none}
         <rect x="17" y="6" width="14" height="18" rx="2" fill="#8FCBF2" stroke="#5C4636" stroke-width="1.4"/>
         <circle cx="24" cy="16" r="4" fill="none" stroke="#E25B4A" stroke-width="1.6"/>
       </svg>
-      <h1><a href="../">まちがいさがし</a></h1>
+      <h1><a href="../" id="homeLink">まちがいさがし</a></h1>
     </div>
+    <button class="chip" id="btnHome" type="button" aria-label="スタートへ">ホーム</button>
     <button class="chip" id="btnSound" type="button" aria-label="おと">音 ON</button>
-    <button class="chip" id="btnList" type="button" aria-label="もんだいの いちらん"><span class="star">★</span><span id="starCount">0/24</span></button>
+    <button class="chip" id="btnRecord" type="button" aria-label="きろく"><span class="star">★</span><span id="starCount">0</span></button>
     <button class="chip" id="btnHelp" type="button" aria-label="あそびかた">？</button>
   </header>
 
   <div class="level">
-    <span class="no" id="levelNo">1 / 8</span>
+    <span class="no" id="levelNo">ラウンド 1</span>
     <h2 id="levelName">こうえん</h2>
-    <span class="count" id="foundCount">0 / 5</span>
+    <span class="count" id="foundCount">0 / 6</span>
   </div>
 
   <div class="pair">
@@ -150,13 +187,19 @@ h1 a{text-decoration:none}
   </div>
 </div>
 
-<div class="sheet" id="sheetList" hidden>
-  <div class="sheet-card" role="dialog" aria-labelledby="listTitle">
+<div class="sheet" id="sheetRecord" hidden>
+  <div class="sheet-card" role="dialog" aria-labelledby="recTitle">
     <div class="sheet-top">
-      <h2 id="listTitle">もんだい</h2>
-      <button class="chip" id="closeList" type="button">とじる</button>
+      <h2 id="recTitle">きろく</h2>
+      <button class="chip" id="closeRecord" type="button">とじる</button>
     </div>
-    <div class="tiles" id="tiles"></div>
+    <div class="stats">
+      <div class="stat"><span class="v" id="statCleared">0</span><span class="k">クリアした数</span></div>
+      <div class="stat"><span class="v" id="statStars">0</span><span class="k">星の合計</span></div>
+      <div class="stat"><span class="v" id="statStreak">0</span><span class="k">いまの れんぞく</span></div>
+      <div class="stat"><span class="v" id="statBest">0</span><span class="k">いちばんの れんぞく</span></div>
+    </div>
+    <button class="btn" id="btnWipe" type="button">きろくを けす</button>
   </div>
 </div>
 
@@ -167,11 +210,11 @@ h1 a{text-decoration:none}
       <button class="chip" id="closeHelp" type="button">とじる</button>
     </div>
     <ol>
-      <li>2まいの えを 見くらべる。スマホでは 上と下、ひろい がめんでは 左と右。</li>
-      <li>ちがう ところは 5つ。タップすると 赤いまるが 両方につく。</li>
-      <li>ヒントは てんてんの まるを ひとつ出す。おてつきと ヒントが 0なら 星3つ。</li>
+      <li>はじめるたびに、あたらしい絵がランダムでつくられる。</li>
+      <li>2まいを見くらべて、ちがうところを探す。スマホは上下、ひろい画面は左右。</li>
+      <li>ちがいはこまかくて見つけにくい。ヒントは場所のヒントだけ（最初はことば、つぎでうすい範囲）。</li>
+      <li>おてつきとヒントが少ないほど星が多い。</li>
     </ol>
-    <button class="btn" id="btnWipe" type="button">星の きろくを けす</button>
   </div>
 </div>
 
@@ -181,13 +224,14 @@ h1 a{text-decoration:none}
 const VW = 480, VH = 260;
 const INK = "#5C4636";
 const NS = "http://www.w3.org/2000/svg";
+const DIFF_COUNT = 6;
 const C = {
   sky: "#8FCBF2", grass: "#7FCF78", grass2: "#5BB868", hill: "#A6E09A",
   sun: "#FFE566", ray: "#F5C14A", cloud: "#FFFFFF", trunk: "#8A5A34",
   leaf: "#3E9B4C", leaf2: "#2E7D3A", pink: "#FF8FB3", red: "#F05B5B",
   blue: "#5B93F5", orange: "#FF9A3C", yellow: "#FFE14A", cream: "#FFF6E8",
   white: "#FFFFFF", wood: "#D9924A", sand: "#F3D48A", sea: "#4AA9DE", sea2: "#2E92CE",
-  blush: "#FFB7C8", skin: "#FFD7B5", wall: "#F8D9C8", floor: "#E8C08A",
+  blush: "#FFB7C8", wall: "#F8D9C8", floor: "#E8C08A",
   night: "#24386B", camp: "#1F6B4A", mint: "#7ED0B5",
 };
 
@@ -200,505 +244,601 @@ function el(tag, attrs, parent) {
 function S(a) {
   return Object.assign({ stroke: INK, "stroke-width": 2.4, "stroke-linejoin": "round", "stroke-linecap": "round" }, a);
 }
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function pick(rng, arr) { return arr[Math.floor(rng() * arr.length)]; }
+function shuffle(rng, arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function zoneOf(x, y) {
+  const col = x < VW * 0.34 ? "ひだり" : x > VW * 0.66 ? "みぎ" : "まんなか";
+  const row = y < VH * 0.34 ? "うえ" : y > VH * 0.66 ? "した" : "";
+  if (!row) return col + "の あたり";
+  if (col === "まんなか") return row + "の あたり";
+  return col + row + "の ほう";
+}
+function softHue(hex, d) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.max(0, Math.min(255, (n >> 16) + d));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 255) + Math.round(d * 0.6)));
+  const b = Math.max(0, Math.min(255, (n & 255) + Math.round(d * 0.35)));
+  return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
 function cloud(g, x, y, sc) {
   const s = sc || 1;
   el("ellipse", S({ cx: x, cy: y + 4 * s, rx: 26 * s, ry: 14 * s, fill: C.cloud }), g);
   el("ellipse", S({ cx: x - 18 * s, cy: y + 8 * s, rx: 14 * s, ry: 10 * s, fill: C.cloud }), g);
   el("ellipse", S({ cx: x + 16 * s, cy: y + 6 * s, rx: 16 * s, ry: 11 * s, fill: C.cloud }), g);
 }
-function sun(g, x, y, rays) {
+function sunBody(g, x, y, rays, skip) {
   if (rays) {
     for (let i = 0; i < 8; i++) {
+      if (skip === i) continue;
       const a = i * Math.PI / 4;
-      el("line", { x1: x + Math.cos(a) * 24, y1: y + Math.sin(a) * 24, x2: x + Math.cos(a) * 36, y2: y + Math.sin(a) * 36, stroke: C.ray, "stroke-width": 4, "stroke-linecap": "round" }, g);
+      el("line", { x1: x + Math.cos(a) * 24, y1: y + Math.sin(a) * 24, x2: x + Math.cos(a) * 34, y2: y + Math.sin(a) * 34, stroke: C.ray, "stroke-width": 3.2, "stroke-linecap": "round" }, g);
     }
   }
-  el("circle", S({ cx: x, cy: y, r: 18, fill: C.sun }), g);
+  el("circle", S({ cx: x, cy: y, r: 17, fill: C.sun }), g);
 }
 function bird(g, x, y) {
-  el("path", S({ d: `M ${x - 18} ${y + 4} Q ${x - 8} ${y - 12} ${x} ${y + 1} Q ${x + 8} ${y - 12} ${x + 16} ${y + 4} Q ${x} ${y + 8} ${x - 18} ${y + 4}`, fill: INK }), g);
-  el("polygon", { points: `${x + 12},${y} ${x + 20},${y + 3} ${x + 12},${y + 5}`, fill: C.orange }, g);
+  el("path", S({ d: `M ${x - 14} ${y + 3} Q ${x - 6} ${y - 9} ${x} ${y} Q ${x + 6} ${y - 9} ${x + 12} ${y + 3} Q ${x} ${y + 6} ${x - 14} ${y + 3}`, fill: INK }), g);
 }
-function tree(g, x, gy) {
-  el("rect", S({ x: x - 7, y: gy - 54, width: 14, height: 54, rx: 4, fill: C.trunk }), g);
-  el("circle", S({ cx: x - 16, cy: gy - 60, r: 18, fill: C.leaf2 }), g);
-  el("circle", S({ cx: x + 14, cy: gy - 56, r: 16, fill: C.leaf }), g);
-  el("circle", S({ cx: x, cy: gy - 76, r: 22, fill: C.leaf }), g);
+function tree(g, x, gy, leafA, leafB) {
+  el("rect", S({ x: x - 6, y: gy - 50, width: 12, height: 50, rx: 3, fill: C.trunk }), g);
+  el("circle", S({ cx: x - 14, cy: gy - 56, r: 16, fill: leafA || C.leaf2 }), g);
+  el("circle", S({ cx: x + 12, cy: gy - 52, r: 14, fill: leafB || C.leaf }), g);
+  el("circle", S({ cx: x, cy: gy - 72, r: 20, fill: leafB || C.leaf }), g);
 }
-function bloom(g, x, y, petal, r) {
-  const rad = r || 6;
-  for (let i = 0; i < 5; i++) {
-    const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
-    el("circle", S({ cx: x + Math.cos(a) * rad, cy: y + Math.sin(a) * rad, r: rad * 0.72, fill: petal }), g);
+function bloom(g, x, y, petal, r, petals) {
+  const rad = r || 5;
+  const n = petals || 5;
+  for (let i = 0; i < n; i++) {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / n;
+    el("circle", S({ cx: x + Math.cos(a) * rad, cy: y + Math.sin(a) * rad, r: rad * 0.7, fill: petal }), g);
   }
-  el("circle", S({ cx: x, cy: y, r: rad * 0.48, fill: C.yellow }), g);
+  el("circle", S({ cx: x, cy: y, r: rad * 0.42, fill: C.yellow }), g);
 }
-function flower(g, x, y, petal) {
-  el("line", { x1: x, y1: y + 4, x2: x, y2: y + 26, stroke: C.leaf2, "stroke-width": 3, "stroke-linecap": "round" }, g);
-  bloom(g, x, y, petal, 6);
+function flower(g, x, y, petal, petals) {
+  el("line", { x1: x, y1: y + 3, x2: x, y2: y + 22, stroke: C.leaf2, "stroke-width": 2.6, "stroke-linecap": "round" }, g);
+  bloom(g, x, y, petal, 5, petals);
 }
-function ball(g, x, y) {
-  el("circle", S({ cx: x, cy: y, r: 13, fill: C.red }), g);
-  el("path", { d: `M ${x - 9} ${y} H ${x + 9} M ${x} ${y - 9} V ${y + 9}`, stroke: "#fff", "stroke-width": 2, fill: "none" }, g);
+function ball(g, x, y, withStripe) {
+  el("circle", S({ cx: x, cy: y, r: 11, fill: C.red }), g);
+  if (withStripe !== false) el("path", { d: `M ${x - 7} ${y} H ${x + 7}`, stroke: "#fff", "stroke-width": 1.8, fill: "none" }, g);
 }
 function bench(g, x, y, seat) {
-  el("rect", S({ x: x - 40, y: y - 18, width: 80, height: 7, rx: 2, fill: seat }), g);
-  el("rect", S({ x: x - 40, y: y, width: 80, height: 8, rx: 2, fill: seat }), g);
-  el("rect", S({ x: x - 34, y: y - 18, width: 6, height: 32, rx: 1, fill: C.trunk }), g);
-  el("rect", S({ x: x + 28, y: y - 18, width: 6, height: 32, rx: 1, fill: C.trunk }), g);
-}
-function face(g, x, y) {
-  el("circle", { cx: x - 4, cy: y, r: 1.5, fill: INK }, g);
-  el("circle", { cx: x + 4, cy: y, r: 1.5, fill: INK }, g);
-  el("path", { d: `M ${x - 3} ${y + 5} Q ${x} ${y + 8} ${x + 3} ${y + 5}`, fill: "none", stroke: INK, "stroke-width": 1.4, "stroke-linecap": "round" }, g);
-  el("circle", { cx: x - 7, cy: y + 3, r: 2, fill: C.blush }, g);
-  el("circle", { cx: x + 7, cy: y + 3, r: 2, fill: C.blush }, g);
+  el("rect", S({ x: x - 36, y: y - 16, width: 72, height: 6, rx: 2, fill: seat }), g);
+  el("rect", S({ x: x - 36, y: y, width: 72, height: 7, rx: 2, fill: seat }), g);
+  el("rect", S({ x: x - 30, y: y - 16, width: 5, height: 28, rx: 1, fill: C.trunk }), g);
+  el("rect", S({ x: x + 25, y: y - 16, width: 5, height: 28, rx: 1, fill: C.trunk }), g);
 }
 function clock(g, x, y, hourDeg) {
-  el("circle", S({ cx: x, cy: y, r: 18, fill: C.cream }), g);
+  el("circle", S({ cx: x, cy: y, r: 16, fill: C.cream }), g);
   const hand = (deg, len, color, w) => {
     const a = (deg - 90) * Math.PI / 180;
     el("line", { x1: x, y1: y, x2: x + Math.cos(a) * len, y2: y + Math.sin(a) * len, stroke: color, "stroke-width": w, "stroke-linecap": "round" }, g);
   };
-  hand(0, 13, INK, 2.4);
-  hand(hourDeg, 12, C.red, 3);
-  el("circle", { cx: x, cy: y, r: 2, fill: INK }, g);
+  hand(0, 11, INK, 2);
+  hand(hourDeg, 10, C.red, 2.4);
+  el("circle", { cx: x, cy: y, r: 1.8, fill: INK }, g);
 }
 function wave(g, y, color) {
   let d = `M 0 ${y}`;
-  for (let x = 0; x < 480; x += 40) d += ` Q ${x + 20} ${y - 7} ${x + 40} ${y}`;
-  el("path", { d, fill: "none", stroke: color, "stroke-width": 3, "stroke-linecap": "round" }, g);
+  for (let x = 0; x < 480; x += 40) d += ` Q ${x + 20} ${y - 6} ${x + 40} ${y}`;
+  el("path", { d, fill: "none", stroke: color, "stroke-width": 2.6, "stroke-linecap": "round" }, g);
 }
-function umbrella(g, x, y, color) {
-  el("path", S({ d: `M ${x - 46} ${y + 18} Q ${x} ${y - 36} ${x + 46} ${y + 18} Z`, fill: color }), g);
-  el("path", { d: `M ${x - 10} ${y + 16} Q ${x} ${y - 8} ${x + 10} ${y + 16}`, fill: "#fff" }, g);
-  el("line", { x1: x, y1: y + 4, x2: x, y2: y + 70, stroke: INK, "stroke-width": 3, "stroke-linecap": "round" }, g);
+function umbrella(g, x, y, color, stripe) {
+  el("path", S({ d: `M ${x - 40} ${y + 16} Q ${x} ${y - 30} ${x + 40} ${y + 16} Z`, fill: color }), g);
+  if (stripe) el("path", { d: `M ${x - 8} ${y + 14} Q ${x} ${y - 6} ${x + 8} ${y + 14}`, fill: "#fff" }, g);
+  el("line", { x1: x, y1: y + 2, x2: x, y2: y + 62, stroke: INK, "stroke-width": 2.6, "stroke-linecap": "round" }, g);
 }
 function boat(g, x, y, sail) {
-  el("path", S({ d: `M ${x - 30} ${y + 10} Q ${x} ${y + 28} ${x + 30} ${y + 10} Z`, fill: C.trunk }), g);
-  el("line", { x1: x, y1: y + 8, x2: x, y2: y - 34, stroke: INK, "stroke-width": 2.5 }, g);
-  el("polygon", S({ points: `${x},${y - 32} ${x},${y + 6} ${x + 28},${y + 2}`, fill: sail }), g);
+  el("path", S({ d: `M ${x - 26} ${y + 8} Q ${x} ${y + 24} ${x + 26} ${y + 8} Z`, fill: C.trunk }), g);
+  el("line", { x1: x, y1: y + 6, x2: x, y2: y - 28, stroke: INK, "stroke-width": 2.2 }, g);
+  el("polygon", S({ points: `${x},${y - 26} ${x},${y + 4} ${x + 24},${y}`, fill: sail }), g);
 }
-function crab(g, x, y) {
-  el("ellipse", S({ cx: x, cy: y, rx: 16, ry: 10, fill: C.red }), g);
-  el("circle", S({ cx: x - 18, cy: y - 6, r: 5, fill: C.red }), g);
-  el("circle", S({ cx: x + 18, cy: y - 6, r: 5, fill: C.red }), g);
-  el("circle", { cx: x - 5, cy: y - 2, r: 1.5, fill: INK }, g);
-  el("circle", { cx: x + 5, cy: y - 2, r: 1.5, fill: INK }, g);
+function crab(g, x, y, claw) {
+  el("ellipse", S({ cx: x, cy: y, rx: 13, ry: 8, fill: C.red }), g);
+  if (claw !== false) {
+    el("circle", S({ cx: x - 15, cy: y - 5, r: 4, fill: C.red }), g);
+    el("circle", S({ cx: x + 15, cy: y - 5, r: 4, fill: C.red }), g);
+  } else {
+    el("circle", S({ cx: x - 15, cy: y - 5, r: 4, fill: C.red }), g);
+  }
+  el("circle", { cx: x - 4, cy: y - 1, r: 1.2, fill: INK }, g);
+  el("circle", { cx: x + 4, cy: y - 1, r: 1.2, fill: INK }, g);
 }
 function starfish(g, x, y) {
   const pts = [];
   for (let i = 0; i < 5; i++) {
     const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
     const b = a + Math.PI / 5;
-    pts.push(`${(x + Math.cos(a) * 16).toFixed(1)},${(y + Math.sin(a) * 16).toFixed(1)}`);
-    pts.push(`${(x + Math.cos(b) * 6).toFixed(1)},${(y + Math.sin(b) * 6).toFixed(1)}`);
+    pts.push(`${(x + Math.cos(a) * 12).toFixed(1)},${(y + Math.sin(a) * 12).toFixed(1)}`);
+    pts.push(`${(x + Math.cos(b) * 5).toFixed(1)},${(y + Math.sin(b) * 5).toFixed(1)}`);
   }
   el("polygon", S({ points: pts.join(" "), fill: C.orange }), g);
 }
 function shell(g, x, y) {
-  el("path", S({ d: `M ${x - 12} ${y + 6} Q ${x} ${y - 14} ${x + 12} ${y + 6} Z`, fill: C.pink }), g);
-  el("path", { d: `M ${x - 6} ${y + 4} Q ${x} ${y - 6} ${x + 6} ${y + 4}`, fill: "none", stroke: INK, "stroke-width": 1.4 }, g);
+  el("path", S({ d: `M ${x - 10} ${y + 5} Q ${x} ${y - 11} ${x + 10} ${y + 5} Z`, fill: C.pink }), g);
 }
-function eyes(g, x, y) {
-  el("circle", { cx: x - 4, cy: y, r: 1.4, fill: INK }, g);
-  el("circle", { cx: x + 4, cy: y, r: 1.4, fill: INK }, g);
+function tinyBug(g, x, y) {
+  el("ellipse", { cx: x, cy: y, rx: 4, ry: 2.2, fill: "#4A3A2A" }, g);
+  el("line", { x1: x - 2, y1: y, x2: x - 7, y2: y - 3, stroke: "#4A3A2A", "stroke-width": 1 }, g);
+  el("line", { x1: x + 2, y1: y, x2: x + 7, y2: y - 3, stroke: "#4A3A2A", "stroke-width": 1 }, g);
+}
+function cat(g, x, y, withTail) {
+  el("ellipse", S({ cx: x, cy: y + 6, rx: 18, ry: 12, fill: "#E8B070" }), g);
+  el("circle", S({ cx: x - 10, cy: y - 6, r: 9, fill: "#E8B070" }), g);
+  el("polygon", S({ points: `${x - 18},${y - 10} ${x - 14},${y - 20} ${x - 8},${y - 12}`, fill: "#E8B070" }), g);
+  el("polygon", S({ points: `${x - 2},${y - 12} ${x + 2},${y - 20} ${x + 6},${y - 10}`, fill: "#E8B070" }), g);
+  el("circle", { cx: x - 13, cy: y - 6, r: 1.3, fill: INK }, g);
+  el("circle", { cx: x - 7, cy: y - 6, r: 1.3, fill: INK }, g);
+  if (withTail !== false) el("path", { d: `M ${x + 16} ${y + 4} Q ${x + 34} ${y - 10} ${x + 28} ${y + 10}`, fill: "none", stroke: "#E8B070", "stroke-width": 6, "stroke-linecap": "round" }, g);
 }
 
-const PUZZLES = [
+function takeDiffs(rng, pool, n) {
+  const chosen = [];
+  for (const d of shuffle(rng, pool)) {
+    if (chosen.length >= n) break;
+    const ok = chosen.every(c => Math.hypot(c.x - d.x, c.y - d.y) >= c.r + d.r + 18);
+    if (ok) chosen.push(d);
+  }
+  while (chosen.length < Math.min(n, pool.length)) {
+    const d = pool.find(p => !chosen.includes(p) && chosen.every(c => Math.hypot(c.x - p.x, c.y - p.y) >= 10));
+    if (!d) break;
+    chosen.push(d);
+  }
+  return chosen.map(d => ({
+    id: d.id, x: d.x, y: d.y, r: d.r,
+    zone: d.zone || zoneOf(d.x, d.y),
+    hard: d.hard || 1,
+  }));
+}
+function activeSet(diffs) {
+  const s = new Set(diffs.map(d => d.id));
+  return id => s.has(id);
+}
+
+const SCENES = [
   {
     id: "park", title: "こうえん",
-    diffs: [
-      { id: "sun", x: 58, y: 48, r: 36, label: "おひさまの ひかり" },
-      { id: "bird", x: 424, y: 44, r: 28, label: "とり" },
-      { id: "bench", x: 268, y: 188, r: 46, label: "ベンチの いろ" },
-      { id: "ball", x: 64, y: 224, r: 26, label: "ボール" },
-      { id: "flower", x: 424, y: 214, r: 30, label: "はなの いろ" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 260, fill: C.sky }, g);
-      el("ellipse", { cx: 100, cy: 176, rx: 150, ry: 34, fill: C.hill }, g);
-      el("ellipse", { cx: 390, cy: 180, rx: 160, ry: 30, fill: "#93D98C" }, g);
-      el("rect", { x: 0, y: 172, width: 480, height: 88, fill: C.grass }, g);
-      el("rect", { x: 0, y: 172, width: 480, height: 8, fill: C.grass2 }, g);
-      el("polygon", S({ points: "200,260 290,260 268,176 230,176", fill: "#E7C48A" }), g);
-      sun(g, 58, 48, L);
-      cloud(g, 210, 44, 1);
-      cloud(g, 330, 74, 0.72);
-      if (L) bird(g, 424, 44);
-      tree(g, 128, 178);
-      bench(g, 268, 188, L ? C.wood : C.blue);
-      flower(g, 180, 222, C.pink);
-      flower(g, 424, 214, L ? C.pink : C.yellow);
-      if (L) ball(g, 64, 224);
-      el("ellipse", S({ cx: 348, cy: 216, rx: 14, ry: 10, fill: C.leaf2 }), g);
-      el("ellipse", S({ cx: 366, cy: 212, rx: 16, ry: 11, fill: C.leaf }), g);
+    build(rng) {
+      const sx = 54 + Math.floor(rng() * 14);
+      const sy = 44 + Math.floor(rng() * 10);
+      const bx = 250 + Math.floor(rng() * 36);
+      const by = 186;
+      const fx = 404 + Math.floor(rng() * 24);
+      const fy = 214;
+      const tx = 118 + Math.floor(rng() * 24);
+      const ballX = 60 + Math.floor(rng() * 16);
+      const birdX = 418 + Math.floor(rng() * 24);
+      const birdY = 42 + Math.floor(rng() * 14);
+      const bugX = 336 + Math.floor(rng() * 36);
+      const bugY = 152 + Math.floor(rng() * 18);
+      const appleX = tx + 10, appleY = 128;
+      const boltX = bx + 22, boltY = by - 12;
+      const skipRay = Math.floor(rng() * 8);
+      const pool = [
+        { id: "sunray", x: sx, y: sy, r: 38 },
+        { id: "bird", x: birdX, y: birdY, r: 26 },
+        { id: "bolt", x: boltX, y: boltY, r: 16 },
+        { id: "flower", x: fx, y: fy, r: 22 },
+        { id: "ball", x: ballX, y: 222, r: 20 },
+        { id: "apple", x: appleX, y: appleY, r: 16 },
+        { id: "bug", x: bugX, y: bugY, r: 18 },
+        { id: "path", x: 248, y: 220, r: 20 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "こうえん",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 260, fill: C.sky }, g);
+          el("ellipse", { cx: 100, cy: 176, rx: 150, ry: 32, fill: C.hill }, g);
+          el("ellipse", { cx: 390, cy: 180, rx: 160, ry: 28, fill: "#93D98C" }, g);
+          el("rect", { x: 0, y: 172, width: 480, height: 88, fill: C.grass }, g);
+          el("rect", { x: 0, y: 172, width: 480, height: 7, fill: C.grass2 }, g);
+          el("polygon", S({ points: "200,260 286,260 266,176 228,176", fill: "#E7C48A" }), g);
+          if (!(has("path") && !L)) el("circle", { cx: 248, cy: 220, r: 3, fill: "#C9A878" }, g);
+          sunBody(g, sx, sy, true, has("sunray") && !L ? skipRay : -1);
+          cloud(g, 210, 44, 1);
+          cloud(g, 330, 74, 0.72);
+          if (!has("bird") || L) bird(g, birdX, birdY);
+          tree(g, tx, 178, C.leaf2, C.leaf);
+          if (!has("apple") || L) el("circle", S({ cx: appleX, cy: appleY, r: 4.5, fill: C.red }), g);
+          bench(g, bx, by, C.wood);
+          if (!has("bolt") || L) el("circle", { cx: boltX, cy: boltY, r: 2.2, fill: INK }, g);
+          flower(g, 176, 220, C.pink, 5);
+          flower(g, fx, fy, C.pink, has("flower") && !L ? 4 : 5);
+          ball(g, ballX, 222, !(has("ball") && !L));
+          if (!has("bug") || L) tinyBug(g, bugX, bugY);
+          el("ellipse", S({ cx: 348, cy: 216, rx: 12, ry: 9, fill: C.leaf2 }), g);
+          el("ellipse", S({ cx: 364, cy: 212, rx: 14, ry: 10, fill: C.leaf }), g);
+        },
+      };
     },
   },
   {
     id: "beach", title: "うみ",
-    diffs: [
-      { id: "sun", x: 56, y: 46, r: 34, label: "おひさまの ひかり" },
-      { id: "sail", x: 420, y: 108, r: 36, label: "ヨットの ほ" },
-      { id: "umbrella", x: 236, y: 156, r: 44, label: "パラソルの いろ" },
-      { id: "crab", x: 72, y: 224, r: 28, label: "かに" },
-      { id: "star", x: 410, y: 224, r: 30, label: "すなの うえ" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 108, fill: C.sky }, g);
-      el("rect", { x: 0, y: 108, width: 480, height: 80, fill: C.sea }, g);
-      el("rect", { x: 0, y: 188, width: 480, height: 72, fill: C.sand }, g);
-      sun(g, 56, 46, L);
-      cloud(g, 170, 40, 0.9);
-      cloud(g, 300, 34, 0.7);
-      wave(g, 140, C.sea2);
-      wave(g, 168, "#7EC8F0");
-      boat(g, 400, 112, L ? C.white : C.red);
-      umbrella(g, 236, 156, L ? C.red : C.yellow);
-      if (L) crab(g, 72, 224);
-      if (L) starfish(g, 410, 224); else shell(g, 410, 224);
-      shell(g, 160, 230);
-      el("path", S({ d: "M 288 214 L 300 230 L 312 230 L 324 214 Z", fill: C.red }), g);
-      el("path", { d: "M 294 214 Q 306 202 318 214", fill: "none", stroke: INK, "stroke-width": 2 }, g);
+    build(rng) {
+      const sx = 52 + Math.floor(rng() * 12);
+      const sy = 44 + Math.floor(rng() * 8);
+      const ux = 224 + Math.floor(rng() * 24);
+      const uy = 150;
+      const boatX = 404 + Math.floor(rng() * 14);
+      const crabX = 72 + Math.floor(rng() * 16);
+      const starX = 404 + Math.floor(rng() * 18);
+      const skipRay = Math.floor(rng() * 8);
+      const pool = [
+        { id: "sunray", x: sx, y: sy, r: 38 },
+        { id: "sail", x: boatX + 10, y: 96, r: 24 },
+        { id: "umbrella", x: ux, y: uy - 4, r: 22 },
+        { id: "crab", x: crabX + 15, y: 216, r: 18 },
+        { id: "spot", x: starX, y: 224, r: 22 },
+        { id: "ripple", x: 160, y: 150, r: 18 },
+        { id: "shell2", x: 160, y: 228, r: 18 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "うみ",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 108, fill: C.sky }, g);
+          el("rect", { x: 0, y: 108, width: 480, height: 80, fill: C.sea }, g);
+          el("rect", { x: 0, y: 188, width: 480, height: 72, fill: C.sand }, g);
+          sunBody(g, sx, sy, true, has("sunray") && !L ? skipRay : -1);
+          cloud(g, 170, 40, 0.9);
+          cloud(g, 300, 34, 0.7);
+          wave(g, 140, C.sea2);
+          wave(g, 168, "#7EC8F0");
+          if (!has("ripple") || L) el("ellipse", { cx: 160, cy: 150, rx: 10, ry: 3, fill: "none", stroke: "#A6DCF5", "stroke-width": 1.6 }, g);
+          boat(g, boatX, 112, C.white);
+          if (has("sail") && !L) el("line", { x1: boatX + 4, y1: 100, x2: boatX + 18, y2: 104, stroke: C.red, "stroke-width": 2, "stroke-linecap": "round" }, g);
+          umbrella(g, ux, uy, C.red, !(has("umbrella") && !L));
+          crab(g, crabX, 222, !(has("crab") && !L));
+          if (!has("spot") || L) starfish(g, starX, 224); else shell(g, starX, 224);
+          shell(g, 160, 228);
+          if (!(has("shell2") && !L)) el("circle", { cx: 166, cy: 224, r: 1.4, fill: INK }, g);
+          el("path", S({ d: "M 288 214 L 300 228 L 312 228 L 324 214 Z", fill: C.red }), g);
+        },
+      };
     },
   },
   {
     id: "room", title: "おへや",
-    diffs: [
-      { id: "curtain", x: 78, y: 70, r: 40, label: "カーテンの いろ" },
-      { id: "clock", x: 236, y: 46, r: 30, label: "とけいの はり" },
-      { id: "frame", x: 412, y: 62, r: 32, label: "かべの え" },
-      { id: "lamp", x: 150, y: 188, r: 34, label: "ランプ" },
-      { id: "cat", x: 400, y: 208, r: 40, label: "ねこ" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 168, fill: C.wall }, g);
-      el("rect", { x: 0, y: 168, width: 480, height: 92, fill: C.floor }, g);
-      el("rect", { x: 0, y: 164, width: 480, height: 8, fill: "#E7B48A" }, g);
-      el("ellipse", { cx: 250, cy: 236, rx: 70, ry: 16, fill: "#F0D2A4" }, g);
-      el("rect", S({ x: 42, y: 38, width: 72, height: 64, rx: 3, fill: "#B7E3FA" }), g);
-      el("line", { x1: 78, y1: 38, x2: 78, y2: 102, stroke: INK, "stroke-width": 2.4 }, g);
-      el("line", { x1: 42, y1: 70, x2: 114, y2: 70, stroke: INK, "stroke-width": 2.4 }, g);
-      el("rect", S({ x: 42, y: 38, width: 22, height: 64, fill: L ? C.pink : C.mint }), g);
-      clock(g, 236, 46, L ? 90 : 180);
-      el("rect", S({ x: 384, y: 38, width: 56, height: 48, rx: 4, fill: C.cream }), g);
-      if (L) el("circle", S({ cx: 412, cy: 62, r: 10, fill: C.yellow }), g);
-      else el("path", S({ d: "M 412 74 C 396 62 404 50 412 56 C 420 50 428 62 412 74", fill: C.pink }), g);
-      el("rect", S({ x: 96, y: 206, width: 120, height: 36, rx: 4, fill: "#C9843E" }), g);
-      el("rect", S({ x: 142, y: 214, width: 16, height: 8, rx: 2, fill: C.trunk }), g);
-      el("line", { x1: 150, y1: 214, x2: 150, y2: 186, stroke: INK, "stroke-width": 3 }, g);
-      el("polygon", S({ points: "134,186 166,186 160,172 140,172", fill: L ? C.yellow : "#C9C1B6" }), g);
-      if (L) el("ellipse", { cx: 150, cy: 206, rx: 16, ry: 4, fill: "#FFE9A0" }, g);
-      el("rect", S({ x: 300, y: 168, width: 168, height: 70, rx: 8, fill: "#F7F1E6" }), g);
-      el("rect", S({ x: 314, y: 176, width: 36, height: 24, rx: 6, fill: C.blue }), g);
-      if (L) {
-        el("ellipse", S({ cx: 392, cy: 214, rx: 22, ry: 13, fill: C.orange }), g);
-        el("circle", S({ cx: 410, cy: 202, r: 11, fill: C.orange }), g);
-        el("polygon", S({ points: "402,190 406,200 398,198", fill: C.orange }), g);
-        el("polygon", S({ points: "414,190 420,200 410,198", fill: C.orange }), g);
-        eyes(g, 410, 202);
-        el("path", { d: "M 422 212 Q 434 206 430 198", fill: "none", stroke: C.orange, "stroke-width": 3, "stroke-linecap": "round" }, g);
-      }
-      const colors = [C.red, C.blue, C.leaf];
-      for (let i = 0; i < 3; i++) el("rect", S({ x: 28, y: 232 - i * 12, width: 34, height: 12, rx: 2, fill: colors[i] }), g);
+    build(rng) {
+      const hour = 80 + Math.floor(rng() * 30);
+      const pool = [
+        { id: "curtain", x: 51, y: 55, r: 16 },
+        { id: "clock", x: 236, y: 46, r: 24 },
+        { id: "frame", x: 412, y: 62, r: 18 },
+        { id: "lamp", x: 150, y: 168, r: 18 },
+        { id: "tail", x: 424, y: 200, r: 22 },
+        { id: "pane", x: 78, y: 70, r: 20 },
+        { id: "knob", x: 250, y: 206, r: 14 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "おへや",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 168, fill: C.wall }, g);
+          el("rect", { x: 0, y: 168, width: 480, height: 92, fill: C.floor }, g);
+          el("rect", { x: 0, y: 164, width: 480, height: 7, fill: "#E7B48A" }, g);
+          el("ellipse", { cx: 250, cy: 236, rx: 68, ry: 14, fill: "#F0D2A4" }, g);
+          el("rect", S({ x: 42, y: 38, width: 72, height: 64, rx: 3, fill: "#B7E3FA" }), g);
+          el("line", { x1: 78, y1: 38, x2: 78, y2: 102, stroke: INK, "stroke-width": 2.2 }, g);
+          if (!(has("pane") && !L)) el("line", { x1: 42, y1: 70, x2: 114, y2: 70, stroke: INK, "stroke-width": 2.2 }, g);
+          el("rect", S({ x: 42, y: 38, width: 18, height: 64, fill: C.pink }), g);
+          if (!has("curtain") || L) el("circle", { cx: 51, cy: 55, r: 2.4, fill: C.yellow }, g);
+          clock(g, 236, 46, has("clock") && !L ? hour + 35 : hour);
+          el("rect", S({ x: 384, y: 38, width: 56, height: 48, rx: 4, fill: C.cream }), g);
+          el("circle", S({ cx: 412, cy: 62, r: 10, fill: C.yellow }), g);
+          if (!(has("frame") && !L)) el("circle", { cx: 412, cy: 62, r: 3, fill: C.orange }, g);
+          el("rect", S({ x: 132, y: 176, width: 36, height: 48, rx: 4, fill: "#C9843E" }), g);
+          el("ellipse", S({ cx: 150, cy: 172, rx: 22, ry: 10, fill: C.cream }), g);
+          if (!has("lamp") || L) el("circle", { cx: 150, cy: 168, r: 2.5, fill: C.yellow }, g);
+          cat(g, 400, 208, !(has("tail") && !L));
+          el("rect", S({ x: 220, y: 190, width: 90, height: 36, rx: 4, fill: "#D7A878" }), g);
+          if (!has("knob") || L) el("circle", { cx: 250, cy: 206, r: 2.2, fill: INK }, g);
+        },
+      };
     },
   },
   {
     id: "farm", title: "のうじょう",
-    diffs: [
-      { id: "sun", x: 54, y: 46, r: 34, label: "おひさまの ひかり" },
-      { id: "hen", x: 424, y: 78, r: 30, label: "にわとり" },
-      { id: "door", x: 250, y: 145, r: 36, label: "ドア" },
-      { id: "tractor", x: 108, y: 214, r: 40, label: "トラクターの いろ" },
-      { id: "sheep", x: 400, y: 196, r: 34, label: "ひつじの はなかんむり" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 168, fill: C.sky }, g);
-      el("rect", { x: 0, y: 168, width: 480, height: 92, fill: C.grass }, g);
-      el("rect", { x: 0, y: 168, width: 480, height: 8, fill: C.grass2 }, g);
-      sun(g, 54, 46, L);
-      cloud(g, 150, 48, 0.85);
-      el("polygon", S({ points: "170,96 250,42 330,96", fill: "#A33A2E" }), g);
-      el("rect", S({ x: 180, y: 96, width: 140, height: 80, fill: "#C44536" }), g);
-      el("rect", S({ x: 232, y: 58, width: 36, height: 22, rx: 2, fill: C.cream }), g);
-      el("line", { x1: 250, y1: 58, x2: 250, y2: 80, stroke: INK, "stroke-width": 2 }, g);
-      if (L) {
-        el("rect", S({ x: 228, y: 118, width: 44, height: 58, fill: "#8C2F28" }), g);
-        el("line", { x1: 250, y1: 118, x2: 250, y2: 176, stroke: INK, "stroke-width": 2 }, g);
-        el("circle", { cx: 258, cy: 148, r: 2, fill: C.yellow }, g);
-      } else {
-        el("rect", S({ x: 228, y: 118, width: 44, height: 58, fill: "#6B4A2A" }), g);
-        el("rect", { x: 236, y: 150, width: 28, height: 16, rx: 2, fill: "#E7C56A" }, g);
-      }
-      el("line", { x1: 350, y1: 100, x2: 470, y2: 100, stroke: INK, "stroke-width": 3 }, g);
-      el("line", { x1: 360, y1: 100, x2: 360, y2: 168, stroke: INK, "stroke-width": 3 }, g);
-      el("line", { x1: 400, y1: 100, x2: 400, y2: 168, stroke: INK, "stroke-width": 3 }, g);
-      el("line", { x1: 440, y1: 100, x2: 440, y2: 168, stroke: INK, "stroke-width": 3 }, g);
-      if (L) {
-        el("ellipse", S({ cx: 418, cy: 84, rx: 15, ry: 10, fill: C.white }), g);
-        el("circle", S({ cx: 430, cy: 76, r: 8, fill: C.white }), g);
-        el("polygon", S({ points: "426,66 430,74 434,66", fill: C.red }), g);
-        el("polygon", S({ points: "436,76 446,79 436,82", fill: C.orange }), g);
-        el("circle", { cx: 432, cy: 75, r: 1.3, fill: INK }, g);
-      }
-      const body = L ? C.leaf : C.red;
-      el("circle", S({ cx: 92, cy: 224, r: 14, fill: "#333" }), g);
-      el("circle", S({ cx: 132, cy: 226, r: 18, fill: "#333" }), g);
-      el("circle", { cx: 92, cy: 224, r: 5, fill: "#ddd" }, g);
-      el("circle", { cx: 132, cy: 226, r: 6, fill: "#ddd" }, g);
-      el("rect", S({ x: 78, y: 200, width: 52, height: 22, rx: 4, fill: body }), g);
-      el("rect", S({ x: 114, y: 184, width: 20, height: 18, rx: 3, fill: "#C9E7F8" }), g);
-      el("ellipse", S({ cx: 386, cy: 210, rx: 26, ry: 16, fill: C.white }), g);
-      el("circle", S({ cx: 366, cy: 204, r: 8, fill: C.white }), g);
-      el("circle", S({ cx: 400, cy: 198, r: 9, fill: C.white }), g);
-      el("circle", S({ cx: 414, cy: 192, r: 11, fill: C.skin }), g);
-      eyes(g, 414, 192);
-      if (L) bloom(g, 414, 176, C.pink, 5);
-      flower(g, 200, 214, C.yellow);
+    build(rng) {
+      const skipRay = Math.floor(rng() * 8);
+      const pool = [
+        { id: "sunray", x: 56, y: 46, r: 38 },
+        { id: "door", x: 362, y: 158, r: 20 },
+        { id: "spot", x: 118, y: 208, r: 16 },
+        { id: "rail", x: 256, y: 218, r: 16 },
+        { id: "crop", x: 420, y: 220, r: 22 },
+        { id: "puff", x: 248, y: 42, r: 20 },
+        { id: "silo", x: 300, y: 130, r: 24 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "のうじょう",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 150, fill: C.sky }, g);
+          el("rect", { x: 0, y: 150, width: 480, height: 110, fill: "#C9E48A" }, g);
+          sunBody(g, 56, 46, true, has("sunray") && !L ? skipRay : -1);
+          cloud(g, 220, 48, 0.85);
+          if (!has("puff") || L) el("ellipse", { cx: 248, cy: 42, rx: 8, ry: 5, fill: C.cloud, stroke: INK, "stroke-width": 1.2 }, g);
+          cloud(g, 360, 40, 0.6);
+          el("rect", S({ x: 320, y: 110, width: 90, height: 70, fill: C.red }), g);
+          el("polygon", S({ points: "310,110 365,72 420,110", fill: "#A84840" }), g);
+          el("rect", S({ x: 348, y: 136, width: 28, height: 44, fill: C.cream }), g);
+          if (!has("door") || L) el("circle", { cx: 362, cy: 158, r: 2.4, fill: INK }, g);
+          el("rect", S({ x: 286, y: 96, width: 28, height: 84, rx: 4, fill: "#D8D0C4" }), g);
+          el("ellipse", S({ cx: 300, cy: 96, rx: 18, ry: 8, fill: "#B8B0A4" }), g);
+          if (!(has("silo") && !L)) el("circle", { cx: 300, cy: 130, r: 2.4, fill: INK }, g);
+          for (let i = 0; i < 6; i++) {
+            const x = 190 + i * 22;
+            el("line", { x1: x, y1: 196, x2: x, y2: 230, stroke: C.trunk, "stroke-width": 2.4 }, g);
+          }
+          el("line", { x1: 190, y1: 204, x2: 300, y2: 204, stroke: C.trunk, "stroke-width": 2.4 }, g);
+          el("line", { x1: 190, y1: 218, x2: 300, y2: 218, stroke: C.trunk, "stroke-width": 2.4 }, g);
+          if (!(has("rail") && !L)) el("circle", { cx: 256, cy: 218, r: 2.2, fill: INK }, g);
+          el("ellipse", S({ cx: 120, cy: 208, rx: 28, ry: 16, fill: C.white }), g);
+          el("circle", S({ cx: 96, cy: 198, r: 12, fill: C.white }), g);
+          el("circle", { cx: 92, cy: 196, r: 1.4, fill: INK }, g);
+          el("ellipse", { cx: 118, cy: 208, rx: 7, ry: 5, fill: "#4A3A2A" }, g);
+          if (!has("spot") || L) el("ellipse", { cx: 132, cy: 202, rx: 5, ry: 4, fill: "#4A3A2A" }, g);
+          bloom(g, 420, 220, C.yellow, 6, has("crop") && !L ? 4 : 5);
+          bloom(g, 440, 226, C.orange, 5, 5);
+          bloom(g, 400, 228, C.pink, 5, 5);
+        },
+      };
     },
   },
   {
     id: "snow", title: "ゆきのひ",
-    diffs: [
-      { id: "flake", x: 56, y: 48, r: 30, label: "おおゆき" },
-      { id: "bird", x: 424, y: 46, r: 28, label: "とり" },
-      { id: "window", x: 268, y: 128, r: 28, label: "まどの あかり" },
-      { id: "scarf", x: 124, y: 186, r: 36, label: "マフラーの いろ" },
-      { id: "star", x: 408, y: 158, r: 26, label: "ツリーの ほし" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 176, fill: "#E7F2FB" }, g);
-      el("rect", { x: 0, y: 176, width: 480, height: 84, fill: "#F7FBFF" }, g);
-      el("ellipse", { cx: 80, cy: 184, rx: 120, ry: 20, fill: "#FFF" }, g);
-      el("ellipse", { cx: 300, cy: 186, rx: 150, ry: 22, fill: "#FFF" }, g);
-      if (L) {
-        for (let i = 0; i < 6; i++) {
-          const a = i * Math.PI / 3;
-          el("line", { x1: 56, y1: 48, x2: 56 + Math.cos(a) * 16, y2: 48 + Math.sin(a) * 16, stroke: "#3A7CA8", "stroke-width": 2.6, "stroke-linecap": "round" }, g);
-        }
-      }
-      [[160, 34], [210, 68], [300, 36], [348, 72]].forEach(([x, y]) => {
-        for (let i = 0; i < 6; i++) {
-          const a = i * Math.PI / 3;
-          el("line", { x1: x, y1: y, x2: x + Math.cos(a) * 6, y2: y + Math.sin(a) * 6, stroke: "#7EB6DE", "stroke-width": 1.8, "stroke-linecap": "round" }, g);
-        }
-      });
-      if (L) bird(g, 424, 46);
-      el("polygon", S({ points: "200,118 268,64 336,118", fill: "#E7D3C4" }), g);
-      el("rect", S({ x: 210, y: 114, width: 116, height: 70, fill: "#F4EFE6" }), g);
-      el("rect", S({ x: 252, y: 70, width: 16, height: 22, fill: "#C9843E" }), g);
-      el("rect", S({ x: 248, y: 148, width: 22, height: 36, fill: "#8A5A34" }), g);
-      el("rect", S({ x: 252, y: 112, width: 32, height: 26, rx: 2, fill: L ? C.yellow : "#9BB8D4" }), g);
-      el("line", { x1: 268, y1: 112, x2: 268, y2: 138, stroke: INK, "stroke-width": 2 }, g);
-      el("line", { x1: 252, y1: 125, x2: 284, y2: 125, stroke: INK, "stroke-width": 2 }, g);
-      el("circle", S({ cx: 124, cy: 214, r: 26, fill: "#FFF" }), g);
-      el("circle", S({ cx: 124, cy: 176, r: 16, fill: "#FFF" }), g);
-      el("rect", S({ x: 110, y: 148, width: 28, height: 8, rx: 2, fill: INK }), g);
-      el("rect", S({ x: 118, y: 140, width: 12, height: 12, fill: INK }), g);
-      const scarf = L ? C.red : C.blue;
-      el("rect", S({ x: 104, y: 180, width: 40, height: 12, rx: 4, fill: scarf }), g);
-      el("rect", S({ x: 132, y: 186, width: 12, height: 26, rx: 4, fill: scarf }), g);
-      eyes(g, 124, 174);
-      el("polygon", S({ points: "138,178 152,182 138,186", fill: C.orange }), g);
-      el("circle", { cx: 124, cy: 204, r: 2.2, fill: INK }, g);
-      el("circle", { cx: 124, cy: 216, r: 2.2, fill: INK }, g);
-      el("polygon", S({ points: "408,168 372,210 444,210", fill: C.leaf2 }), g);
-      el("polygon", S({ points: "408,188 360,236 456,236", fill: C.leaf }), g);
-      if (L) {
-        const pts = [];
-        for (let i = 0; i < 5; i++) {
-          const a = -Math.PI / 2 + i * 2 * Math.PI / 5, b = a + Math.PI / 5;
-          pts.push(`${(408 + Math.cos(a) * 10).toFixed(1)},${(158 + Math.sin(a) * 10).toFixed(1)}`);
-          pts.push(`${(408 + Math.cos(b) * 4).toFixed(1)},${(158 + Math.sin(b) * 4).toFixed(1)}`);
-        }
-        el("polygon", S({ points: pts.join(" "), fill: C.yellow }), g);
-      }
+    build(rng) {
+      const pool = [
+        { id: "flake", x: 60, y: 40, r: 14 },
+        { id: "button", x: 240, y: 178, r: 14 },
+        { id: "needle", x: 380, y: 126, r: 16 },
+        { id: "chimney", x: 124, y: 108, r: 16 },
+        { id: "scarf", x: 240, y: 152, r: 22 },
+        { id: "glow", x: 89, y: 157, r: 16 },
+        { id: "smoke", x: 132, y: 70, r: 18 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "ゆきのひ",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 180, fill: "#C9DCF2" }, g);
+          el("rect", { x: 0, y: 180, width: 480, height: 80, fill: "#F4F7FB" }, g);
+          const flakes = [[60, 40], [140, 28], [220, 56], [300, 34], [360, 60], [430, 42], [80, 90], [400, 88]];
+          flakes.forEach(([x, y], i) => {
+            if (has("flake") && !L && i === 0) return;
+            el("circle", { cx: x, cy: y, r: 2.2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.6 }, g);
+          });
+          el("rect", S({ x: 60, y: 126, width: 80, height: 60, fill: "#E7D2B8" }), g);
+          el("polygon", S({ points: "50,126 100,88 150,126", fill: C.red }), g);
+          el("rect", S({ x: 118, y: 96, width: 12, height: 28, fill: "#8A6A55" }), g);
+          if (!(has("chimney") && !L)) el("rect", { x: 118, y: 108, width: 12, height: 3, fill: "#6A4A35" }, g);
+          if (!has("smoke") || L) {
+            el("circle", { cx: 128, cy: 78, r: 6, fill: "rgba(255,255,255,.75)" }, g);
+            el("circle", { cx: 136, cy: 66, r: 4.5, fill: "rgba(255,255,255,.55)" }, g);
+          }
+          el("rect", S({ x: 78, y: 146, width: 22, height: 22, fill: "#B7E3FA" }), g);
+          if (!has("glow") || L) el("rect", { x: 82, y: 150, width: 14, height: 14, fill: "#FFE9A8" }, g);
+          el("polygon", S({ points: "380,200 350,130 410,130", fill: "#2E6B45" }), g);
+          el("polygon", S({ points: "380,170 360,120 400,120", fill: "#3E8A58" }), g);
+          if (!has("needle") || L) el("line", { x1: 372, y1: 126, x2: 366, y2: 118, stroke: "#1F4A30", "stroke-width": 1.6, "stroke-linecap": "round" }, g);
+          el("rect", S({ x: 374, y: 198, width: 12, height: 22, fill: C.trunk }), g);
+          el("circle", S({ cx: 240, cy: 210, r: 28, fill: C.white }), g);
+          el("circle", S({ cx: 240, cy: 170, r: 20, fill: C.white }), g);
+          el("circle", S({ cx: 240, cy: 140, r: 14, fill: C.white }), g);
+          el("circle", { cx: 234, cy: 138, r: 1.5, fill: INK }, g);
+          el("circle", { cx: 246, cy: 138, r: 1.5, fill: INK }, g);
+          el("polygon", S({ points: "240,142 236,148 244,148", fill: C.orange }), g);
+          if (!(has("scarf") && !L)) el("path", { d: "M 226 152 Q 240 162 254 152", fill: "none", stroke: C.red, "stroke-width": 4, "stroke-linecap": "round" }, g);
+          el("circle", { cx: 240, cy: 168, r: 2, fill: INK }, g);
+          if (!has("button") || L) el("circle", { cx: 240, cy: 178, r: 2, fill: INK }, g);
+        },
+      };
     },
   },
   {
     id: "festival", title: "おまつり",
-    diffs: [
-      { id: "lantern", x: 64, y: 58, r: 32, label: "ちょうちんの いろ" },
-      { id: "balloon", x: 436, y: 36, r: 26, label: "ふうせん" },
-      { id: "flag", x: 240, y: 112, r: 26, label: "はたの いろ" },
-      { id: "food", x: 116, y: 204, r: 34, label: "お店の たべもの" },
-      { id: "coat", x: 400, y: 196, r: 40, label: "はっぴの いろ" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 150, fill: "#F8C9A4" }, g);
-      el("rect", { x: 0, y: 150, width: 480, height: 40, fill: "#FFE7C2" }, g);
-      el("rect", { x: 0, y: 190, width: 480, height: 70, fill: "#E8C99A" }, g);
-      el("line", { x1: 20, y1: 18, x2: 360, y2: 18, stroke: INK, "stroke-width": 2 }, g);
-      [[64, L ? C.yellow : C.red], [160, C.red], [250, C.red], [330, C.red]].forEach(([x, fill]) => {
-        el("line", { x1: x, y1: 18, x2: x, y2: 34, stroke: INK, "stroke-width": 2 }, g);
-        el("rect", S({ x: x - 12, y: 40, width: 24, height: 28, rx: 6, fill }), g);
-        el("rect", S({ x: x - 14, y: 36, width: 28, height: 6, rx: 2, fill: C.wood }), g);
-        el("rect", S({ x: x - 14, y: 66, width: 28, height: 6, rx: 2, fill: C.wood }), g);
-      });
-      const balloons = [[396, 74, C.red], [422, 86, C.blue]];
-      if (L) balloons.push([436, 36, C.yellow]);
-      balloons.forEach(([x, y, fill]) => {
-        el("ellipse", S({ cx: x, cy: y, rx: 12, ry: 15, fill }), g);
-        el("polygon", S({ points: `${x - 3},${y + 14} ${x + 3},${y + 14} ${x},${y + 18}`, fill }), g);
-        el("path", { d: `M ${x} ${y + 16} Q ${x - 3} ${y + 24} ${x + 1} ${y + 30}`, fill: "none", stroke: INK, "stroke-width": 1.4 }, g);
-      });
-      el("line", { x1: 80, y1: 100, x2: 400, y2: 100, stroke: INK, "stroke-width": 2 }, g);
-      [[140, C.red], [190, C.yellow], [240, L ? C.blue : C.leaf], [290, C.pink], [340, C.orange]].forEach(([x, fill]) => {
-        el("polygon", S({ points: `${x},100 ${x + 16},112 ${x},124`, fill }), g);
-      });
-      el("rect", S({ x: 48, y: 188, width: 140, height: 48, rx: 4, fill: C.wood }), g);
-      el("path", S({ d: "M 40 188 Q 118 160 196 188", fill: C.red }), g);
-      if (L) {
-        el("ellipse", S({ cx: 116, cy: 212, rx: 28, ry: 12, fill: "#6B4A2A" }), g);
-        [-14, 0, 14].forEach(dx => el("circle", S({ cx: 116 + dx, cy: 204, r: 8, fill: "#C9843E" }), g));
-      } else {
-        el("rect", S({ x: 104, y: 214, width: 24, height: 14, rx: 3, fill: C.cream }), g);
-        el("line", { x1: 116, y1: 214, x2: 116, y2: 196, stroke: INK, "stroke-width": 2 }, g);
-        el("circle", S({ cx: 116, cy: 188, r: 14, fill: C.red }), g);
-      }
-      el("rect", S({ x: 382, y: 180, width: 36, height: 42, rx: 12, fill: L ? C.blue : "#9B59C8" }), g);
-      el("rect", S({ x: 382, y: 180, width: 36, height: 8, fill: C.white }), g);
-      el("circle", S({ cx: 400, cy: 164, r: 13, fill: C.skin }), g);
-      eyes(g, 400, 164);
+    build(rng) {
+      const pool = [
+        { id: "lantern", x: 79, y: 48, r: 14 },
+        { id: "fringe", x: 240, y: 126, r: 16 },
+        { id: "flag", x: 420, y: 84, r: 20 },
+        { id: "crater", x: 420, y: 48, r: 16 },
+        { id: "sleeve", x: 140, y: 220, r: 16 },
+        { id: "banner", x: 240, y: 95, r: 18 },
+        { id: "star", x: 70, y: 58, r: 12 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "おまつり",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 260, fill: C.night }, g);
+          const stars = [[40, 36], [70, 58], [120, 28], [180, 48], [260, 30], [320, 52], [380, 26], [450, 44]];
+          stars.forEach(([x, y], i) => {
+            if (has("star") && !L && i === 1) return;
+            el("circle", { cx: x, cy: y, r: 1.6, fill: "#FFE9A8" }, g);
+          });
+          el("circle", S({ cx: 420, cy: 48, r: 18, fill: "#FFE9A8" }), g);
+          if (!(has("crater") && !L)) el("circle", { cx: 426, cy: 44, r: 2.2, fill: "#E6D08A" }, g);
+          el("rect", S({ x: 70, y: 54, width: 18, height: 28, rx: 8, fill: C.red }), g);
+          if (!has("lantern") || L) el("line", { x1: 79, y1: 40, x2: 79, y2: 54, stroke: "#D8C4A0", "stroke-width": 2 }, g);
+          el("rect", S({ x: 190, y: 130, width: 100, height: 70, fill: "#6B4428" }), g);
+          el("rect", S({ x: 180, y: 118, width: 120, height: 18, fill: C.orange }), g);
+          if (!has("fringe") || L) {
+            for (let i = 0; i < 5; i++) el("line", { x1: 190 + i * 24, y1: 136, x2: 190 + i * 24, y2: 144, stroke: "#FFE9A8", "stroke-width": 1.5 }, g);
+          }
+          el("rect", S({ x: 210, y: 88, width: 60, height: 14, rx: 3, fill: C.yellow }), g);
+          if (!(has("banner") && !L)) el("circle", { cx: 240, cy: 95, r: 2.2, fill: C.red }, g);
+          el("line", { x1: 400, y1: 60, x2: 400, y2: 200, stroke: "#D8C4A0", "stroke-width": 2.4 }, g);
+          el("polygon", S({ points: "400,68 442,84 400,98", fill: C.pink }), g);
+          if (!(has("flag") && !L)) el("circle", { cx: 420, cy: 84, r: 2.4, fill: C.white }, g);
+          el("circle", S({ cx: 140, cy: 200, r: 12, fill: "#FFD7B5" }), g);
+          el("rect", S({ x: 128, y: 212, width: 24, height: 30, rx: 4, fill: C.blue }), g);
+          if (!has("sleeve") || L) el("rect", { x: 122, y: 216, width: 8, height: 14, rx: 2, fill: C.blue }, g);
+          el("circle", S({ cx: 320, cy: 210, r: 11, fill: "#FFD7B5" }), g);
+          el("rect", S({ x: 308, y: 220, width: 24, height: 28, rx: 4, fill: C.pink }), g);
+        },
+      };
     },
   },
   {
     id: "kitchen", title: "キッチン",
-    diffs: [
-      { id: "bird", x: 188, y: 46, r: 26, label: "まどの とり" },
-      { id: "clock", x: 420, y: 46, r: 30, label: "とけいの はり" },
-      { id: "magnet", x: 62, y: 128, r: 26, label: "マグネット" },
-      { id: "fruit", x: 236, y: 186, r: 30, label: "くだもの" },
-      { id: "leaf", x: 424, y: 146, r: 30, label: "はっぱの かず" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 150, fill: "#F3E0C4" }, g);
-      el("rect", { x: 0, y: 150, width: 480, height: 70, fill: "#F7F1E6" }, g);
-      el("rect", { x: 0, y: 150, width: 480, height: 8, fill: "#E7D3B0" }, g);
-      el("rect", { x: 0, y: 220, width: 480, height: 40, fill: "#D7A36A" }, g);
-      el("rect", S({ x: 28, y: 64, width: 68, height: 120, rx: 4, fill: "#F7F7F5" }), g);
-      el("line", { x1: 28, y1: 150, x2: 96, y2: 150, stroke: INK, "stroke-width": 2 }, g);
-      if (L) el("circle", S({ cx: 62, cy: 128, r: 8, fill: C.red }), g);
-      else {
-        const pts = [];
-        for (let i = 0; i < 5; i++) {
-          const a = -Math.PI / 2 + i * 2 * Math.PI / 5, b = a + Math.PI / 5;
-          pts.push(`${(62 + Math.cos(a) * 9).toFixed(1)},${(128 + Math.sin(a) * 9).toFixed(1)}`);
-          pts.push(`${(62 + Math.cos(b) * 4).toFixed(1)},${(128 + Math.sin(b) * 4).toFixed(1)}`);
-        }
-        el("polygon", S({ points: pts.join(" "), fill: C.yellow }), g);
-      }
-      el("rect", S({ x: 150, y: 22, width: 76, height: 58, rx: 3, fill: "#B7E3FA" }), g);
-      el("line", { x1: 188, y1: 22, x2: 188, y2: 80, stroke: INK, "stroke-width": 2.2 }, g);
-      el("line", { x1: 150, y1: 51, x2: 226, y2: 51, stroke: INK, "stroke-width": 2.2 }, g);
-      if (L) bird(g, 188, 46);
-      clock(g, 420, 46, L ? 120 : 240);
-      el("ellipse", S({ cx: 236, cy: 200, rx: 28, ry: 8, fill: C.cream }), g);
-      if (L) {
-        el("circle", S({ cx: 236, cy: 184, r: 14, fill: C.red }), g);
-        el("ellipse", S({ cx: 236, cy: 172, rx: 3, ry: 5, fill: C.leaf }), g);
-      } else {
-        el("circle", S({ cx: 236, cy: 184, r: 14, fill: C.orange }), g);
-        el("ellipse", { cx: 244, cy: 178, rx: 3, ry: 2, fill: "#FFE0A0" }, g);
-      }
-      el("path", S({ d: "M 314 176 h 22 v 16 a 8 8 0 0 1 -8 8 h -6 a 8 8 0 0 1 -8 -8 z", fill: C.blue }), g);
-      el("path", { d: "M 336 182 Q 348 188 336 196", fill: "none", stroke: C.blue, "stroke-width": 3 }, g);
-      el("rect", S({ x: 412, y: 186, width: 24, height: 18, rx: 3, fill: "#E07A4C" }), g);
-      el("line", { x1: 424, y1: 186, x2: 424, y2: 162, stroke: C.leaf2, "stroke-width": 2.5 }, g);
-      el("ellipse", S({ cx: 412, cy: 172, rx: 8, ry: 5, fill: C.leaf }), g);
-      el("ellipse", S({ cx: 436, cy: 172, rx: 8, ry: 5, fill: C.leaf }), g);
-      if (L) el("ellipse", S({ cx: 424, cy: 146, rx: 10, ry: 7, fill: C.leaf2 }), g);
+    build(rng) {
+      const pool = [
+        { id: "handle", x: 240, y: 122, r: 16 },
+        { id: "cup", x: 100, y: 168, r: 16 },
+        { id: "stem", x: 380, y: 158, r: 14 },
+        { id: "clock", x: 400, y: 50, r: 22 },
+        { id: "grout", x: 215, y: 87, r: 14 },
+        { id: "spoon", x: 280, y: 108, r: 20 },
+        { id: "flame", x: 240, y: 172, r: 16 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "キッチン",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 150, fill: "#F3E2D0" }, g);
+          el("rect", { x: 0, y: 150, width: 480, height: 110, fill: "#D9B48A" }, g);
+          for (let y = 20; y < 140; y += 28) {
+            for (let x = 20; x < 460; x += 36) {
+              el("rect", S({ x, y, width: 30, height: 22, fill: "#F7EFE4" }), g);
+            }
+          }
+          if (!(has("grout") && !L)) el("circle", { cx: 215, cy: 87, r: 1.8, fill: "#D8C8B4" }, g);
+          el("rect", S({ x: 160, y: 170, width: 160, height: 14, fill: "#8A6A55" }), g);
+          el("ellipse", S({ cx: 240, cy: 158, rx: 34, ry: 12, fill: "#6E7F92" }), g);
+          el("path", S({ d: "M 208 158 V 130 H 272 V 158", fill: "#6E7F92" }), g);
+          if (!has("handle") || L) el("line", { x1: 228, y1: 122, x2: 252, y2: 122, stroke: INK, "stroke-width": 2.4, "stroke-linecap": "round" }, g);
+          if (!has("spoon") || L) el("line", { x1: 268, y1: 120, x2: 292, y2: 96, stroke: "#C0C8D0", "stroke-width": 3, "stroke-linecap": "round" }, g);
+          if (!has("flame") || L) el("path", { d: "M 232 178 Q 240 164 248 178 Q 240 174 232 178", fill: C.orange }, g);
+          el("rect", S({ x: 86, y: 168, width: 28, height: 34, rx: 4, fill: C.mint }), g);
+          el("ellipse", S({ cx: 100, cy: 168, rx: 16, ry: 5, fill: softHue(C.mint, 10) }), g);
+          if (!(has("cup") && !L)) el("line", { x1: 114, y1: 176, x2: 122, y2: 176, stroke: INK, "stroke-width": 2, "stroke-linecap": "round" }, g);
+          el("circle", S({ cx: 380, cy: 170, r: 14, fill: C.red }), g);
+          if (!has("stem") || L) el("line", { x1: 380, y1: 156, x2: 380, y2: 148, stroke: C.leaf2, "stroke-width": 2, "stroke-linecap": "round" }, g);
+          el("circle", S({ cx: 400, cy: 178, r: 11, fill: C.yellow }), g);
+          clock(g, 400, 50, has("clock") && !L ? 155 : 120);
+        },
+      };
     },
   },
   {
     id: "camp", title: "キャンプ",
-    diffs: [
-      { id: "moon", x: 64, y: 50, r: 34, label: "つきの かお" },
-      { id: "owl", x: 424, y: 52, r: 28, label: "ふくろう" },
-      { id: "tent", x: 250, y: 148, r: 64, label: "テントの いろ" },
-      { id: "log", x: 128, y: 222, r: 28, label: "まき" },
-      { id: "mash", x: 400, y: 200, r: 28, label: "マシュマロ" },
-    ],
-    draw(g, side) {
-      const L = side === "L";
-      el("rect", { x: 0, y: 0, width: 480, height: 186, fill: C.night }, g);
-      el("rect", { x: 0, y: 186, width: 480, height: 74, fill: C.camp }, g);
-      [[150, 40], [200, 78], [300, 34], [340, 80]].forEach(([x, y]) => {
-        el("circle", { cx: x, cy: y, r: 2.2, fill: C.yellow }, g);
-      });
-      el("circle", S({ cx: 64, cy: 50, r: 20, fill: "#FFF6D0" }), g);
-      if (L) {
-        eyes(g, 64, 48);
-        el("path", { d: "M 58 56 Q 64 60 70 56", fill: "none", stroke: INK, "stroke-width": 1.5, "stroke-linecap": "round" }, g);
-      }
-      if (L) {
-        el("ellipse", S({ cx: 424, cy: 58, rx: 14, ry: 16, fill: "#F6E7C1" }), g);
-        el("circle", S({ cx: 424, cy: 44, r: 10, fill: "#F6E7C1" }), g);
-        el("polygon", S({ points: "416,36 420,44 414,44", fill: "#F6E7C1" }), g);
-        el("polygon", S({ points: "432,36 428,44 434,44", fill: "#F6E7C1" }), g);
-        el("circle", { cx: 421, cy: 44, r: 2, fill: INK }, g);
-        el("circle", { cx: 427, cy: 44, r: 2, fill: INK }, g);
-        el("polygon", S({ points: "422,50 426,50 424,54", fill: C.orange }), g);
-      }
-      el("polygon", S({ points: "250,98 192,184 308,184", fill: L ? C.orange : C.mint }), g);
-      el("polygon", S({ points: "250,98 234,184 266,184", fill: "#F7F1E4" }), g);
-      el("ellipse", S({ cx: 78, cy: 228, rx: 22, ry: 8, fill: "#6B4A2A" }), g);
-      el("ellipse", S({ cx: 72, cy: 222, rx: 18, ry: 7, fill: C.trunk }), g);
-      if (L) el("ellipse", S({ cx: 128, cy: 222, rx: 16, ry: 7, fill: "#A8723E" }), g);
-      el("path", S({ d: "M 76 220 C 68 208 72 202 76 192 C 82 204 86 208 76 220", fill: C.orange }), g);
-      el("path", { d: "M 76 216 C 73 208 75 204 76 198 C 79 206 80 208 76 216", fill: C.yellow }, g);
-      el("line", { x1: 340, y1: 230, x2: 400, y2: 206, stroke: C.trunk, "stroke-width": 3, "stroke-linecap": "round" }, g);
-      el("circle", S({ cx: 400, cy: 200, r: 8, fill: L ? C.white : C.pink }), g);
-      el("rect", S({ x: 24, y: 196, width: 22, height: 26, rx: 4, fill: "#C9843E" }), g);
+    build(rng) {
+      const pool = [
+        { id: "flap", x: 250, y: 150, r: 18 },
+        { id: "spark", x: 126, y: 188, r: 14 },
+        { id: "star", x: 36, y: 30, r: 12 },
+        { id: "crater", x: 406, y: 46, r: 14 },
+        { id: "ring", x: 112, y: 218, r: 16 },
+        { id: "bag", x: 396, y: 204, r: 16 },
+        { id: "needle", x: 70, y: 130, r: 16 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "キャンプ",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 170, fill: "#1B2F55" }, g);
+          el("rect", { x: 0, y: 170, width: 480, height: 90, fill: C.camp }, g);
+          const stars = [[36, 30], [70, 48], [110, 24], [160, 40], [210, 28], [280, 36], [330, 22], [450, 40]];
+          stars.forEach(([x, y], i) => {
+            if (has("star") && !L && i === 0) return;
+            el("circle", { cx: x, cy: y, r: 1.5, fill: "#FFE9A8" }, g);
+          });
+          el("circle", S({ cx: 400, cy: 50, r: 17, fill: "#FFE9A8" }), g);
+          if (!(has("crater") && !L)) el("circle", { cx: 406, cy: 46, r: 2.2, fill: "#E6D08A" }, g);
+          tree(g, 60, 190, "#1F5A38", "#2E7D3A");
+          if (!has("needle") || L) el("line", { x1: 70, y1: 130, x2: 78, y2: 122, stroke: "#163D28", "stroke-width": 1.6, "stroke-linecap": "round" }, g);
+          el("polygon", S({ points: "250,98 192,184 308,184", fill: C.orange }), g);
+          el("polygon", S({ points: "250,98 234,184 266,184", fill: "#F7F1E4" }), g);
+          if (!(has("flap") && !L)) el("line", { x1: 250, y1: 120, x2: 250, y2: 170, stroke: "#E7D8C0", "stroke-width": 2 }, g);
+          el("ellipse", S({ cx: 120, cy: 224, rx: 20, ry: 7, fill: "#6B4A2A" }), g);
+          el("ellipse", S({ cx: 112, cy: 218, rx: 16, ry: 6, fill: C.trunk }), g);
+          if (!has("ring") || L) el("circle", { cx: 112, cy: 218, r: 2, fill: "#3A2818" }, g);
+          el("path", S({ d: "M 118 214 C 110 200 116 190 120 180 C 126 194 130 200 118 214", fill: C.orange }), g);
+          el("path", { d: "M 118 210 C 114 200 117 194 118 188 C 122 196 124 200 118 210", fill: C.yellow }, g);
+          if (!has("spark") || L) el("circle", { cx: 126, cy: 188, r: 1.8, fill: C.yellow }, g);
+          el("line", { x1: 340, y1: 230, x2: 390, y2: 210, stroke: C.trunk, "stroke-width": 3, "stroke-linecap": "round" }, g);
+          el("circle", S({ cx: 396, cy: 204, r: 8, fill: C.white }), g);
+          if (!(has("bag") && !L)) el("line", { x1: 390, y1: 204, x2: 402, y2: 204, stroke: INK, "stroke-width": 1.4 }, g);
+          el("rect", S({ x: 24, y: 196, width: 20, height: 24, rx: 4, fill: "#C9843E" }), g);
+        },
+      };
     },
   },
 ];
 
-function audit() {
-  const errs = [];
-  if (PUZZLES.length !== 8) errs.push("puzzle count");
-  const ids = new Set();
-  for (const p of PUZZLES) {
-    if (ids.has(p.id)) errs.push("dup " + p.id);
-    ids.add(p.id);
-    if (p.diffs.length !== 5) errs.push(p.id + " len");
-    const ds = new Set();
-    for (const d of p.diffs) {
-      if (ds.has(d.id)) errs.push(p.id + " dup " + d.id);
-      ds.add(d.id);
-      if (d.x - d.r < 0 || d.y - d.r < 0 || d.x + d.r > VW || d.y + d.r > VH) errs.push(p.id + " " + d.id + " oob");
-    }
-    for (let i = 0; i < p.diffs.length; i++) {
-      for (let j = i + 1; j < p.diffs.length; j++) {
-        const a = p.diffs[i], b = p.diffs[j];
-        const dist = Math.hypot(a.x - b.x, a.y - b.y);
-        if (dist < a.r + b.r + 12) errs.push(`${p.id} ${a.id}/${b.id} ${dist.toFixed(0)} < ${a.r + b.r + 12}`);
-      }
-    }
-  }
-  return errs;
+function makePuzzle(seed) {
+  const rng = mulberry32(seed >>> 0);
+  const scene = pick(rng, SCENES);
+  const built = scene.build(rng);
+  return {
+    id: "s" + (seed >>> 0).toString(16),
+    seed: seed >>> 0,
+    scene: scene.id,
+    title: built.title,
+    diffs: built.diffs,
+    draw: built.draw,
+  };
 }
 
 const $ = id => document.getElementById(id);
 const svgL = $("svgL"), svgR = $("svgR");
 const store = {
-  get(k, d) { try { const v = localStorage.getItem("machigai." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem("machigai." + k, JSON.stringify(v)); } catch {} },
+  get(k, d) { try { const v = localStorage.getItem("machigai2." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("machigai2." + k, JSON.stringify(v)); } catch {} },
 };
-let scores = store.get("scores", {});
-let index = Math.min(store.get("index", 0), PUZZLES.length - 1);
-let found = [], misses = 0, hints = 0, hintId = null, done = false;
-const hinted = new Set();
+let stats = store.get("stats", { cleared: 0, stars: 0, streak: 0, best: 0 });
 let soundOn = store.get("sound", true);
+let playing = false;
+let round = 0;
+let seed = 0;
+let puzzle = null;
+let found = [], misses = 0, hints = 0, hintId = null, hintStep = 0, done = false;
+const hinted = new Set();
 
-const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
+const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 let AC = null, OUTPUT = null, silentEl = null;
 function ac() {
   if (!AC) {
@@ -744,7 +884,6 @@ const sfx = {
   clear() { [659, 880, 1175].forEach((f, i) => tone(f, f * 1.02, 0.18, "triangle", 0.26, i * 0.08)); },
 };
 
-function puzzle() { return PUZZLES[index]; }
 function starCount(miss, hint) {
   const n = miss + hint;
   return n === 0 ? 3 : n <= 2 ? 2 : 1;
@@ -753,11 +892,9 @@ function starsText(n) {
   n = n || 0;
   return "★★★".slice(0, n) + "☆☆☆".slice(0, 3 - n);
 }
-function totalStars() {
-  return Object.values(scores).reduce((s, v) => s + (v.stars || 0), 0);
-}
+function saveStats() { store.set("stats", stats); }
 function resetAttempt() {
-  found = []; misses = 0; hints = 0; hintId = null; done = false;
+  found = []; misses = 0; hints = 0; hintId = null; hintStep = 0; done = false;
   hinted.clear();
 }
 function mount(svg, side) {
@@ -766,24 +903,34 @@ function mount(svg, side) {
   svg.setAttribute("height", String(VH));
   svg.replaceChildren();
   const art = el("g", { class: "art" }, svg);
-  puzzle().draw(art, side);
+  puzzle.draw(art, side);
   el("g", { class: "marks" }, svg);
 }
 function renderArt() {
   mount(svgL, "L");
   mount(svgR, "R");
-  const label = puzzle().title + "。ちがうところをタップ";
+  const label = puzzle.title + "。ちがうところをタップ";
   svgL.setAttribute("aria-label", "1まいめ。" + label);
   svgR.setAttribute("aria-label", "2まいめ。" + label);
+}
+function hintHalo(d) {
+  const rng = mulberry32((seed ^ d.id.length * 9973) >>> 0);
+  const ang = rng() * Math.PI * 2;
+  const dist = 18 + rng() * 28;
+  return {
+    x: Math.max(40, Math.min(VW - 40, d.x + Math.cos(ang) * dist)),
+    y: Math.max(40, Math.min(VH - 40, d.y + Math.sin(ang) * dist)),
+    r: Math.max(48, d.r * 2.4),
+  };
 }
 function renderMarks() {
   [svgL, svgR].forEach(svg => {
     const g = svg.querySelector(".marks");
     g.replaceChildren();
-    for (const d of puzzle().diffs) {
+    for (const d of puzzle.diffs) {
       const idx = found.indexOf(d.id);
       if (idx >= 0) {
-        const vr = Math.min(40, Math.round(d.r * 0.72));
+        const vr = Math.min(34, Math.round(d.r * 0.7));
         el("circle", { cx: d.x, cy: d.y, r: vr, fill: "none", stroke: "#fff", "stroke-width": 7 }, g);
         el("circle", { class: "found", cx: d.x, cy: d.y, r: vr, fill: "none", stroke: "#E23B4A", "stroke-width": 3.5 }, g);
         const bx = Math.min(VW - 14, d.x + vr * 0.55);
@@ -791,9 +938,9 @@ function renderMarks() {
         el("circle", { cx: bx, cy: by, r: 11, fill: C.yellow, stroke: "#E23B4A", "stroke-width": 2 }, g);
         const t = el("text", { x: bx, y: by + 4, "text-anchor": "middle", "font-size": 13, "font-weight": 700, fill: INK, "font-family": "Zen Maru Gothic, sans-serif" }, g);
         t.textContent = String(idx + 1);
-      } else if (d.id === hintId) {
-        const vr = Math.min(40, Math.round(d.r * 0.72));
-        el("circle", { class: "hint", cx: d.x, cy: d.y, r: vr, fill: "rgba(224,165,47,.2)", stroke: "#C98414", "stroke-width": 4, "stroke-dasharray": "7 6" }, g);
+      } else if (d.id === hintId && hintStep >= 2) {
+        const h = hintHalo(d);
+        el("ellipse", { class: "hint", cx: h.x, cy: h.y, rx: h.r * 1.15, ry: h.r * 0.85, fill: "rgba(224,165,47,.12)", stroke: "#C98414", "stroke-width": 2.5, "stroke-dasharray": "5 7" }, g);
       }
     }
   });
@@ -804,12 +951,12 @@ function say(text, kind) {
   m.className = "msg" + (kind ? " " + kind : "");
 }
 function renderHud() {
-  const p = puzzle();
-  $("levelNo").textContent = (index + 1) + " / " + PUZZLES.length;
-  $("levelName").textContent = p.title;
-  $("foundCount").textContent = found.length + " / " + p.diffs.length;
-  $("starCount").textContent = totalStars() + "/24";
+  $("levelNo").textContent = "ラウンド " + round;
+  $("levelName").textContent = puzzle.title;
+  $("foundCount").textContent = found.length + " / " + puzzle.diffs.length;
+  $("starCount").textContent = String(stats.stars);
   $("btnSound").textContent = soundOn ? "音 ON" : "音 OFF";
+  $("startNote").textContent = "クリア " + stats.cleared + "　いちばんの れんぞく " + stats.best;
   const stars = starCount(misses, hints);
   $("meta").textContent = (done ? starsText(stars) + "　" : "") + "おてつき " + misses + "　ヒント " + hints;
   $("btnHint").hidden = done;
@@ -818,12 +965,15 @@ function renderHud() {
   $("btnReplay").hidden = !done;
   const box = $("chips");
   box.replaceChildren();
-  found.forEach(id => {
-    const d = p.diffs.find(x => x.id === id);
+  found.forEach((_, i) => {
     const s = document.createElement("span");
-    s.textContent = d.label;
+    s.textContent = (i + 1) + "つ みつけた";
     box.appendChild(s);
   });
+  $("statCleared").textContent = String(stats.cleared);
+  $("statStars").textContent = String(stats.stars);
+  $("statStreak").textContent = String(stats.streak);
+  $("statBest").textContent = String(stats.best);
 }
 function renderAll() {
   renderArt();
@@ -835,10 +985,10 @@ function hitR(d, svg) {
   const rect = svg.getBoundingClientRect();
   const scale = rect.width / VW || 1;
   let r = d.r;
-  const want = 26 / scale;
+  const want = 24 / scale;
   if (want > r) {
     let nearest = Infinity;
-    for (const o of puzzle().diffs) {
+    for (const o of puzzle.diffs) {
       if (o === d) continue;
       nearest = Math.min(nearest, Math.hypot(o.x - d.x, o.y - d.y) - o.r);
     }
@@ -898,24 +1048,24 @@ function confetti() {
 function finish() {
   done = true;
   const stars = starCount(misses, hints);
-  const prev = scores[puzzle().id];
-  const better = !prev || stars > prev.stars || (stars === prev.stars && misses < prev.misses);
-  if (better) {
-    scores[puzzle().id] = { stars, misses, hints };
-    store.set("scores", scores);
-  }
-  say(prev && better ? "ぜんぶ 見つかった！ きろく こうしん" : "ぜんぶ 見つかった！", "ok");
+  stats.cleared += 1;
+  stats.stars += stars;
+  stats.streak += 1;
+  if (stats.streak > stats.best) stats.best = stats.streak;
+  saveStats();
+  say("ぜんぶ 見つかった！", "ok");
   sfx.clear();
   confetti();
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("actions").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
+  renderHud();
 }
 function onSvgClick(ev) {
-  if (done) return;
+  if (!playing || done) return;
   const svg = ev.currentTarget;
   const p = pointOf(svg, ev);
   let best = null, bestD = Infinity;
-  for (const d of puzzle().diffs) {
+  for (const d of puzzle.diffs) {
     const dist = Math.hypot(p.x - d.x, p.y - d.y);
     if (dist <= hitR(d, svg) && dist < bestD) { best = d; bestD = dist; }
   }
@@ -932,61 +1082,73 @@ function onSvgClick(ev) {
     return;
   }
   found.push(best.id);
-  if (hintId === best.id) hintId = null;
+  if (hintId === best.id) { hintId = null; hintStep = 0; }
   sfx.ok();
   svg.parentElement.classList.add("good");
   setTimeout(() => svg.parentElement.classList.remove("good"), 280);
-  if (found.length === puzzle().diffs.length) finish();
-  else say(best.label + "！ あと " + (puzzle().diffs.length - found.length) + "つ", "ok");
+  if (found.length === puzzle.diffs.length) finish();
+  else say("みつかった！ あと " + (puzzle.diffs.length - found.length) + "つ", "ok");
   renderMarks();
   renderHud();
 }
 function giveHint() {
-  if (done) return;
-  const diffs = puzzle().diffs;
-  const next = diffs.find(d => !found.includes(d.id) && d.id !== hintId) || diffs.find(d => !found.includes(d.id));
+  if (!playing || done) return;
+  let next = hintId ? puzzle.diffs.find(d => d.id === hintId && !found.includes(d.id)) : null;
+  if (!next) next = puzzle.diffs.find(d => !found.includes(d.id));
   if (!next) return;
-  if (!hinted.has(next.id)) { hinted.add(next.id); hints++; }
-  hintId = next.id;
-  say("てんてんの まるを 見てみて");
+  if (hintId !== next.id || hintStep < 1) {
+    hintId = next.id;
+    hintStep = 1;
+    if (!hinted.has(next.id)) { hinted.add(next.id); hints++; }
+    say(next.zone + "を よく見て");
+  } else {
+    hintStep = 2;
+    if (!hinted.has(next.id + ":2")) { hinted.add(next.id + ":2"); hints++; }
+    say("この あたり…");
+  }
   sfx.hint();
   renderMarks();
   renderHud();
 }
-function goto(i) {
-  index = (i + PUZZLES.length) % PUZZLES.length;
-  store.set("index", index);
+function newSeed() {
+  return (Math.floor(Math.random() * 0xffffffff) ^ (Date.now() & 0xffffffff)) >>> 0;
+}
+function loadPuzzle(nextSeed, bumpRound) {
+  seed = nextSeed >>> 0;
+  puzzle = makePuzzle(seed);
+  if (bumpRound) round += 1;
   resetAttempt();
   stopFx();
   closeSheets();
   renderAll();
 }
-function nextPuzzle() {
-  for (let k = 1; k <= PUZZLES.length; k++) {
-    const i = (index + k) % PUZZLES.length;
-    if (!scores[PUZZLES[i].id]) { goto(i); return; }
+function showStart() {
+  if (playing && !done && stats.streak) {
+    stats.streak = 0;
+    saveStats();
   }
-  goto(index + 1);
+  playing = false;
+  document.body.classList.add("on-start");
+  $("start").hidden = false;
+  stopFx();
+  closeSheets();
+  renderHud();
+}
+function beginPlay() {
+  playing = true;
+  document.body.classList.remove("on-start");
+  $("start").hidden = true;
+  round = 0;
+  loadPuzzle(newSeed(), true);
 }
 function closeSheets() {
-  $("sheetList").hidden = true;
+  $("sheetRecord").hidden = true;
   $("sheetHelp").hidden = true;
 }
-function openList() {
-  const box = $("tiles");
-  box.replaceChildren();
-  PUZZLES.forEach((p, i) => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "tile" + (i === index ? " current" : "");
-    const sc = scores[p.id];
-    b.innerHTML = `<span class="no">${i + 1}</span><span class="name"></span><span class="st">${starsText(sc && sc.stars)}</span>`;
-    b.querySelector(".name").textContent = p.title;
-    b.addEventListener("click", () => goto(i));
-    box.appendChild(b);
-  });
-  $("sheetList").hidden = false;
-  $("closeList").focus();
+function openRecord() {
+  renderHud();
+  $("sheetRecord").hidden = false;
+  $("closeRecord").focus();
 }
 
 svgL.addEventListener("click", onSvgClick);
@@ -994,12 +1156,15 @@ svgR.addEventListener("click", onSvgClick);
 $("btnHint").addEventListener("click", giveHint);
 $("btnReset").addEventListener("click", () => { resetAttempt(); stopFx(); renderAll(); });
 $("btnReplay").addEventListener("click", () => { resetAttempt(); stopFx(); renderAll(); });
-$("btnNext").addEventListener("click", nextPuzzle);
-$("btnList").addEventListener("click", openList);
+$("btnNext").addEventListener("click", () => loadPuzzle(newSeed(), true));
+$("btnHome").addEventListener("click", showStart);
+$("btnStart").addEventListener("click", () => { if (soundOn) unlockAudio(); beginPlay(); });
+$("btnStartHelp").addEventListener("click", () => { $("sheetHelp").hidden = false; $("closeHelp").focus(); });
+$("btnRecord").addEventListener("click", openRecord);
 $("btnHelp").addEventListener("click", () => { $("sheetHelp").hidden = false; $("closeHelp").focus(); });
-$("closeList").addEventListener("click", closeSheets);
+$("closeRecord").addEventListener("click", closeSheets);
 $("closeHelp").addEventListener("click", closeSheets);
-$("sheetList").addEventListener("click", e => { if (e.target === $("sheetList")) closeSheets(); });
+$("sheetRecord").addEventListener("click", e => { if (e.target === $("sheetRecord")) closeSheets(); });
 $("sheetHelp").addEventListener("click", e => { if (e.target === $("sheetHelp")) closeSheets(); });
 $("btnSound").addEventListener("click", () => {
   soundOn = !soundOn;
@@ -1008,13 +1173,19 @@ $("btnSound").addEventListener("click", () => {
   renderHud();
 });
 $("btnWipe").addEventListener("click", () => {
-  if (!confirm("星の きろくを けす？")) return;
-  scores = {};
-  store.set("scores", scores);
+  if (!confirm("きろくを けす？")) return;
+  stats = { cleared: 0, stars: 0, streak: 0, best: 0 };
+  saveStats();
   renderHud();
   closeSheets();
 });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheets(); });
+$("homeLink").addEventListener("click", e => {
+  if (playing) {
+    e.preventDefault();
+    showStart();
+  }
+});
 
 async function raster(svg) {
   const clone = svg.cloneNode(true);
@@ -1034,38 +1205,44 @@ async function raster(svg) {
     return ctx.getImageData(0, 0, VW, VH).data;
   } finally { URL.revokeObjectURL(url); }
 }
-async function diffReport() {
+async function diffReport(seeds) {
+  const list = seeds || Array.from({ length: 12 }, (_, i) => (i + 1) * 7919);
   const out = [];
-  const saved = index;
-  for (let i = 0; i < PUZZLES.length; i++) {
-    index = i;
-    renderArt();
+  const saved = { seed, puzzle, round, found, misses, hints, hintId, hintStep, done };
+  for (const s of list) {
+    loadPuzzle(s, false);
     const a = await raster(svgL), b = await raster(svgR);
-    const diffs = PUZZLES[i].diffs;
-    let outside = 0;
+    const diffs = puzzle.diffs;
+    let outside = 0, total = 0;
     const hit = diffs.map(() => 0);
     for (let y = 0; y < VH; y++) {
       for (let x = 0; x < VW; x++) {
         const k = (y * VW + x) * 4;
-        if (Math.abs(a[k] - b[k]) + Math.abs(a[k + 1] - b[k + 1]) + Math.abs(a[k + 2] - b[k + 2]) < 18) continue;
+        if (Math.abs(a[k] - b[k]) + Math.abs(a[k + 1] - b[k + 1]) + Math.abs(a[k + 2] - b[k + 2]) < 12) continue;
+        total++;
         let which = -1, best = Infinity;
         for (let d = 0; d < diffs.length; d++) {
           const dist = Math.hypot(x - diffs[d].x, y - diffs[d].y);
           if (dist < best) { best = dist; which = d; }
         }
-        if (best <= diffs[which].r + 10) hit[which]++;
+        if (best <= diffs[which].r + 14) hit[which]++;
         else outside++;
       }
     }
-    out.push({ id: PUZZLES[i].id, outside, hit, missing: diffs.filter((d, n) => hit[n] < 40).map(d => d.id) });
+    out.push({
+      seed: s, scene: puzzle.scene, title: puzzle.title, outside, total,
+      missing: diffs.filter((d, n) => hit[n] < 8).map(d => d.id),
+      hit,
+    });
   }
-  index = saved;
-  renderAll();
+  seed = saved.seed; puzzle = saved.puzzle; round = saved.round;
+  found = saved.found; misses = saved.misses; hints = saved.hints;
+  hintId = saved.hintId; hintStep = saved.hintStep; done = saved.done;
+  if (puzzle) renderAll();
   return out;
 }
 
-const auditErrors = audit();
-if (auditErrors.length) console.error(auditErrors);
-window.__machigai = { puzzles: PUZZLES, audit, goto, diffReport, VW, VH };
-renderAll();
+window.__machigai = { makePuzzle, SCENES, diffReport, VW, VH, loadPuzzle, newSeed };
+document.body.classList.add("on-start");
+renderHud();
 </script>
