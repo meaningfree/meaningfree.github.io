@@ -218,9 +218,9 @@ h1 a{text-decoration:none}
       <button class="chip" id="closeHelp" type="button">とじる</button>
     </div>
     <ol>
-      <li>はじめるたびに、あたらしい絵がランダムでつくられる。</li>
+      <li>はじめるたびに、あたらしい絵がランダムでつくられる（ウォーリーを探せみたいに、ものがびっしり）。</li>
       <li>2まいを見くらべて、ちがうところを探す。スマホは上下、ひろい画面は左右。</li>
-      <li>ちがいはこまかくて見つけにくい。ヒントは場所のヒントだけ（最初はことば、つぎでうすい範囲）。</li>
+      <li>ちがいは色や小さなパーツなど、こまかいことが多い。ヒントは場所だけ（最初はことば、つぎでうすい範囲）。</li>
       <li>おてつきとヒントが少ないほど星が多い。</li>
     </ol>
   </div>
@@ -482,39 +482,167 @@ function snowman(g, x, y, scarf) {
 }
 
 
-function scatterField(g, items) {
-  for (const it of items) {
-    const [kind, x, y, a, b] = it;
-    if (kind === "flower") flower(g, x, y, a || C.pink, 5);
-    else if (kind === "rock") rock(g, x, y, a);
-    else if (kind === "bush") bush(g, x, y, a);
-    else if (kind === "mush") mushroom(g, x, y);
-    else if (kind === "bloom") bloom(g, x, y, a || C.yellow, 5, 5);
-    else if (kind === "ball") ball(g, x, y, true);
-    else if (kind === "bug") butterfly(g, x, y, a || C.pink);
-  }
+function Sm(a) {
+  return Object.assign({ stroke: INK, "stroke-width": 1.15, "stroke-linejoin": "round", "stroke-linecap": "round" }, a);
 }
-function fieldPack(theme) {
-  // mid-ground packs that fill empty bands
-  const base = [];
-  const cols = [30,70,110,150,190,230,270,310,350,390,430,460];
-  const rows = theme === "sky" ? [70,100,130] : [175,195,215,235];
-  let i = 0;
-  for (const y of rows) {
-    for (const x of cols) {
-      const t = (x + y * 3 + i) % 6;
-      if (theme === "sky") {
-        if (t === 0) base.push(["bug", x, y, [C.pink,C.yellow,C.blue][i%3]]);
-      } else if (t === 0) base.push(["flower", x, y, [C.pink,C.yellow,C.orange,C.red][i%4]]);
-      else if (t === 1) base.push(["bloom", x, y + 4, [C.yellow,C.orange,C.pink][i%3]]);
-      else if (t === 2) base.push(["rock", x, y + 6]);
-      else if (t === 3) base.push(["bush", x, y]);
-      else if (t === 4) base.push(["mush", x, y]);
-      else base.push(["flower", x + 8, y - 4, C.blue]);
-      i++;
+function miniFlower(g, x, y, petal, s) {
+  const sc = s || 1;
+  el("line", { x1: x, y1: y + 2 * sc, x2: x, y2: y + 12 * sc, stroke: C.leaf2, "stroke-width": 1.3, "stroke-linecap": "round" }, g);
+  bloom(g, x, y, petal, 3.2 * sc, 5);
+}
+function miniBush(g, x, y, fill, s) {
+  const sc = s || 1;
+  el("ellipse", Sm({ cx: x - 5 * sc, cy: y, rx: 7 * sc, ry: 5 * sc, fill: fill || C.leaf2 }), g);
+  el("ellipse", Sm({ cx: x + 5 * sc, cy: y, rx: 7 * sc, ry: 5 * sc, fill: fill || C.leaf }), g);
+}
+function miniMush(g, x, y, s) {
+  const sc = s || 1;
+  el("path", Sm({ d: `M ${x - 6 * sc} ${y} Q ${x} ${y - 8 * sc} ${x + 6 * sc} ${y} Z`, fill: C.red }), g);
+  el("rect", Sm({ x: x - 2 * sc, y: y - 1 * sc, width: 4 * sc, height: 6 * sc, rx: 1, fill: C.cream }), g);
+}
+function miniRock(g, x, y, fill, s) {
+  el("ellipse", Sm({ cx: x, cy: y, rx: 5.5 * (s || 1), ry: 3.5 * (s || 1), fill: fill || "#A89888" }), g);
+}
+function miniBug(g, x, y, color, s) {
+  const sc = s || 1;
+  el("ellipse", Sm({ cx: x - 3.5 * sc, cy: y, rx: 3.5 * sc, ry: 2.2 * sc, fill: color || C.pink }), g);
+  el("ellipse", Sm({ cx: x + 3.5 * sc, cy: y, rx: 3.5 * sc, ry: 2.2 * sc, fill: color || C.pink }), g);
+  el("line", { x1: x, y1: y - 2 * sc, x2: x, y2: y + 2 * sc, stroke: INK, "stroke-width": 1 }, g);
+}
+function miniPerson(g, x, y, shirt, s) {
+  const sc = (s || 1) * 0.7;
+  el("circle", Sm({ cx: x, cy: y - 8 * sc, r: 3.5 * sc, fill: "#FFD7B5" }), g);
+  el("rect", Sm({ x: x - 4 * sc, y: y - 5 * sc, width: 8 * sc, height: 9 * sc, rx: 2, fill: shirt || C.blue }), g);
+}
+function miniShell(g, x, y, s) {
+  const sc = s || 1;
+  el("path", Sm({ d: `M ${x - 5 * sc} ${y + 2 * sc} Q ${x} ${y - 6 * sc} ${x + 5 * sc} ${y + 2 * sc} Z`, fill: C.pink }), g);
+}
+function miniFish(g, x, y, color, s) {
+  const sc = s || 1;
+  el("ellipse", Sm({ cx: x, cy: y, rx: 6 * sc, ry: 3 * sc, fill: color || C.orange }), g);
+  el("polygon", Sm({ points: `${x - 6 * sc},${y} ${x - 10 * sc},${y - 3 * sc} ${x - 10 * sc},${y + 3 * sc}`, fill: color || C.orange }), g);
+}
+function miniStarf(g, x, y, s) {
+  const sc = (s || 1) * 0.55;
+  const pts = [];
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+    const b = a + Math.PI / 5;
+    pts.push(`${(x + Math.cos(a) * 10 * sc).toFixed(1)},${(y + Math.sin(a) * 10 * sc).toFixed(1)}`);
+    pts.push(`${(x + Math.cos(b) * 4 * sc).toFixed(1)},${(y + Math.sin(b) * 4 * sc).toFixed(1)}`);
+  }
+  el("polygon", Sm({ points: pts.join(" "), fill: C.orange }), g);
+}
+function miniLeaf(g, x, y, s) {
+  const sc = s || 1;
+  el("ellipse", Sm({ cx: x, cy: y, rx: 4 * sc, ry: 2.2 * sc, fill: C.leaf, transform: `rotate(${(x * 13 + y) % 60 - 30} ${x} ${y})` }), g);
+}
+function miniGrass(g, x, y, s) {
+  const sc = s || 1;
+  el("path", { d: `M ${x} ${y} Q ${x - 3 * sc} ${y - 8 * sc} ${x - 1 * sc} ${y - 12 * sc}`, fill: "none", stroke: C.leaf2, "stroke-width": 1.2, "stroke-linecap": "round" }, g);
+  el("path", { d: `M ${x} ${y} Q ${x + 3 * sc} ${y - 7 * sc} ${x + 2 * sc} ${y - 11 * sc}`, fill: "none", stroke: C.leaf, "stroke-width": 1.2, "stroke-linecap": "round" }, g);
+}
+function miniSpeck(g, x, y, color) {
+  el("circle", { cx: x, cy: y, r: 1.15, fill: color || C.yellow }, g);
+}
+function miniBook(g, x, y, color, s) {
+  const sc = s || 1;
+  el("rect", Sm({ x: x - 5 * sc, y: y - 3.5 * sc, width: 10 * sc, height: 7 * sc, rx: 1, fill: color || C.blue }), g);
+}
+function miniLantern(g, x, y, color, s) {
+  const sc = (s || 1) * 0.65;
+  el("line", { x1: x, y1: y - 8 * sc, x2: x, y2: y - 2 * sc, stroke: "#D8C4A0", "stroke-width": 1.2 }, g);
+  el("rect", Sm({ x: x - 4 * sc, y: y - 2 * sc, width: 8 * sc, height: 11 * sc, rx: 3, fill: color || C.red }), g);
+}
+function miniBalloon(g, x, y, color, s) {
+  const sc = (s || 1) * 0.7;
+  el("ellipse", Sm({ cx: x, cy: y, rx: 5 * sc, ry: 6.5 * sc, fill: color || C.red }), g);
+  el("line", { x1: x, y1: y + 6.5 * sc, x2: x, y2: y + 16 * sc, stroke: INK, "stroke-width": 1 }, g);
+}
+
+function themeKinds(theme) {
+  if (theme === "beach") return ["shell", "starf", "fish", "rock", "bloom", "bug", "pebble", "ball", "grass", "speck", "flower"];
+  if (theme === "snow") return ["flake", "rock", "mush", "bug", "balloon", "pebble", "bloom", "speck", "leaf"];
+  if (theme === "night") return ["star", "lantern", "balloon", "bug", "flower", "flake", "bloom", "speck", "person"];
+  if (theme === "indoor") return ["bloom", "book", "ball", "bug", "cupcake", "pebble", "flower", "mush", "speck", "person"];
+  return ["flower", "bloom", "rock", "bush", "mush", "bug", "ball", "leaf", "pebble", "grass", "person", "speck"];
+}
+
+/** Where's-Waldo style dense clutter. Same list painted on L and R. */
+function makeWaldoCrowd(rng, theme) {
+  const kinds = themeKinds(theme);
+  const colors = [C.pink, C.yellow, C.orange, C.red, C.blue, C.mint, C.white, C.leaf, C.leaf2, "#E8B070", "#C9843E"];
+  const items = [];
+  for (let pass = 0; pass < 3; pass++) {
+    const stepX = 12 + (pass % 2);
+    const stepY = 11 + (pass % 2);
+    const ox = pass * 5, oy = pass * 4;
+    for (let y = 14 + oy; y < 256; y += stepY) {
+      for (let x = 5 + ox; x < 476; x += stepX) {
+        if (rng() > 0.62) continue;
+        let kind = kinds[Math.floor(rng() * kinds.length)];
+        if (theme !== "indoor" && y < 95 && rng() < 0.55) {
+          kind = pick(rng, theme === "night" || theme === "snow"
+            ? ["star", "flake", "bug", "balloon", "speck"]
+            : ["bug", "balloon", "bird", "leaf", "speck", "bloom"]);
+        }
+        if (items.length >= 1400) return items;
+        items.push({
+          k: kind,
+          x: x + (rng() - 0.5) * 10,
+          y: y + (rng() - 0.5) * 9,
+          c: colors[Math.floor(rng() * colors.length)],
+          s: 0.42 + rng() * 0.75,
+          v: Math.floor(rng() * 5),
+        });
+      }
     }
   }
-  return base;
+  return items;
+}
+
+function paintCrowd(g, crowd) {
+  for (const it of crowd) {
+    const { k, x, y, c, s, v } = it;
+    if (k === "flower") miniFlower(g, x, y, c, s);
+    else if (k === "bloom") bloom(g, x, y, c, 2.8 * s, 4 + (v % 3));
+    else if (k === "rock") miniRock(g, x, y, v % 2 ? "#A89888" : "#B0A090", s);
+    else if (k === "bush") miniBush(g, x, y, c === C.pink ? C.leaf : c, s * 0.9);
+    else if (k === "mush") miniMush(g, x, y, s);
+    else if (k === "bug") miniBug(g, x, y, c, s);
+    else if (k === "ball") {
+      el("circle", Sm({ cx: x, cy: y, r: 5 * s, fill: c }), g);
+      if (v % 2 === 0) el("path", { d: `M ${x - 3 * s} ${y} H ${x + 3 * s}`, stroke: "#fff", "stroke-width": 1, fill: "none" }, g);
+    }
+    else if (k === "leaf") miniLeaf(g, x, y, s);
+    else if (k === "pebble") el("ellipse", { cx: x, cy: y, rx: 2.2 * s, ry: 1.5 * s, fill: "#9A8A7A" }, g);
+    else if (k === "grass") miniGrass(g, x, y, s);
+    else if (k === "person") miniPerson(g, x, y, c, s);
+    else if (k === "speck") miniSpeck(g, x, y, c);
+    else if (k === "shell") miniShell(g, x, y, s);
+    else if (k === "fish") miniFish(g, x, y, c, s);
+    else if (k === "starf") miniStarf(g, x, y, s);
+    else if (k === "book") miniBook(g, x, y, c, s);
+    else if (k === "lantern") miniLantern(g, x, y, c, s);
+    else if (k === "balloon") miniBalloon(g, x, y, c, s);
+    else if (k === "cupcake") {
+      el("path", Sm({ d: `M ${x - 4 * s} ${y} L ${x - 5 * s} ${y + 6 * s} L ${x + 5 * s} ${y + 6 * s} L ${x + 4 * s} ${y} Z`, fill: C.pink }), g);
+      el("ellipse", Sm({ cx: x, cy: y, rx: 5 * s, ry: 2.5 * s, fill: C.cream }), g);
+    }
+    else if (k === "flake" || k === "star") el("circle", { cx: x, cy: y, r: 1.3 + s * 0.6, fill: k === "star" ? "#FFE9A8" : C.white, stroke: k === "flake" ? "#9BB4D0" : "none", "stroke-width": 0.5 }, g);
+    else if (k === "bird") {
+      el("path", Sm({ d: `M ${x - 7 * s} ${y + 1 * s} Q ${x - 3 * s} ${y - 5 * s} ${x} ${y} Q ${x + 3 * s} ${y - 5 * s} ${x + 6 * s} ${y + 1 * s}`, fill: "none", stroke: INK, "stroke-width": 1.3 }), g);
+    }
+  }
+}
+
+/** Extra packed row of similar props — Waldo "sea of sameness". */
+function packRow(g, kind, y, cols, colors, fn) {
+  for (let i = 0; i < cols; i++) {
+    const x = 10 + i * ((VW - 20) / Math.max(1, cols - 1));
+    fn(g, x, y + ((i * 5) % 7) - 3, colors[i % colors.length], i);
+  }
 }
 
 function takeDiffs(rng, pool, n) {
@@ -545,17 +673,20 @@ const SCENES = [
     id: "park", title: "こうえん",
     build(rng) {
       const petal = [C.pink, C.yellow, C.orange, C.red, C.blue];
+      const crowd = makeWaldoCrowd(rng, "park");
       const pool = [
-        { id: "birdA", x: 420, y: 40, r: 24 },
-        { id: "kite", x: 300, y: 70, r: 28 },
-        { id: "ball", x: 70, y: 222, r: 22 },
-        { id: "dog", x: 170, y: 220, r: 28 },
-        { id: "butterfly", x: 360, y: 150, r: 20 },
-        { id: "flowerX", x: 430, y: 210, r: 22 },
+        { id: "birdA", x: 420, y: 40, r: 22 },
+        { id: "kite", x: 300, y: 70, r: 30 },
+        { id: "ball", x: 70, y: 222, r: 18 },
+        { id: "dog", x: 170, y: 220, r: 26 },
+        { id: "butterfly", x: 360, y: 150, r: 22 },
+        { id: "flowerX", x: 430, y: 210, r: 24 },
         { id: "apple", x: 118, y: 120, r: 18 },
-        { id: "kid", x: 250, y: 200, r: 30 },
-        { id: "mushroom", x: 40, y: 200, r: 26 },
-        { id: "benchC", x: 280, y: 186, r: 30 },
+        { id: "kid", x: 250, y: 200, r: 26 },
+        { id: "mushroom", x: 40, y: 200, r: 22 },
+        { id: "benchC", x: 280, y: 186, r: 28 },
+        { id: "sunRay", x: 56, y: 44, r: 32 },
+        { id: "petalN", x: 90, y: 218, r: 18 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -570,51 +701,62 @@ const SCENES = [
           el("ellipse", { cx: 420, cy: 175, rx: 110, ry: 28, fill: C.hill }, g);
           el("rect", { x: 0, y: 172, width: 480, height: 88, fill: C.grass }, g);
           el("rect", { x: 0, y: 172, width: 480, height: 7, fill: C.grass2 }, g);
-          scatterField(g, fieldPack("ground"));
-          scatterField(g, fieldPack("sky").slice(0,12));
+          paintCrowd(g, crowd);
           el("polygon", S({ points: "210,260 300,260 280,176 240,176", fill: "#E7C48A" }), g);
           for (let i = 0; i < 5; i++) el("ellipse", { cx: 248 + i * 8, cy: 210 + (i % 2) * 4, rx: 5, ry: 3, fill: "#D2B48C" }, g);
-          sunBody(g, 56, 44, true, -1);
+          // skip a short near-ray (index 1) so the pixel delta stays inside the hitbox
+          sunBody(g, 56, 44, true, has("sunRay") && !L ? 1 : -1);
           cloud(g, 150, 40, 0.85);
           cloud(g, 250, 58, 0.65);
           cloud(g, 360, 36, 0.75);
+          cloud(g, 90, 70, 0.45);
+          cloud(g, 420, 60, 0.5);
           bird(g, 200, 48);
           bird(g, 330, 56);
+          bird(g, 280, 45);
+          bird(g, 160, 62);
           if (!has("birdA") || L) bird(g, 420, 40);
           if (!has("kite") || L) kite(g, 300, 70, C.red); else kite(g, 300, 70, C.blue);
+          kite(g, 180, 70, C.yellow);
+          kite(g, 400, 85, C.pink);
           tree(g, 100, 178, C.leaf2, C.leaf);
           tree(g, 380, 182, C.leaf, C.leaf2);
           tree(g, 455, 190, C.leaf2, C.leaf);
+          tree(g, 40, 185, C.leaf, C.leaf2);
+          tree(g, 220, 188, C.leaf2, C.leaf);
           if (!has("apple") || L) el("circle", S({ cx: 118, cy: 120, r: 5, fill: C.red }), g);
           el("circle", S({ cx: 92, cy: 130, r: 4.5, fill: C.red }), g);
+          el("circle", S({ cx: 105, cy: 108, r: 4, fill: C.red }), g);
           el("circle", S({ cx: 390, cy: 128, r: 4.5, fill: C.yellow }), g);
+          el("circle", S({ cx: 400, cy: 115, r: 4, fill: C.red }), g);
+          el("circle", S({ cx: 370, cy: 135, r: 3.5, fill: C.orange }), g);
           bush(g, 40, 190, C.leaf2);
           bush(g, 440, 200, C.leaf);
-          rock(g, 200, 228);
-          rock(g, 320, 232, "#B0A090");
+          bush(g, 200, 195); bush(g, 320, 198); bush(g, 140, 200); bush(g, 360, 205);
+          rock(g, 200, 228); rock(g, 320, 232, "#B0A090"); rock(g, 100, 235); rock(g, 250, 240); rock(g, 400, 238);
           bench(g, 280, 186, has("benchC") && !L ? C.blue : C.wood);
           swing(g, 200, 188, C.wood);
-          [[50,210],[90,218],[140,208],[340,214],[400,220],[430,210],[460,218],[240,230],[60,236],[160,236]].forEach((p,i)=>{
+          packRow(g, "flower", 245, 28, petal, (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          [[50,210],[90,218],[140,208],[340,214],[400,220],[430,210],[460,218],[240,230],[60,236],[160,236],[200,220],[280,225],[310,215],[370,228]].forEach((p,i)=>{
             const col = petal[i % petal.length];
-            if (has("flowerX") && !L && i === 5) flower(g, p[0], p[1], C.yellow, 5);
+            if (has("flowerX") && !L && i === 5) flower(g, p[0], p[1], C.yellow, 6);
+            else if (has("petalN") && !L && i === 1) flower(g, p[0], p[1], col, 4);
             else flower(g, p[0], p[1], col, 5);
           });
-          if (!has("ball") || L) ball(g, 70, 222, true); else el("circle", S({ cx: 70, cy: 222, r: 11, fill: C.blue }), g);
+          if (!has("ball") || L) ball(g, 70, 222, true);
+          else el("circle", S({ cx: 70, cy: 222, r: 11, fill: C.blue }), g);
+          ball(g, 400, 230, true); ball(g, 120, 240, true); ball(g, 300, 240, true);
           if (!has("dog") || L) dog(g, 170, 220);
-          if (!has("butterfly") || L) butterfly(g, 360, 150, C.pink);
+          dog(g, 420, 225, "#E8B070");
+          if (!has("butterfly") || L) butterfly(g, 360, 150, C.pink); else butterfly(g, 360, 150, C.blue);
           butterfly(g, 120, 150, C.yellow);
+          for (const [x,y,c] of [[220,150,C.pink],[280,140,C.yellow],[400,145,C.blue],[60,155,C.orange],[160,160,C.red],[320,130,C.mint],[440,160,C.pink],[100,120,C.yellow]]) butterfly(g, x, y, c);
           if (!has("mushroom") || L) mushroom(g, 40, 200);
-          mushroom(g, 460, 230);
+          mushroom(g, 460, 230); mushroom(g, 290, 230); mushroom(g, 150, 225); mushroom(g, 330, 240);
           if (!has("kid") || L) person(g, 250, 200, C.orange);
           person(g, 340, 198, C.mint, C.pink);
-          // denser filler
-          for (const x of [30, 55, 80, 105, 130, 155, 310, 335, 360, 385, 410, 435, 460]) flower(g, x, 245, [C.pink,C.yellow,C.orange,C.red][x%4], 5);
-          for (const [x,y] of [[220,150],[280,140],[400,145],[60,155],[160,160]]) butterfly(g, x, y, [C.pink,C.yellow,C.blue][(x+y)%3]);
-          rock(g, 100, 235); rock(g, 250, 240); rock(g, 400, 238);
-          bush(g, 200, 195); bush(g, 320, 198);
-          mushroom(g, 290, 230); mushroom(g, 150, 225);
-          ball(g, 400, 230, true); kite(g, 180, 70, C.yellow);
-          cloud(g, 420, 60, 0.5); bird(g, 280, 45);
+          person(g, 80, 205, C.blue); person(g, 400, 200, C.yellow); person(g, 300, 205, C.red, C.orange);
+          for (let i = 0; i < 18; i++) miniPerson(g, 30 + i * 25, 250, petal[i % petal.length], 0.85);
         },
       };
     },
@@ -622,17 +764,20 @@ const SCENES = [
   {
     id: "beach", title: "うみ",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "beach");
       const pool = [
-        { id: "boat", x: 400, y: 110, r: 34 },
-        { id: "crab", x: 70, y: 222, r: 26 },
-        { id: "star", x: 420, y: 224, r: 24 },
-        { id: "fish", x: 180, y: 140, r: 24 },
-        { id: "bucket", x: 300, y: 220, r: 24 },
-        { id: "bird", x: 90, y: 40, r: 22 },
-        { id: "umbrella", x: 230, y: 150, r: 36 },
-        { id: "shellA", x: 150, y: 230, r: 20 },
-        { id: "kid", x: 340, y: 200, r: 28 },
-        { id: "ball", x: 50, y: 200, r: 20 },
+        { id: "boat", x: 400, y: 110, r: 28 },
+        { id: "crab", x: 70, y: 222, r: 18 },
+        { id: "star", x: 420, y: 224, r: 18 },
+        { id: "fish", x: 180, y: 140, r: 16 },
+        { id: "bucket", x: 300, y: 220, r: 18 },
+        { id: "bird", x: 90, y: 40, r: 16 },
+        { id: "umbrella", x: 230, y: 150, r: 28 },
+        { id: "shellA", x: 150, y: 230, r: 14 },
+        { id: "kid", x: 340, y: 200, r: 22 },
+        { id: "ball", x: 50, y: 200, r: 16 },
+        { id: "claw", x: 200, y: 235, r: 14 },
+        { id: "sail", x: 60, y: 120, r: 20 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -644,60 +789,53 @@ const SCENES = [
           el("rect", { x: 0, y: 0, width: 480, height: 108, fill: C.sky }, g);
           el("rect", { x: 0, y: 108, width: 480, height: 80, fill: C.sea }, g);
           el("rect", { x: 0, y: 188, width: 480, height: 72, fill: C.sand }, g);
-          scatterField(g, fieldPack("ground"));
-          scatterField(g, [["bug",90,90,C.yellow],["bug",200,80,C.pink],["bug",320,95,C.blue],["bug",420,85,C.orange]]);
+          paintCrowd(g, crowd);
           sunBody(g, 50, 42, true, -1);
           cloud(g, 150, 36, 0.8);
           cloud(g, 280, 48, 0.6);
           cloud(g, 380, 30, 0.7);
+          cloud(g, 220, 55, 0.45);
           if (!has("bird") || L) bird(g, 90, 40);
-          bird(g, 200, 50);
-          bird(g, 330, 38);
+          bird(g, 200, 50); bird(g, 330, 38); bird(g, 150, 35); bird(g, 400, 45);
           wave(g, 130, C.sea2);
           wave(g, 155, "#7EC8F0");
           wave(g, 175, C.sea2);
           fish(g, 100, 145, C.yellow);
-          if (!has("fish") || L) fish(g, 180, 140, C.orange);
-          fish(g, 260, 150, C.pink);
-          fish(g, 320, 135, C.blue);
+          if (!has("fish") || L) fish(g, 180, 140, C.orange); else fish(g, 180, 140, C.blue);
+          fish(g, 260, 150, C.pink); fish(g, 320, 135, C.blue);
+          fish(g, 220, 160, C.yellow); fish(g, 300, 155, C.pink); fish(g, 360, 165, C.blue);
+          fish(g, 140, 155, C.red); fish(g, 400, 150, C.mint);
           boat(g, 400, 112, has("boat") && !L ? C.red : C.white);
-          boat(g, 60, 120, C.yellow);
+          boat(g, 60, 120, has("sail") && !L ? C.pink : C.yellow);
+          boat(g, 280, 118, C.mint);
           umbrella(g, 230, 150, has("umbrella") && !L ? C.yellow : C.red, true);
           umbrella(g, 140, 160, C.blue, true);
+          umbrella(g, 340, 155, C.orange, true);
           if (!has("crab") || L) crab(g, 70, 222, true);
-          crab(g, 200, 235, true);
+          crab(g, 200, 235, !(has("claw") && !L));
+          crab(g, 320, 240, true); crab(g, 450, 230, true);
           if (!has("star") || L) starfish(g, 420, 224); else shell(g, 420, 224);
-          starfish(g, 380, 240);
+          starfish(g, 380, 240); starfish(g, 100, 220); starfish(g, 260, 245);
           shell(g, 110, 235);
           if (!has("shellA") || L) shell(g, 150, 230);
-          shell(g, 250, 240);
-          shell(g, 450, 215);
+          shell(g, 250, 240); shell(g, 450, 215);
+          packRow(g, "shell", 250, 32, [C.pink], (gg, x, yy) => shell(gg, x, yy));
           if (!has("bucket") || L) bucket(g, 300, 220, C.blue);
-          bucket(g, 360, 230, C.orange);
-          rock(g, 40, 240, "#C0B0A0");
-          rock(g, 470, 245, "#B8A898");
+          bucket(g, 360, 230, C.orange); bucket(g, 400, 220, C.yellow); bucket(g, 180, 235, C.red);
+          rock(g, 40, 240, "#C0B0A0"); rock(g, 470, 245, "#B8A898"); rock(g, 230, 235); rock(g, 340, 238);
           if (!has("ball") || L) ball(g, 50, 200, true);
-          ball(g, 460, 230, true);
+          ball(g, 460, 230, true); ball(g, 120, 210, true); ball(g, 280, 220, true);
           if (!has("kid") || L) person(g, 340, 200, C.pink, C.yellow);
-          person(g, 280, 205, C.mint);
-          person(g, 400, 205, C.orange);
-          butterfly(g, 200, 100, C.yellow);
-          butterfly(g, 350, 95, C.pink);
-          kite(g, 250, 60, C.yellow);
-          mushroom(g, 20, 220);
-          flower(g, 320, 240, C.pink, 5);
-          flower(g, 80, 245, C.yellow, 5);
-          flower(g, 440, 245, C.orange, 5);
-          dog(g, 180, 220);
-          for (const x of [20,45,70,95,120,145,170,195,220,245,270,295,320,345,370,395,420,445,470]) {
-            shell(g, x, 248);
-          }
-          for (const [x,y,c] of [[120,100,C.pink],[280,90,C.yellow],[360,110,C.orange],[420,100,C.blue]]) butterfly(g, x, y, c);
-          fish(g, 220, 160, C.yellow); fish(g, 300, 155, C.pink); fish(g, 360, 165, C.blue);
-          rock(g, 230, 235); rock(g, 340, 238); bush(g, 40, 210);
-          mushroom(g, 260, 220); flower(g, 280, 235, C.red, 5); flower(g, 360, 242, C.pink, 5);
-          balloon(g, 50, 50, C.red); balloon(g, 320, 45, C.blue);
-          person(g, 220, 200, C.blue); bucket(g, 400, 220, C.yellow);
+          person(g, 280, 205, C.mint); person(g, 400, 205, C.orange); person(g, 220, 200, C.blue);
+          person(g, 160, 205, C.yellow); person(g, 90, 200, C.red, C.pink);
+          for (const [x,y,c] of [[120,100,C.pink],[280,90,C.yellow],[360,110,C.orange],[420,100,C.blue],[200,100,C.yellow],[350,95,C.pink],[80,85,C.red],[240,75,C.mint]]) butterfly(g, x, y, c);
+          kite(g, 250, 60, C.yellow); kite(g, 180, 55, C.red);
+          mushroom(g, 20, 220); mushroom(g, 260, 220);
+          flower(g, 320, 240, C.pink, 5); flower(g, 80, 245, C.yellow, 5); flower(g, 440, 245, C.orange, 5); flower(g, 280, 235, C.red, 5); flower(g, 360, 242, C.pink, 5);
+          dog(g, 180, 220); dog(g, 420, 215);
+          balloon(g, 50, 50, C.red); balloon(g, 320, 45, C.blue); balloon(g, 400, 55, C.yellow);
+          bush(g, 40, 210);
+          for (let i = 0; i < 16; i++) miniPerson(g, 20 + i * 29, 252, [C.pink,C.blue,C.yellow,C.mint][i%4], 0.8);
         },
       };
     },
@@ -705,17 +843,20 @@ const SCENES = [
   {
     id: "room", title: "おへや",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "indoor");
       const pool = [
-        { id: "cat", x: 400, y: 208, r: 34 },
-        { id: "clock", x: 236, y: 46, r: 26 },
-        { id: "plant", x: 70, y: 200, r: 26 },
-        { id: "book", x: 300, y: 210, r: 20 },
-        { id: "ball", x: 180, y: 230, r: 20 },
-        { id: "frame", x: 412, y: 62, r: 24 },
-        { id: "lamp", x: 150, y: 175, r: 26 },
-        { id: "cupcake", x: 250, y: 175, r: 20 },
-        { id: "butterfly", x: 340, y: 90, r: 18 },
-        { id: "teddy", x: 60, y: 120, r: 24 },
+        { id: "cat", x: 400, y: 208, r: 26 },
+        { id: "clock", x: 236, y: 46, r: 18 },
+        { id: "plant", x: 70, y: 200, r: 18 },
+        { id: "book", x: 300, y: 210, r: 14 },
+        { id: "ball", x: 180, y: 230, r: 14 },
+        { id: "frame", x: 412, y: 62, r: 18 },
+        { id: "lamp", x: 150, y: 175, r: 16 },
+        { id: "cupcake", x: 250, y: 175, r: 14 },
+        { id: "butterfly", x: 340, y: 90, r: 12 },
+        { id: "teddy", x: 60, y: 120, r: 18 },
+        { id: "bookHue", x: 280, y: 210, r: 16 },
+        { id: "curtain", x: 48, y: 60, r: 22 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -727,16 +868,15 @@ const SCENES = [
           el("rect", { x: 0, y: 0, width: 480, height: 160, fill: C.wall }, g);
           el("rect", { x: 0, y: 160, width: 480, height: 100, fill: C.floor }, g);
           el("rect", { x: 0, y: 156, width: 480, height: 8, fill: "#E7B48A" }, g);
-          scatterField(g, fieldPack("ground"));
-          // window
+          paintCrowd(g, crowd);
           el("rect", S({ x: 40, y: 30, width: 70, height: 60, rx: 3, fill: "#B7E3FA" }), g);
           el("line", { x1: 75, y1: 30, x2: 75, y2: 90, stroke: INK, "stroke-width": 2 }, g);
           el("line", { x1: 40, y1: 60, x2: 110, y2: 60, stroke: INK, "stroke-width": 2 }, g);
-          el("rect", S({ x: 40, y: 30, width: 16, height: 60, fill: C.pink }), g);
-          // shelves / decor
+          el("rect", S({ x: 40, y: 30, width: 16, height: 60, fill: has("curtain") && !L ? C.blue : C.pink }), g);
           el("rect", S({ x: 140, y: 40, width: 60, height: 8, fill: C.wood }), g);
           potPlant(g, 155, 30, C.pink);
           potPlant(g, 185, 30, C.yellow);
+          potPlant(g, 160, 70, C.orange);
           clock(g, 236, 46, has("clock") && !L ? 160 : 90);
           el("rect", S({ x: 280, y: 34, width: 50, height: 40, rx: 4, fill: C.cream }), g);
           bloom(g, 305, 54, C.pink, 6, 5);
@@ -750,35 +890,37 @@ const SCENES = [
             el("circle", { cx: 64, cy: 98, r: 1.2, fill: INK }, g);
           }
           el("circle", S({ cx: 100, cy: 120, r: 10, fill: C.mint }), g);
-          // furniture
+          el("circle", S({ cx: 120, cy: 110, r: 8, fill: C.pink }), g);
           el("rect", S({ x: 200, y: 185, width: 110, height: 40, rx: 4, fill: "#D7A878" }), g);
           el("rect", S({ x: 210, y: 165, width: 90, height: 24, rx: 4, fill: "#C9843E" }), g);
           if (!has("cupcake") || L) cupcake(g, 250, 175);
-          book(g, 280, 210, C.red);
+          cupcake(g, 270, 175); cupcake(g, 230, 175); cupcake(g, 290, 190);
+          if (!has("bookHue") || L) book(g, 280, 210, C.red);
           if (!has("book") || L) book(g, 300, 210, C.blue);
           book(g, 320, 210, C.yellow);
+          book(g, 230, 200, C.red); book(g, 250, 200, C.yellow); book(g, 340, 200, C.pink);
+          book(g, 260, 220, C.orange); book(g, 360, 210, C.blue);
           el("rect", S({ x: 130, y: 175, width: 40, height: 50, rx: 4, fill: "#C9843E" }), g);
           el("ellipse", S({ cx: 150, cy: 170, rx: 22, ry: 10, fill: C.cream }), g);
           if (!(has("lamp") && !L)) el("circle", { cx: 150, cy: 168, r: 4, fill: C.yellow }, g);
           if (!has("plant") || L) potPlant(g, 70, 200, C.orange);
-          potPlant(g, 450, 200, C.pink);
-          bush(g, 430, 230, C.leaf);
+          potPlant(g, 450, 200, C.pink); potPlant(g, 420, 190, C.yellow); potPlant(g, 40, 190, C.pink);
+          bush(g, 430, 230, C.leaf); bush(g, 160, 200);
           if (!has("ball") || L) ball(g, 180, 230, true);
-          ball(g, 360, 235, true);
+          ball(g, 360, 235, true); ball(g, 340, 230, true); ball(g, 100, 235, true);
           if (!has("cat") || L) cat(g, 400, 208, true);
-          dog(g, 240, 235, "#E8B070");
-          if (!has("butterfly") || L) butterfly(g, 340, 90, C.pink);
-          mushroom(g, 40, 230);
-          rock(g, 120, 240, "#C8B8A8");
-          for (const x of [20,45,90,115,145,175,205,235,265,295,325,355,385,415,445,470]) flower(g, x, 248, [C.pink,C.yellow,C.orange][x%3], 5);
-          for (const [x,y] of [[160,100],[200,85],[260,95],[320,80],[360,100],[420,90]]) butterfly(g, x, y, C.pink);
-          book(g, 230, 200, C.red); book(g, 250, 200, C.yellow); cupcake(g, 270, 175);
-          ball(g, 340, 230, true); balloon(g, 180, 50, C.blue); kite(g, 300, 55, C.orange);
-          mushroom(g, 200, 230); mushroom(g, 300, 235); rock(g, 280, 240); rock(g, 400, 242);
-          bush(g, 160, 200); person(g, 330, 195, C.mint);
+          dog(g, 240, 235, "#E8B070"); dog(g, 50, 230);
+          if (!has("butterfly") || L) butterfly(g, 340, 90, C.pink); else butterfly(g, 340, 90, C.blue);
+          for (const [x,y,c] of [[160,100,C.pink],[200,85,C.yellow],[260,95,C.blue],[320,80,C.orange],[360,100,C.red],[420,90,C.mint],[180,70,C.pink],[300,110,C.yellow]]) butterfly(g, x, y, c);
+          mushroom(g, 40, 230); mushroom(g, 200, 230); mushroom(g, 300, 235);
+          rock(g, 120, 240, "#C8B8A8"); rock(g, 280, 240); rock(g, 400, 242);
+          packRow(g, "flower", 248, 26, [C.pink,C.yellow,C.orange], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          balloon(g, 180, 50, C.blue); balloon(g, 220, 40, C.red); kite(g, 300, 55, C.orange);
+          person(g, 330, 195, C.mint); person(g, 280, 200, C.blue); person(g, 370, 195, C.orange, C.pink);
           el("rect", S({ x: 340, y: 100, width: 30, height: 20, rx: 3, fill: C.blue }), g);
           el("rect", S({ x: 20, y: 100, width: 40, height: 28, rx: 3, fill: C.cream }), g);
           bloom(g, 40, 95, C.pink, 5, 5);
+          for (let i = 0; i < 14; i++) miniBook(g, 40 + i * 32, 145, [C.red,C.blue,C.yellow,C.pink][i%4], 0.9);
         },
       };
     },
@@ -786,17 +928,20 @@ const SCENES = [
   {
     id: "farm", title: "のうじょう",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "park");
       const pool = [
-        { id: "cow", x: 120, y: 205, r: 32 },
-        { id: "chicken", x: 220, y: 220, r: 22 },
-        { id: "cropA", x: 420, y: 220, r: 22 },
-        { id: "dog", x: 300, y: 230, r: 26 },
-        { id: "bird", x: 200, y: 40, r: 22 },
-        { id: "tractor", x: 60, y: 200, r: 30 },
-        { id: "pumpkin", x: 380, y: 230, r: 22 },
-        { id: "barnDoor", x: 362, y: 158, r: 22 },
-        { id: "flower", x: 450, y: 200, r: 20 },
-        { id: "bucket", x: 260, y: 210, r: 22 },
+        { id: "cow", x: 120, y: 205, r: 26 },
+        { id: "chicken", x: 220, y: 220, r: 16 },
+        { id: "cropA", x: 420, y: 220, r: 14 },
+        { id: "dog", x: 300, y: 230, r: 20 },
+        { id: "bird", x: 200, y: 40, r: 16 },
+        { id: "tractor", x: 60, y: 200, r: 24 },
+        { id: "pumpkin", x: 380, y: 230, r: 16 },
+        { id: "barnDoor", x: 362, y: 158, r: 14 },
+        { id: "flower", x: 450, y: 200, r: 14 },
+        { id: "bucket", x: 260, y: 210, r: 16 },
+        { id: "spot", x: 118, y: 208, r: 12 },
+        { id: "beak", x: 250, y: 230, r: 12 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -807,38 +952,33 @@ const SCENES = [
           const L = side === "L";
           el("rect", { x: 0, y: 0, width: 480, height: 145, fill: C.sky }, g);
           el("rect", { x: 0, y: 145, width: 480, height: 115, fill: "#C9E48A" }, g);
-          scatterField(g, fieldPack("ground"));
-          scatterField(g, fieldPack("sky").slice(0,10));
+          paintCrowd(g, crowd);
           sunBody(g, 50, 40, true, -1);
-          cloud(g, 140, 40, 0.8);
-          cloud(g, 260, 50, 0.6);
-          cloud(g, 360, 34, 0.7);
+          cloud(g, 140, 40, 0.8); cloud(g, 260, 50, 0.6); cloud(g, 360, 34, 0.7); cloud(g, 200, 55, 0.45);
           if (!has("bird") || L) bird(g, 200, 40);
-          bird(g, 300, 48);
-          bird(g, 420, 36);
-          // barn + silo
+          bird(g, 300, 48); bird(g, 420, 36); bird(g, 100, 45); bird(g, 360, 55);
           el("rect", S({ x: 320, y: 105, width: 95, height: 75, fill: C.red }), g);
           el("polygon", S({ points: "310,105 367,68 425,105", fill: "#A84840" }), g);
           el("rect", S({ x: 348, y: 132, width: 30, height: 48, fill: C.cream }), g);
           if (!(has("barnDoor") && !L)) el("circle", { cx: 362, cy: 158, r: 3, fill: INK }, g);
           el("rect", S({ x: 285, y: 90, width: 28, height: 90, rx: 4, fill: "#D8D0C4" }), g);
           el("ellipse", S({ cx: 299, cy: 90, rx: 18, ry: 8, fill: "#B8B0A4" }), g);
-          // fence
           for (let i = 0; i < 8; i++) {
             const x = 150 + i * 20;
             el("line", { x1: x, y1: 190, x2: x, y2: 230, stroke: C.trunk, "stroke-width": 2.4 }, g);
           }
           el("line", { x1: 150, y1: 198, x2: 310, y2: 198, stroke: C.trunk, "stroke-width": 2.4 }, g);
           el("line", { x1: 150, y1: 214, x2: 310, y2: 214, stroke: C.trunk, "stroke-width": 2.4 }, g);
-          // cow
           if (!has("cow") || L) {
             el("ellipse", S({ cx: 120, cy: 208, rx: 28, ry: 16, fill: C.white }), g);
             el("circle", S({ cx: 96, cy: 198, r: 12, fill: C.white }), g);
             el("circle", { cx: 92, cy: 196, r: 1.4, fill: INK }, g);
             el("ellipse", { cx: 118, cy: 208, rx: 7, ry: 5, fill: "#4A3A2A" }, g);
-            el("ellipse", { cx: 132, cy: 202, rx: 5, ry: 4, fill: "#4A3A2A" }, g);
+            if (!(has("spot") && !L)) el("ellipse", { cx: 132, cy: 202, rx: 5, ry: 4, fill: "#4A3A2A" }, g);
           }
-          // chicken
+          // second cow / sheep clutter
+          el("ellipse", S({ cx: 80, cy: 230, rx: 18, ry: 11, fill: C.white }), g);
+          el("circle", S({ cx: 66, cy: 222, r: 8, fill: C.white }), g);
           if (!has("chicken") || L) {
             el("ellipse", S({ cx: 220, cy: 222, rx: 12, ry: 9, fill: C.white }), g);
             el("circle", S({ cx: 230, cy: 214, r: 7, fill: C.white }), g);
@@ -846,38 +986,38 @@ const SCENES = [
             el("circle", { cx: 232, cy: 212, r: 1.2, fill: INK }, g);
           }
           el("ellipse", S({ cx: 250, cy: 230, rx: 10, ry: 8, fill: C.white }), g);
-          // crops
-          [[400,220,C.yellow],[420,220,C.orange],[440,226,C.pink],[460,218,C.red],[410,235,C.yellow],[450,238,C.orange]].forEach((p,i)=>{
+          el("circle", S({ cx: 258, cy: 224, r: 6, fill: C.white }), g);
+          if (!(has("beak") && !L)) el("polygon", S({ points: "262,224 270,224 262,227", fill: C.orange }), g);
+          el("ellipse", S({ cx: 270, cy: 238, rx: 9, ry: 7, fill: C.white }), g);
+          [[400,220,C.yellow],[420,220,C.orange],[440,226,C.pink],[460,218,C.red],[410,235,C.yellow],[450,238,C.orange],[390,242,C.red],[430,245,C.yellow],[415,210,C.pink],[445,210,C.orange]].forEach((p,i)=>{
             if (has("cropA") && !L && i === 1) bloom(g, p[0], p[1], C.blue, 6, 5);
             else bloom(g, p[0], p[1], p[2], 6, 5);
           });
           if (!has("pumpkin") || L) el("ellipse", S({ cx: 380, cy: 230, rx: 14, ry: 11, fill: C.orange }), g);
           el("ellipse", S({ cx: 355, cy: 238, rx: 12, ry: 9, fill: C.orange }), g);
+          el("ellipse", S({ cx: 340, cy: 245, rx: 10, ry: 8, fill: C.orange }), g);
           if (!has("flower") || L) flower(g, 450, 200, C.pink, 5);
-          flower(g, 40, 220, C.yellow, 5);
-          flower(g, 90, 230, C.pink, 5);
-          flower(g, 160, 240, C.orange, 5);
+          flower(g, 40, 220, C.yellow, 5); flower(g, 90, 230, C.pink, 5); flower(g, 160, 240, C.orange, 5);
           if (!has("dog") || L) dog(g, 300, 230);
+          dog(g, 40, 230); dog(g, 180, 235, "#E8B070");
           if (!has("bucket") || L) bucket(g, 260, 210, C.blue);
-          // small tractor-ish
+          bucket(g, 200, 210, C.blue); bucket(g, 160, 215, C.red);
           if (!has("tractor") || L) {
             el("rect", S({ x: 40, y: 190, width: 40, height: 18, rx: 3, fill: "#5BB868" }), g);
             el("rect", S({ x: 55, y: 175, width: 18, height: 18, rx: 2, fill: C.red }), g);
             el("circle", S({ cx: 48, cy: 210, r: 8, fill: "#333" }), g);
             el("circle", S({ cx: 75, cy: 210, r: 10, fill: "#333" }), g);
           }
-          tree(g, 470, 160, C.leaf2, C.leaf);
-          bush(g, 20, 210, C.leaf);
-          mushroom(g, 200, 240);
-          rock(g, 140, 240);
-          for (const x of [20,50,80,110,140,170,200,230,260,290,320,350,380,410,440,470]) {
-            bloom(g, x, 248, [C.yellow,C.orange,C.pink,C.red][x%4], 5, 5);
-          }
-          for (const [x,y] of [[80,80],[160,70],[240,60],[320,75],[400,65],[450,85]]) butterfly(g, x, y, C.yellow);
-          mushroom(g, 330, 235); mushroom(g, 50, 235); rock(g, 220, 240); rock(g, 420, 242);
-          bush(g, 180, 200); bush(g, 400, 205); bucket(g, 200, 210, C.blue);
-          person(g, 360, 195, C.pink); ball(g, 90, 235, true); kite(g, 240, 50, C.red);
-          balloon(g, 180, 40, C.yellow); dog(g, 40, 230); lantern(g, 250, 140, C.red); lantern(g, 420, 120, C.yellow);
+          tree(g, 470, 160, C.leaf2, C.leaf); tree(g, 20, 165, C.leaf, C.leaf2);
+          bush(g, 20, 210, C.leaf); bush(g, 180, 200); bush(g, 400, 205);
+          mushroom(g, 200, 240); mushroom(g, 330, 235); mushroom(g, 50, 235);
+          rock(g, 140, 240); rock(g, 220, 240); rock(g, 420, 242);
+          packRow(g, "bloom", 248, 30, [C.yellow,C.orange,C.pink,C.red], (gg, x, yy, col) => bloom(gg, x, yy, col, 5, 5));
+          for (const [x,y,c] of [[80,80,C.yellow],[160,70,C.pink],[240,60,C.blue],[320,75,C.orange],[400,65,C.red],[450,85,C.yellow],[120,55,C.mint],[280,90,C.pink]]) butterfly(g, x, y, c);
+          person(g, 360, 195, C.pink); person(g, 240, 200, C.blue); person(g, 420, 190, C.orange);
+          ball(g, 90, 235, true); kite(g, 240, 50, C.red); balloon(g, 180, 40, C.yellow);
+          lantern(g, 250, 140, C.red); lantern(g, 420, 120, C.yellow);
+          for (let i = 0; i < 20; i++) miniPerson(g, 15 + i * 23, 252, [C.pink,C.blue,C.yellow,C.mint][i%4], 0.75);
         },
       };
     },
@@ -885,17 +1025,20 @@ const SCENES = [
   {
     id: "snow", title: "ゆきのひ",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "snow");
       const pool = [
-        { id: "flake", x: 60, y: 40, r: 16 },
-        { id: "scarf", x: 240, y: 150, r: 28 },
-        { id: "bird", x: 320, y: 50, r: 22 },
-        { id: "sled", x: 360, y: 230, r: 28 },
-        { id: "dog", x: 140, y: 230, r: 26 },
-        { id: "window", x: 89, y: 157, r: 20 },
-        { id: "treeOrn", x: 390, y: 140, r: 18 },
-        { id: "kid", x: 300, y: 200, r: 28 },
-        { id: "mushroom", x: 50, y: 220, r: 22 },
+        { id: "flake", x: 60, y: 40, r: 14 },
+        { id: "scarf", x: 240, y: 150, r: 26 },
+        { id: "bird", x: 320, y: 50, r: 18 },
+        { id: "sled", x: 360, y: 230, r: 24 },
+        { id: "dog", x: 140, y: 230, r: 22 },
+        { id: "window", x: 89, y: 157, r: 18 },
+        { id: "treeOrn", x: 390, y: 140, r: 14 },
+        { id: "kid", x: 300, y: 200, r: 24 },
+        { id: "mushroom", x: 50, y: 220, r: 18 },
         { id: "smoke", x: 132, y: 70, r: 22 },
+        { id: "button", x: 240, y: 185, r: 12 },
+        { id: "ornHue", x: 375, y: 155, r: 12 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -906,13 +1049,13 @@ const SCENES = [
           const L = side === "L";
           el("rect", { x: 0, y: 0, width: 480, height: 175, fill: "#C9DCF2" }, g);
           el("rect", { x: 0, y: 175, width: 480, height: 85, fill: "#F4F7FB" }, g);
-          scatterField(g, fieldPack("ground"));
-          const flakes = [[60,40],[100,55],[140,28],[180,48],[220,36],[260,58],[300,30],[340,50],[380,38],[420,55],[450,32],[80,80],[200,70],[360,75],[40,100],[430,90]];
+          paintCrowd(g, crowd);
+          const flakes = [[60,40]];
+          for (let i = 0; i < 48; i++) flakes.push([12 + (i * 37) % 460, 18 + (i * 19) % 110]);
           flakes.forEach((p,i)=>{
-            if (has("flake") && !L && i === 0) return;
-            el("circle", { cx: p[0], cy: p[1], r: 2.2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.6 }, g);
+            if (has("flake") && !L && Math.hypot(p[0] - 60, p[1] - 40) < 6) return;
+            el("circle", { cx: p[0], cy: p[1], r: 1.8 + (i % 3) * 0.4, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, g);
           });
-          // house
           el("rect", S({ x: 55, y: 120, width: 85, height: 65, fill: "#E7D2B8" }), g);
           el("polygon", S({ points: "45,120 97,82 150,120", fill: C.red }), g);
           el("rect", S({ x: 118, y: 90, width: 14, height: 30, fill: "#8A6A55" }), g);
@@ -922,54 +1065,47 @@ const SCENES = [
           }
           el("rect", S({ x: 78, y: 145, width: 24, height: 24, fill: has("window") && !L ? "#FFE9A8" : "#B7E3FA" }), g);
           el("rect", S({ x: 70, y: 165, width: 18, height: 20, fill: C.wood }), g);
-          // trees
           el("polygon", S({ points: "390,210 355,120 425,120", fill: "#2E6B45" }), g);
           el("polygon", S({ points: "390,175 365,110 415,110", fill: "#3E8A58" }), g);
           el("rect", S({ x: 384, y: 205, width: 12, height: 22, fill: C.trunk }), g);
           if (!has("treeOrn") || L) el("circle", S({ cx: 390, cy: 140, r: 5, fill: C.red }), g);
-          el("circle", S({ cx: 375, cy: 155, r: 4, fill: C.yellow }), g);
+          el("circle", S({ cx: 375, cy: 155, r: 4, fill: has("ornHue") && !L ? C.blue : C.yellow }), g);
           el("circle", S({ cx: 405, cy: 160, r: 4, fill: C.blue }), g);
+          el("circle", S({ cx: 385, cy: 170, r: 3.5, fill: C.pink }), g);
+          el("circle", S({ cx: 400, cy: 145, r: 3.5, fill: C.orange }), g);
           el("polygon", S({ points: "450,220 430,150 470,150", fill: "#2E6B45" }), g);
           el("rect", S({ x: 444, y: 215, width: 10, height: 18, fill: C.trunk }), g);
-          // snowman
+          el("polygon", S({ points: "40,220 20,150 60,150", fill: "#2E6B45" }), g);
           snowman(g, 240, 175, !(has("scarf") && !L));
           el("circle", { cx: 240, cy: 175, r: 2, fill: INK }, g);
-          el("circle", { cx: 240, cy: 185, r: 2, fill: INK }, g);
-          // second small snowman
+          if (!(has("button") && !L)) el("circle", { cx: 240, cy: 185, r: 2, fill: INK }, g);
           el("circle", S({ cx: 190, cy: 230, r: 12, fill: C.white }), g);
           el("circle", S({ cx: 190, cy: 214, r: 8, fill: C.white }), g);
+          el("circle", S({ cx: 160, cy: 240, r: 10, fill: C.white }), g);
+          el("circle", S({ cx: 160, cy: 228, r: 7, fill: C.white }), g);
           if (!has("bird") || L) bird(g, 320, 50);
-          bird(g, 160, 45);
+          bird(g, 160, 45); bird(g, 250, 40); bird(g, 400, 55);
           if (!has("dog") || L) dog(g, 140, 230, "#E8E0D8");
+          dog(g, 420, 230, "#E8E0D8");
           if (!has("sled") || L) {
             el("rect", S({ x: 340, y: 228, width: 50, height: 8, rx: 2, fill: C.red }), g);
             el("line", { x1: 345, y1: 236, x2: 345, y2: 244, stroke: INK, "stroke-width": 2 }, g);
             el("line", { x1: 385, y1: 236, x2: 385, y2: 244, stroke: INK, "stroke-width": 2 }, g);
           }
           if (!has("kid") || L) person(g, 300, 200, C.blue, C.red);
-          person(g, 430, 205, C.orange);
+          person(g, 430, 205, C.orange); person(g, 360, 200, C.mint); person(g, 100, 205, C.pink);
           if (!has("mushroom") || L) mushroom(g, 50, 220);
-          mushroom(g, 470, 220);
-          rock(g, 100, 240, "#D0D8E0");
-          rock(g, 460, 240, "#C8D0D8");
-          rock(g, 280, 245, "#D8E0E8");
-          bush(g, 20, 220, "#3E8A58");
-          bush(g, 160, 215, "#2E6B45");
-          flower(g, 420, 235, C.pink, 5);
-          flower(g, 70, 235, C.yellow, 5);
-          flower(g, 330, 240, C.orange, 5);
-          balloon(g, 280, 90, C.blue);
-          balloon(g, 110, 70, C.red);
-          kite(g, 200, 55, C.pink);
-          ball(g, 400, 235, true);
-          for (const x of [30,55,80,105,130,155,180,205,230,255,280,305,330,355,380,405,430,455]) {
-            el("circle", { cx: x, cy: 250, r: 2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, g);
-          }
-          for (const [x,y,c] of [[90,100,C.pink],[170,90,C.yellow],[250,80,C.blue],[330,95,C.orange],[410,85,C.red],[450,100,C.pink]]) butterfly(g, x, y, c);
-          mushroom(g, 220, 230); mushroom(g, 340, 235); rock(g, 200, 245); rock(g, 300, 248);
-          bush(g, 50, 210); person(g, 360, 200, C.mint); cupcake(g, 100, 220);
-          fish(g, 30, 230, C.blue); book(g, 420, 220, C.red); ball(g, 250, 235, true);
+          mushroom(g, 470, 220); mushroom(g, 220, 230); mushroom(g, 340, 235);
+          rock(g, 100, 240, "#D0D8E0"); rock(g, 460, 240, "#C8D0D8"); rock(g, 280, 245, "#D8E0E8"); rock(g, 200, 245); rock(g, 300, 248);
+          bush(g, 20, 220, "#3E8A58"); bush(g, 160, 215, "#2E6B45"); bush(g, 50, 210);
+          flower(g, 420, 235, C.pink, 5); flower(g, 70, 235, C.yellow, 5); flower(g, 330, 240, C.orange, 5);
+          balloon(g, 280, 90, C.blue); balloon(g, 110, 70, C.red); balloon(g, 350, 80, C.yellow);
+          kite(g, 200, 55, C.pink); ball(g, 400, 235, true); ball(g, 250, 235, true);
+          packRow(g, "flake", 250, 36, [C.white], (gg, x, yy) => el("circle", { cx: x, cy: yy, r: 2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, gg));
+          for (const [x,y,c] of [[90,100,C.pink],[170,90,C.yellow],[250,80,C.blue],[330,95,C.orange],[410,85,C.red],[450,100,C.pink],[120,110,C.mint],[300,70,C.yellow]]) butterfly(g, x, y, c);
+          cupcake(g, 100, 220); fish(g, 30, 230, C.blue); book(g, 420, 220, C.red);
           lantern(g, 200, 100, C.orange); lantern(g, 300, 90, C.yellow);
+          for (let i = 0; i < 18; i++) miniPerson(g, 18 + i * 26, 252, [C.blue,C.red,C.mint,C.orange][i%4], 0.8);
         },
       };
     },
@@ -977,17 +1113,20 @@ const SCENES = [
   {
     id: "festival", title: "おまつり",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "night");
       const pool = [
-        { id: "lanternA", x: 80, y: 70, r: 24 },
-        { id: "flag", x: 420, y: 84, r: 26 },
+        { id: "lanternA", x: 80, y: 70, r: 36 },
+        { id: "flag", x: 420, y: 84, r: 32 },
         { id: "balloon", x: 180, y: 70, r: 24 },
-        { id: "personL", x: 140, y: 210, r: 28 },
-        { id: "mask", x: 320, y: 200, r: 24 },
-        { id: "star", x: 70, y: 58, r: 14 },
+        { id: "personL", x: 140, y: 210, r: 30 },
+        { id: "mask", x: 320, y: 200, r: 22 },
+        { id: "star", x: 70, y: 58, r: 16 },
         { id: "taiko", x: 250, y: 200, r: 28 },
-        { id: "food", x: 220, y: 155, r: 20 },
+        { id: "food", x: 220, y: 155, r: 18 },
         { id: "dog", x: 380, y: 230, r: 24 },
-        { id: "banner", x: 240, y: 95, r: 22 },
+        { id: "banner", x: 240, y: 95, r: 26 },
+        { id: "lanternB", x: 130, y: 55, r: 36 },
+        { id: "star2", x: 250, y: 52, r: 16 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -997,57 +1136,47 @@ const SCENES = [
         draw(g, side) {
           const L = side === "L";
           el("rect", { x: 0, y: 0, width: 480, height: 260, fill: C.night }, g);
-          scatterField(g, fieldPack("ground"));
-          const stars = [[40,36],[70,58],[110,28],[150,48],[200,34],[250,52],[300,30],[340,46],[380,26],[420,40],[450,55],[60,90],[280,70],[400,70]];
+          paintCrowd(g, crowd);
+          const stars = [[70,58],[250,52]];
+          for (let i = 0; i < 55; i++) stars.push([10 + (i * 41) % 465, 12 + (i * 17) % 100]);
           stars.forEach((p,i)=>{
-            if (has("star") && !L && i === 1) return;
-            el("circle", { cx: p[0], cy: p[1], r: 1.7, fill: "#FFE9A8" }, g);
+            if (has("star") && !L && Math.hypot(p[0] - 70, p[1] - 58) < 6) return;
+            if (has("star2") && !L && Math.hypot(p[0] - 250, p[1] - 52) < 6) return;
+            el("circle", { cx: p[0], cy: p[1], r: 1.3 + (i % 3) * 0.35, fill: "#FFE9A8" }, g);
           });
           el("circle", S({ cx: 430, cy: 48, r: 18, fill: "#FFE9A8" }), g);
           lantern(g, 80, 70, has("lanternA") && !L ? C.yellow : C.red);
-          lantern(g, 130, 55, C.orange);
-          lantern(g, 350, 60, C.red);
-          lantern(g, 400, 50, C.pink);
+          lantern(g, 130, 55, has("lanternB") && !L ? C.blue : C.orange);
+          lantern(g, 350, 60, C.red); lantern(g, 400, 50, C.pink);
+          lantern(g, 50, 40, C.red); lantern(g, 300, 45, C.yellow); lantern(g, 460, 40, C.orange);
+          lantern(g, 200, 40, C.pink); lantern(g, 240, 55, C.yellow);
           if (!has("balloon") || L) balloon(g, 180, 70, C.blue);
-          balloon(g, 220, 50, C.pink);
-          balloon(g, 300, 65, C.yellow);
-          // stall
+          balloon(g, 220, 50, C.pink); balloon(g, 300, 65, C.yellow);
+          for (const [x,y,c] of [[50,100,C.yellow],[100,80,C.pink],[160,70,C.blue],[220,85,C.orange],[280,75,C.red],[360,90,C.yellow],[420,80,C.pink],[70,120,C.mint],[320,100,C.red],[400,110,C.blue]]) balloon(g, x, y, c);
           el("rect", S({ x: 185, y: 130, width: 110, height: 70, fill: "#6B4428" }), g);
           el("rect", S({ x: 175, y: 118, width: 130, height: 18, fill: C.orange }), g);
           el("rect", S({ x: 205, y: 88, width: 70, height: 16, rx: 3, fill: has("banner") && !L ? C.pink : C.yellow }), g);
           if (!has("food") || L) cupcake(g, 220, 155);
-          cupcake(g, 250, 155);
-          bucket(g, 275, 160, C.red);
-          // flagpole
+          cupcake(g, 250, 155); cupcake(g, 235, 165); cupcake(g, 170, 220);
+          bucket(g, 275, 160, C.red); bucket(g, 70, 220, C.blue);
           el("line", { x1: 400, y1: 60, x2: 400, y2: 210, stroke: "#D8C4A0", "stroke-width": 2.4 }, g);
           el("polygon", S({ points: "400,68 445,84 400,100", fill: has("flag") && !L ? C.blue : C.pink }), g);
-          // taiko
           if (!has("taiko") || L) {
             el("ellipse", S({ cx: 250, cy: 205, rx: 22, ry: 14, fill: C.red }), g);
             el("rect", S({ x: 240, y: 205, width: 20, height: 18, fill: C.wood }), g);
           }
-          // people
           if (!has("personL") || L) person(g, 140, 210, C.blue, C.red);
-          person(g, 100, 215, C.mint);
-          person(g, 320, 210, C.orange, C.pink);
+          person(g, 100, 215, C.mint); person(g, 320, 210, C.orange, C.pink);
           if (!(has("mask") && !L)) el("circle", S({ cx: 320, cy: 188, r: 6, fill: C.white }), g);
-          person(g, 440, 205, C.yellow);
+          person(g, 440, 205, C.yellow); person(g, 60, 210, C.pink); person(g, 200, 210, C.red); person(g, 360, 205, C.mint, C.yellow);
           if (!has("dog") || L) dog(g, 380, 230, "#E8B070");
-          flower(g, 40, 230, C.pink, 5);
-          flower(g, 60, 240, C.yellow, 5);
-          flower(g, 460, 235, C.orange, 5);
-          mushroom(g, 200, 235);
-          rock(g, 280, 245, "#5A4A3A");
-          butterfly(g, 160, 120, C.yellow);
-          for (const x of [30,60,90,120,150,180,210,240,270,300,330,360,390,420,450,470]) {
-            flower(g, x, 248, [C.pink,C.yellow,C.orange,C.red][x%4], 5);
-          }
-          for (const [x,y,c] of [[50,100,C.yellow],[100,80,C.pink],[160,70,C.blue],[220,85,C.orange],[280,75,C.red],[360,90,C.yellow],[420,80,C.pink]]) balloon(g, x, y, c);
-          lantern(g, 50, 40, C.red); lantern(g, 300, 45, C.yellow); lantern(g, 460, 40, C.orange);
-          mushroom(g, 200, 230); mushroom(g, 360, 235); rock(g, 160, 245); rock(g, 400, 245);
-          bush(g, 240, 230); bucket(g, 70, 220, C.blue); cupcake(g, 170, 220);
-          ball(g, 300, 235, true); kite(g, 200, 100, C.pink); dog(g, 420, 230);
-          book(g, 100, 230, C.yellow); fish(g, 40, 100, C.orange);
+          dog(g, 420, 230);
+          packRow(g, "flower", 248, 28, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          mushroom(g, 200, 235); mushroom(g, 360, 235); rock(g, 280, 245, "#5A4A3A"); rock(g, 160, 245); rock(g, 400, 245);
+          bush(g, 240, 230); ball(g, 300, 235, true); kite(g, 200, 100, C.pink);
+          book(g, 100, 230, C.yellow); fish(g, 40, 100, C.orange); butterfly(g, 160, 120, C.yellow);
+          for (let i = 0; i < 20; i++) miniPerson(g, 12 + i * 24, 252, [C.pink,C.blue,C.yellow,C.mint,C.orange][i%5], 0.78);
+          for (let i = 0; i < 12; i++) miniLantern(g, 30 + i * 38, 130, [C.red,C.yellow,C.orange,C.pink][i%4], 0.85);
         },
       };
     },
@@ -1055,17 +1184,20 @@ const SCENES = [
   {
     id: "kitchen", title: "キッチン",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "indoor");
       const pool = [
-        { id: "cupcake", x: 200, y: 175, r: 20 },
-        { id: "apple", x: 380, y: 170, r: 22 },
-        { id: "clock", x: 400, y: 50, r: 24 },
-        { id: "spoon", x: 280, y: 110, r: 22 },
-        { id: "cat", x: 80, y: 220, r: 30 },
-        { id: "cup", x: 100, y: 180, r: 22 },
-        { id: "flame", x: 240, y: 175, r: 20 },
-        { id: "book", x: 320, y: 200, r: 20 },
-        { id: "flower", x: 50, y: 34, r: 28 },
-        { id: "knife", x: 160, y: 200, r: 20 },
+        { id: "cupcake", x: 200, y: 175, r: 14 },
+        { id: "apple", x: 380, y: 170, r: 14 },
+        { id: "clock", x: 400, y: 50, r: 18 },
+        { id: "spoon", x: 280, y: 110, r: 16 },
+        { id: "cat", x: 80, y: 220, r: 24 },
+        { id: "cup", x: 100, y: 180, r: 16 },
+        { id: "flame", x: 240, y: 175, r: 14 },
+        { id: "book", x: 320, y: 200, r: 14 },
+        { id: "flower", x: 50, y: 34, r: 18 },
+        { id: "knife", x: 160, y: 200, r: 14 },
+        { id: "banana", x: 400, y: 172, r: 12 },
+        { id: "bottle", x: 40, y: 195, r: 14 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1076,61 +1208,55 @@ const SCENES = [
           const L = side === "L";
           el("rect", { x: 0, y: 0, width: 480, height: 145, fill: "#F3E2D0" }, g);
           el("rect", { x: 0, y: 145, width: 480, height: 115, fill: "#D9B48A" }, g);
-          scatterField(g, fieldPack("ground"));
+          paintCrowd(g, crowd);
           for (let y = 16; y < 140; y += 26) {
             for (let x = 16; x < 460; x += 34) {
               el("rect", S({ x, y, width: 28, height: 20, fill: "#F7EFE4" }), g);
             }
           }
-          // shelves
           el("rect", S({ x: 30, y: 50, width: 90, height: 8, fill: C.wood }), g);
           potPlant(g, 50, 40, has("flower") && !L ? C.yellow : C.pink);
           potPlant(g, 90, 40, C.orange);
+          potPlant(g, 70, 70, C.pink);
           clock(g, 400, 50, has("clock") && !L ? 160 : 100);
           el("rect", S({ x: 300, y: 40, width: 50, height: 35, rx: 3, fill: C.cream }), g);
           bloom(g, 325, 58, C.pink, 5, 5);
-          // stove / pot
           el("rect", S({ x: 160, y: 170, width: 160, height: 16, fill: "#8A6A55" }), g);
           el("ellipse", S({ cx: 240, cy: 158, rx: 34, ry: 12, fill: "#6E7F92" }), g);
           el("path", S({ d: "M 208 158 V 128 H 272 V 158", fill: "#6E7F92" }), g);
           if (!has("spoon") || L) el("line", { x1: 268, y1: 120, x2: 295, y2: 95, stroke: "#C0C8D0", "stroke-width": 3.2, "stroke-linecap": "round" }, g);
           if (!has("flame") || L) el("path", { d: "M 232 178 Q 240 162 248 178 Q 240 172 232 178", fill: C.orange }, g);
-          // cups / bottles
           el("rect", S({ x: 86, y: 170, width: 28, height: 34, rx: 4, fill: has("cup") && !L ? C.pink : C.mint }), g);
           el("ellipse", S({ cx: 100, cy: 170, rx: 16, ry: 5, fill: softHue(C.mint, 10) }), g);
-          el("rect", S({ x: 40, y: 175, width: 18, height: 40, rx: 3, fill: C.blue }), g);
+          el("rect", S({ x: 40, y: 175, width: 18, height: 40, rx: 3, fill: has("bottle") && !L ? C.red : C.blue }), g);
           el("rect", S({ x: 125, y: 180, width: 16, height: 32, rx: 3, fill: C.yellow }), g);
+          el("rect", S({ x: 145, y: 175, width: 14, height: 36, rx: 3, fill: C.pink }), g);
           if (!has("cupcake") || L) cupcake(g, 200, 175);
-          cupcake(g, 230, 200);
-          cupcake(g, 270, 195);
-          // fruit bowl
+          cupcake(g, 230, 200); cupcake(g, 270, 195); cupcake(g, 250, 185); cupcake(g, 180, 200);
           el("ellipse", S({ cx: 390, cy: 185, rx: 34, ry: 10, fill: C.wood }), g);
           if (!has("apple") || L) el("circle", S({ cx: 380, cy: 170, r: 12, fill: C.red }), g);
-          el("circle", S({ cx: 400, cy: 172, r: 11, fill: C.yellow }), g);
+          el("circle", S({ cx: 400, cy: 172, r: 11, fill: has("banana") && !L ? C.grass2 : C.yellow }), g);
           el("circle", S({ cx: 415, cy: 178, r: 10, fill: C.orange }), g);
           el("circle", S({ cx: 365, cy: 178, r: 9, fill: C.pink }), g);
+          el("circle", S({ cx: 390, cy: 165, r: 8, fill: C.orange }), g);
           if (!has("book") || L) book(g, 320, 200, C.blue);
-          book(g, 340, 200, C.red);
-          book(g, 300, 215, C.yellow);
+          book(g, 340, 200, C.red); book(g, 300, 215, C.yellow); book(g, 220, 210, C.blue); book(g, 360, 210, C.pink);
           if (!has("knife") || L) {
             el("line", { x1: 145, y1: 200, x2: 175, y2: 200, stroke: "#C0C8D0", "stroke-width": 3, "stroke-linecap": "round" }, g);
             el("rect", S({ x: 140, y: 196, width: 10, height: 8, rx: 1, fill: C.wood }), g);
           }
           if (!has("cat") || L) cat(g, 80, 220, true);
-          dog(g, 200, 235, "#C9843E");
-          ball(g, 450, 230, true);
-          mushroom(g, 430, 210);
-          butterfly(g, 260, 80, C.pink);
-          rock(g, 160, 240, "#C8B8A8");
-          for (const x of [20,45,70,95,120,145,170,195,220,245,270,295,320,345,370,395,420,445,470]) {
-            flower(g, x, 248, [C.pink, C.yellow, C.orange, C.red][x % 4], 5);
-          }
-          for (const [x,y] of [[80,70],[140,60],[200,75],[260,55],[320,70],[380,60],[440,75]]) butterfly(g, x, y, C.pink);
-          mushroom(g, 250, 230); mushroom(g, 100, 235); rock(g, 300, 242); rock(g, 50, 240);
-          bush(g, 180, 210); potPlant(g, 360, 200, C.pink); potPlant(g, 40, 200, C.yellow);
-          person(g, 280, 195, C.orange); balloon(g, 200, 50, C.blue); kite(g, 300, 45, C.red);
-          dog(g, 160, 230); ball(g, 420, 230, true); book(g, 220, 210, C.blue);
+          dog(g, 200, 235, "#C9843E"); dog(g, 160, 230);
+          ball(g, 450, 230, true); ball(g, 420, 230, true); ball(g, 300, 235, true);
+          mushroom(g, 430, 210); mushroom(g, 250, 230); mushroom(g, 100, 235);
+          for (const [x,y,c] of [[80,70,C.pink],[140,60,C.yellow],[200,75,C.blue],[260,55,C.orange],[320,70,C.red],[380,60,C.mint],[440,75,C.pink],[180,90,C.yellow]]) butterfly(g, x, y, c);
+          rock(g, 160, 240, "#C8B8A8"); rock(g, 300, 242); rock(g, 50, 240);
+          bush(g, 180, 210); potPlant(g, 360, 200, C.pink); potPlant(g, 40, 200, C.yellow); potPlant(g, 440, 195, C.orange);
+          person(g, 280, 195, C.orange); person(g, 340, 195, C.mint); balloon(g, 200, 50, C.blue); kite(g, 300, 45, C.red);
           lantern(g, 440, 120, C.red);
+          packRow(g, "flower", 248, 28, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          for (let i = 0; i < 16; i++) miniBook(g, 20 + i * 29, 140, [C.red,C.blue,C.yellow,C.pink,C.mint][i%5], 0.85);
+          for (let i = 0; i < 14; i++) miniPerson(g, 25 + i * 32, 252, [C.orange,C.blue,C.pink][i%3], 0.8);
         },
       };
     },
@@ -1138,17 +1264,20 @@ const SCENES = [
   {
     id: "camp", title: "キャンプ",
     build(rng) {
+      const crowd = makeWaldoCrowd(rng, "night");
       const pool = [
-        { id: "owl", x: 70, y: 100, r: 22 },
-        { id: "bag", x: 400, y: 205, r: 22 },
-        { id: "star", x: 36, y: 30, r: 14 },
-        { id: "fire", x: 120, y: 200, r: 28 },
-        { id: "fish", x: 50, y: 230, r: 22 },
-        { id: "lantern", x: 340, y: 160, r: 24 },
-        { id: "dog", x: 300, y: 230, r: 26 },
-        { id: "mushroom", x: 200, y: 230, r: 22 },
-        { id: "flag", x: 250, y: 90, r: 22 },
-        { id: "moon", x: 420, y: 50, r: 26 },
+        { id: "owl", x: 70, y: 100, r: 16 },
+        { id: "bag", x: 400, y: 205, r: 16 },
+        { id: "star", x: 36, y: 30, r: 10 },
+        { id: "fire", x: 120, y: 200, r: 22 },
+        { id: "fish", x: 50, y: 230, r: 14 },
+        { id: "lantern", x: 340, y: 160, r: 18 },
+        { id: "dog", x: 300, y: 230, r: 20 },
+        { id: "mushroom", x: 200, y: 230, r: 16 },
+        { id: "flag", x: 250, y: 90, r: 16 },
+        { id: "moon", x: 420, y: 50, r: 34 },
+        { id: "owlEye", x: 74, y: 98, r: 12 },
+        { id: "peg", x: 185, y: 185, r: 16 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1159,29 +1288,31 @@ const SCENES = [
           const L = side === "L";
           el("rect", { x: 0, y: 0, width: 480, height: 165, fill: "#1B2F55" }, g);
           el("rect", { x: 0, y: 165, width: 480, height: 95, fill: C.camp }, g);
-          scatterField(g, fieldPack("ground"));
-          scatterField(g, fieldPack("sky").slice(0,10));
-          const stars = [[36,30],[70,48],[110,24],[150,40],[190,28],[230,45],[280,32],[320,50],[360,26],[400,38],[450,30],[60,80],[200,70],[380,70],[140,70]];
+          paintCrowd(g, crowd);
+          const stars = [[36,30]];
+          for (let i = 0; i < 60; i++) stars.push([8 + (i * 43) % 470, 10 + (i * 19) % 105]);
           stars.forEach((p,i)=>{
-            if (has("star") && !L && i === 0) return;
-            el("circle", { cx: p[0], cy: p[1], r: 1.6, fill: "#FFE9A8" }, g);
+            if (has("star") && !L && Math.hypot(p[0] - 36, p[1] - 30) < 6) return;
+            el("circle", { cx: p[0], cy: p[1], r: 1.2 + (i % 3) * 0.4, fill: "#FFE9A8" }, g);
           });
           el("circle", S({ cx: 420, cy: 50, r: 18, fill: "#FFE9A8" }), g);
           if (has("moon") && !L) el("circle", { cx: 428, cy: 44, r: 14, fill: "#1B2F55" }, g);
           tree(g, 50, 185, "#1F5A38", "#2E7D3A");
           tree(g, 450, 190, "#1F5A38", "#2E7D3A");
           tree(g, 15, 200, "#163D28", "#1F5A38");
+          tree(g, 100, 195, "#1F5A38", "#2E7D3A");
+          tree(g, 400, 195, "#163D28", "#1F5A38");
           if (!has("owl") || L) {
             el("circle", S({ cx: 70, cy: 100, r: 10, fill: "#E8D0A8" }), g);
             el("circle", { cx: 66, cy: 98, r: 2, fill: INK }, g);
-            el("circle", { cx: 74, cy: 98, r: 2, fill: INK }, g);
+            if (!(has("owlEye") && !L)) el("circle", { cx: 74, cy: 98, r: 2, fill: INK }, g);
           }
-          // tent
           el("polygon", S({ points: "250,95 185,185 315,185", fill: C.orange }), g);
           el("polygon", S({ points: "250,95 232,185 268,185", fill: "#F7F1E4" }), g);
+          if (!has("peg") || L) el("circle", S({ cx: 185, cy: 185, r: 4, fill: INK }), g);
+          el("circle", S({ cx: 315, cy: 185, r: 4, fill: INK }), g);
           if (!has("flag") || L) el("polygon", S({ points: "250,70 250,95 275,80", fill: C.red }), g);
           el("line", { x1: 250, y1: 70, x2: 250, y2: 95, stroke: INK, "stroke-width": 2 }, g);
-          // fire
           el("ellipse", S({ cx: 120, cy: 225, rx: 22, ry: 8, fill: "#6B4A2A" }), g);
           el("ellipse", S({ cx: 110, cy: 220, rx: 16, ry: 6, fill: C.trunk }), g);
           if (!has("fire") || L) {
@@ -1189,33 +1320,28 @@ const SCENES = [
             el("path", { d: "M 118 208 C 114 196 117 188 118 180 C 124 192 126 198 118 208", fill: C.yellow }, g);
           }
           if (!has("lantern") || L) lantern(g, 340, 160, C.yellow);
-          lantern(g, 180, 150, C.red);
+          lantern(g, 180, 150, C.red); lantern(g, 100, 140, C.orange); lantern(g, 400, 130, C.red);
+          lantern(g, 220, 140, C.pink); lantern(g, 300, 145, C.yellow);
           if (!has("bag") || L) {
             el("circle", S({ cx: 400, cy: 205, r: 12, fill: C.white }), g);
             el("rect", S({ x: 388, y: 205, width: 24, height: 16, rx: 3, fill: C.white }), g);
           }
           el("rect", S({ x: 420, y: 210, width: 22, height: 28, rx: 4, fill: "#C9843E" }), g);
           if (!has("dog") || L) dog(g, 300, 230, "#E8B070");
+          dog(g, 420, 230); dog(g, 160, 235, "#C9843E");
           if (!has("mushroom") || L) mushroom(g, 200, 230);
           mushroom(g, 230, 240);
+          packRow(g, "mush", 248, 26, [C.red], (gg, x, yy) => mushroom(gg, x, yy));
           if (!has("fish") || L) fish(g, 50, 230, C.orange);
-          fish(g, 90, 245, C.yellow);
-          rock(g, 160, 240, "#5A6A4A");
-          rock(g, 360, 245, "#4A5A3A");
-          bush(g, 470, 220, "#1F5A38");
-          person(g, 280, 195, C.blue);
-          butterfly(g, 200, 120, C.yellow);
-          ball(g, 150, 235, true);
-          flower(g, 440, 235, C.pink, 5);
-          for (const x of [20,50,80,110,140,170,200,230,260,290,320,350,380,410,440,470]) {
-            mushroom(g, x, 248);
-          }
-          for (const [x,y,c] of [[100,60,C.pink],[160,50,C.yellow],[220,65,C.blue],[300,55,C.orange],[360,70,C.red],[430,60,C.pink]]) balloon(g, x, y, c);
-          rock(g, 80, 240); rock(g, 240, 245); rock(g, 400, 242);
-          bush(g, 200, 210); bush(g, 380, 215); person(g, 320, 195, C.mint);
-          cupcake(g, 180, 220); bucket(g, 260, 220, C.blue); kite(g, 200, 80, C.yellow);
-          flower(g, 40, 230, C.yellow, 5); flower(g, 100, 235, C.orange, 5); flower(g, 360, 235, C.pink, 5);
-          dog(g, 420, 230); book(g, 150, 220, C.red); lantern(g, 100, 140, C.orange); lantern(g, 400, 130, C.red);
+          fish(g, 90, 245, C.yellow); fish(g, 70, 240, C.pink);
+          rock(g, 160, 240, "#5A6A4A"); rock(g, 360, 245, "#4A5A3A"); rock(g, 80, 240); rock(g, 240, 245); rock(g, 400, 242);
+          bush(g, 470, 220, "#1F5A38"); bush(g, 200, 210); bush(g, 380, 215);
+          person(g, 280, 195, C.blue); person(g, 320, 195, C.mint); person(g, 360, 200, C.orange);
+          for (const [x,y,c] of [[100,60,C.pink],[160,50,C.yellow],[220,65,C.blue],[300,55,C.orange],[360,70,C.red],[430,60,C.pink],[80,80,C.mint],[250,45,C.yellow]]) balloon(g, x, y, c);
+          butterfly(g, 200, 120, C.yellow); ball(g, 150, 235, true);
+          flower(g, 440, 235, C.pink, 5); flower(g, 40, 230, C.yellow, 5); flower(g, 100, 235, C.orange, 5); flower(g, 360, 235, C.pink, 5);
+          cupcake(g, 180, 220); bucket(g, 260, 220, C.blue); kite(g, 200, 80, C.yellow); book(g, 150, 220, C.red);
+          for (let i = 0; i < 18; i++) miniPerson(g, 15 + i * 26, 252, [C.blue,C.mint,C.orange,C.pink][i%4], 0.78);
         },
       };
     },
@@ -1638,7 +1764,7 @@ async function diffReport(seeds) {
           const dist = Math.hypot(x - diffs[d].x, y - diffs[d].y);
           if (dist < best) { best = dist; which = d; }
         }
-        if (best <= diffs[which].r + 14) hit[which]++;
+        if (best <= diffs[which].r + 18) hit[which]++;
         else outside++;
       }
     }
