@@ -134,7 +134,7 @@ h1 a{text-decoration:none}
       <circle cx="170" cy="70" r="16" fill="none" stroke="#E25B4A" stroke-width="2.2" stroke-dasharray="4 3"/>
     </svg>
     <h1>まちがいさがし</h1>
-    <p class="lead">ウォーリーを探せみたいに、ものがびっしり。こまかいちがいをじっくり探してね。</p>
+    <p class="lead">サイゼリヤのまちがいさがしみたいに、じっくり探してね。かんたんとむずかしいがまざってるよ。</p>
     <div class="start-actions">
       <button class="btn primary" id="btnStart" type="button">はじめる</button>
       <button class="btn" id="btnStartHelp" type="button">あそびかた</button>
@@ -210,9 +210,9 @@ h1 a{text-decoration:none}
       <button class="chip" id="closeHelp" type="button">とじる</button>
     </div>
     <ol>
-      <li>はじめるたびに、あたらしい絵がランダムでつくられる（ウォーリーを探せみたいに、ものがびっしり）。</li>
+      <li>はじめるたびに、あたらしい絵がランダムでつくられる。</li>
       <li>2まいを見くらべて、ちがうところを探す。スマホは上下、ひろい画面は左右。</li>
-      <li>ちがいは色や小さなパーツなど、こまかいことが多い。ヒントは場所だけ（最初はことば、つぎでうすい範囲）。</li>
+      <li>ちがいは「すぐわかるもの」と「こまかいもの」がまざっている。ヒントは場所だけ（最初はことば、つぎでうすい範囲）。</li>
       <li>おてつきとヒントが少ないほど星が多い。</li>
     </ol>
   </div>
@@ -561,34 +561,43 @@ function themeKinds(theme) {
   return ["flower", "bloom", "rock", "bush", "mush", "bug", "ball", "leaf", "pebble", "grass", "person", "speck"];
 }
 
-/** Where's-Waldo style dense clutter. Same list painted on L and R. */
-function makeWaldoCrowd(rng, theme) {
-  const kinds = themeKinds(theme);
-  const colors = [C.pink, C.yellow, C.orange, C.red, C.blue, C.mint, C.white, C.leaf, C.leaf2, "#E8B070", "#C9843E"];
+/**
+ * Saizeriya-like scene filler: enough props to search through, but the picture
+ * stays readable (not Waldo wall-to-wall). Same list on L and R.
+ */
+function makeSceneCrowd(rng, theme) {
+  const kinds = themeKinds(theme).filter(k => k !== "speck" && k !== "pebble");
+  const colors = [C.pink, C.yellow, C.orange, C.red, C.blue, C.mint, C.white, C.leaf, C.leaf2, "#E8B070"];
   const items = [];
-  for (let pass = 0; pass < 3; pass++) {
-    const stepX = 12 + (pass % 2);
-    const stepY = 11 + (pass % 2);
-    const ox = pass * 5, oy = pass * 4;
-    for (let y = 14 + oy; y < 256; y += stepY) {
-      for (let x = 5 + ox; x < 476; x += stepX) {
-        if (rng() > 0.62) continue;
-        let kind = kinds[Math.floor(rng() * kinds.length)];
-        if (theme !== "indoor" && y < 95 && rng() < 0.55) {
-          kind = pick(rng, theme === "night" || theme === "snow"
-            ? ["star", "flake", "bug", "balloon", "speck"]
-            : ["bug", "balloon", "bird", "leaf", "speck", "bloom"]);
-        }
-        if (items.length >= 1400) return items;
-        items.push({
-          k: kind,
-          x: x + (rng() - 0.5) * 10,
-          y: y + (rng() - 0.5) * 9,
-          c: colors[Math.floor(rng() * colors.length)],
-          s: 0.42 + rng() * 0.75,
-          v: Math.floor(rng() * 5),
-        });
-      }
+  const push = (x, y, kindBias) => {
+    if (items.length >= 200) return;
+    let kind = kindBias || kinds[Math.floor(rng() * kinds.length)];
+    items.push({
+      k: kind,
+      x: x + (rng() - 0.5) * 12,
+      y: y + (rng() - 0.5) * 10,
+      c: colors[Math.floor(rng() * colors.length)],
+      s: 0.7 + rng() * 0.55,
+      v: Math.floor(rng() * 5),
+    });
+  };
+  // sky / upper band — sparse, only airy props
+  for (let y = 36; y < 105; y += 32) {
+    for (let x = 30; x < 450; x += 42) {
+      if (rng() > 0.28) continue;
+      const skyKind = theme === "night" || theme === "snow"
+        ? pick(rng, ["star", "flake", "balloon", "bug"])
+        : pick(rng, ["bug", "bird", "balloon", "cloudlet"]);
+      push(x, y, skyKind === "cloudlet" ? "bird" : skyKind);
+    }
+  }
+  // mid + ground — composed clutter, not wall-to-wall
+  for (let y = 145; y < 245; y += 28) {
+    for (let x = 22; x < 458; x += 32) {
+      if (rng() > 0.34) continue;
+      let kind = kinds[Math.floor(rng() * kinds.length)];
+      if (kind === "ball" || kind === "person") kind = pick(rng, ["flower", "bloom", "rock", "mush", "bush"]);
+      push(x, y, kind);
     }
   }
   return items;
@@ -629,20 +638,35 @@ function paintCrowd(g, crowd) {
   }
 }
 
-/** Extra packed row of similar props — Waldo "sea of sameness". */
+/** Decorative row — keep short so the scene stays Saizeriya-readable. */
 function packRow(g, kind, y, cols, colors, fn) {
-  for (let i = 0; i < cols; i++) {
-    const x = 10 + i * ((VW - 20) / Math.max(1, cols - 1));
+  const n = Math.min(cols, 14);
+  for (let i = 0; i < n; i++) {
+    const x = 18 + i * ((VW - 36) / Math.max(1, n - 1));
     fn(g, x, y + ((i * 5) % 7) - 3, colors[i % colors.length], i);
   }
 }
 
+/** Prefer ~4 easy + ~2 hard (Saizeriya-style mix), with spacing. */
 function takeDiffs(rng, pool, n) {
+  const easyN = Math.max(1, Math.round(n * 0.65));
+  const hardN = n - easyN;
+  const easy = shuffle(rng, pool.filter(d => (d.hard || 1) <= 1));
+  const hard = shuffle(rng, pool.filter(d => (d.hard || 1) >= 2));
+  const rest = shuffle(rng, pool);
   const chosen = [];
-  for (const d of shuffle(rng, pool)) {
+  const fits = d => chosen.every(c => Math.hypot(c.x - d.x, c.y - d.y) >= c.r + d.r + 18);
+  for (const d of easy) {
+    if (chosen.filter(c => (c.hard || 1) <= 1).length >= easyN) break;
+    if (fits(d)) chosen.push(d);
+  }
+  for (const d of hard) {
+    if (chosen.filter(c => (c.hard || 1) >= 2).length >= hardN) break;
+    if (fits(d) && !chosen.includes(d)) chosen.push(d);
+  }
+  for (const d of rest) {
     if (chosen.length >= n) break;
-    const ok = chosen.every(c => Math.hypot(c.x - d.x, c.y - d.y) >= c.r + d.r + 18);
-    if (ok) chosen.push(d);
+    if (fits(d) && !chosen.includes(d)) chosen.push(d);
   }
   while (chosen.length < Math.min(n, pool.length)) {
     const d = pool.find(p => !chosen.includes(p) && chosen.every(c => Math.hypot(c.x - p.x, c.y - p.y) >= 10));
@@ -665,20 +689,20 @@ const SCENES = [
     id: "park", title: "こうえん",
     build(rng) {
       const petal = [C.pink, C.yellow, C.orange, C.red, C.blue];
-      const crowd = makeWaldoCrowd(rng, "park");
+      const crowd = makeSceneCrowd(rng, "park");
       const pool = [
-        { id: "birdA", x: 420, y: 40, r: 22 },
-        { id: "kite", x: 300, y: 70, r: 30 },
-        { id: "ball", x: 70, y: 222, r: 18 },
-        { id: "dog", x: 170, y: 220, r: 26 },
-        { id: "butterfly", x: 360, y: 150, r: 22 },
-        { id: "flowerX", x: 430, y: 210, r: 24 },
-        { id: "apple", x: 118, y: 120, r: 18 },
-        { id: "kid", x: 250, y: 200, r: 26 },
-        { id: "mushroom", x: 40, y: 200, r: 22 },
-        { id: "benchC", x: 280, y: 186, r: 28 },
-        { id: "sunRay", x: 56, y: 44, r: 32 },
-        { id: "petalN", x: 90, y: 218, r: 18 },
+        { id: "birdA", x: 420, y: 40, r: 22, hard: 1 },
+        { id: "kite", x: 300, y: 70, r: 28, hard: 1 },
+        { id: "ball", x: 70, y: 222, r: 18, hard: 1 },
+        { id: "dog", x: 170, y: 220, r: 26, hard: 1 },
+        { id: "kid", x: 250, y: 200, r: 26, hard: 1 },
+        { id: "mushroom", x: 40, y: 200, r: 22, hard: 1 },
+        { id: "benchC", x: 280, y: 186, r: 28, hard: 1 },
+        { id: "butterfly", x: 360, y: 150, r: 18, hard: 2 },
+        { id: "flowerX", x: 430, y: 210, r: 20, hard: 2 },
+        { id: "apple", x: 118, y: 120, r: 16, hard: 2 },
+        { id: "sunRay", x: 56, y: 44, r: 30, hard: 2 },
+        { id: "petalN", x: 90, y: 218, r: 16, hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -696,40 +720,29 @@ const SCENES = [
           paintCrowd(g, crowd);
           el("polygon", S({ points: "210,260 300,260 280,176 240,176", fill: "#E7C48A" }), g);
           for (let i = 0; i < 5; i++) el("ellipse", { cx: 248 + i * 8, cy: 210 + (i % 2) * 4, rx: 5, ry: 3, fill: "#D2B48C" }, g);
-          // skip a short near-ray (index 1) so the pixel delta stays inside the hitbox
           sunBody(g, 56, 44, true, has("sunRay") && !L ? 1 : -1);
           cloud(g, 150, 40, 0.85);
           cloud(g, 250, 58, 0.65);
           cloud(g, 360, 36, 0.75);
-          cloud(g, 90, 70, 0.45);
-          cloud(g, 420, 60, 0.5);
           bird(g, 200, 48);
           bird(g, 330, 56);
-          bird(g, 280, 45);
-          bird(g, 160, 62);
           if (!has("birdA") || L) bird(g, 420, 40);
           if (!has("kite") || L) kite(g, 300, 70, C.red); else kite(g, 300, 70, C.blue);
           kite(g, 180, 70, C.yellow);
-          kite(g, 400, 85, C.pink);
           tree(g, 100, 178, C.leaf2, C.leaf);
           tree(g, 380, 182, C.leaf, C.leaf2);
           tree(g, 455, 190, C.leaf2, C.leaf);
-          tree(g, 40, 185, C.leaf, C.leaf2);
-          tree(g, 220, 188, C.leaf2, C.leaf);
           if (!has("apple") || L) el("circle", S({ cx: 118, cy: 120, r: 5, fill: C.red }), g);
           el("circle", S({ cx: 92, cy: 130, r: 4.5, fill: C.red }), g);
-          el("circle", S({ cx: 105, cy: 108, r: 4, fill: C.red }), g);
           el("circle", S({ cx: 390, cy: 128, r: 4.5, fill: C.yellow }), g);
-          el("circle", S({ cx: 400, cy: 115, r: 4, fill: C.red }), g);
-          el("circle", S({ cx: 370, cy: 135, r: 3.5, fill: C.orange }), g);
           bush(g, 40, 190, C.leaf2);
           bush(g, 440, 200, C.leaf);
-          bush(g, 200, 195); bush(g, 320, 198); bush(g, 140, 200); bush(g, 360, 205);
-          rock(g, 200, 228); rock(g, 320, 232, "#B0A090"); rock(g, 100, 235); rock(g, 250, 240); rock(g, 400, 238);
+          bush(g, 200, 195); bush(g, 320, 198);
+          rock(g, 200, 228); rock(g, 320, 232, "#B0A090"); rock(g, 100, 235);
           bench(g, 280, 186, has("benchC") && !L ? C.blue : C.wood);
           swing(g, 200, 188, C.wood);
-          packRow(g, "flower", 245, 28, petal, (gg, x, yy, col) => flower(gg, x, yy, col, 5));
-          [[50,210],[90,218],[140,208],[340,214],[400,220],[430,210],[460,218],[240,230],[60,236],[160,236],[200,220],[280,225],[310,215],[370,228]].forEach((p,i)=>{
+          packRow(g, "flower", 245, 12, petal, (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          [[50,210],[90,218],[140,208],[340,214],[400,220],[430,210],[240,230],[160,236]].forEach((p,i)=>{
             const col = petal[i % petal.length];
             if (has("flowerX") && !L && i === 5) flower(g, p[0], p[1], C.yellow, 6);
             else if (has("petalN") && !L && i === 1) flower(g, p[0], p[1], col, 4);
@@ -737,18 +750,18 @@ const SCENES = [
           });
           if (!has("ball") || L) ball(g, 70, 222, true);
           else el("circle", S({ cx: 70, cy: 222, r: 11, fill: C.blue }), g);
-          ball(g, 400, 230, true); ball(g, 120, 240, true); ball(g, 300, 240, true);
+          ball(g, 400, 230, true);
           if (!has("dog") || L) dog(g, 170, 220);
           dog(g, 420, 225, "#E8B070");
           if (!has("butterfly") || L) butterfly(g, 360, 150, C.pink); else butterfly(g, 360, 150, C.blue);
           butterfly(g, 120, 150, C.yellow);
-          for (const [x,y,c] of [[220,150,C.pink],[280,140,C.yellow],[400,145,C.blue],[60,155,C.orange],[160,160,C.red],[320,130,C.mint],[440,160,C.pink],[100,120,C.yellow]]) butterfly(g, x, y, c);
+          butterfly(g, 220, 150, C.pink);
+          butterfly(g, 280, 140, C.yellow);
           if (!has("mushroom") || L) mushroom(g, 40, 200);
-          mushroom(g, 460, 230); mushroom(g, 290, 230); mushroom(g, 150, 225); mushroom(g, 330, 240);
+          mushroom(g, 460, 230); mushroom(g, 290, 230);
           if (!has("kid") || L) person(g, 250, 200, C.orange);
           person(g, 340, 198, C.mint, C.pink);
-          person(g, 80, 205, C.blue); person(g, 400, 200, C.yellow); person(g, 300, 205, C.red, C.orange);
-          for (let i = 0; i < 18; i++) miniPerson(g, 30 + i * 25, 250, petal[i % petal.length], 0.85);
+          person(g, 80, 205, C.blue);
         },
       };
     },
@@ -756,20 +769,20 @@ const SCENES = [
   {
     id: "beach", title: "うみ",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "beach");
+      const crowd = makeSceneCrowd(rng, "beach");
       const pool = [
-        { id: "boat", x: 400, y: 110, r: 28 },
-        { id: "crab", x: 70, y: 222, r: 18 },
-        { id: "star", x: 420, y: 224, r: 18 },
-        { id: "fish", x: 180, y: 140, r: 16 },
-        { id: "bucket", x: 300, y: 220, r: 18 },
-        { id: "bird", x: 90, y: 40, r: 16 },
-        { id: "umbrella", x: 230, y: 150, r: 28 },
-        { id: "shellA", x: 150, y: 230, r: 14 },
-        { id: "kid", x: 340, y: 200, r: 22 },
-        { id: "ball", x: 50, y: 200, r: 16 },
-        { id: "claw", x: 200, y: 235, r: 14 },
-        { id: "sail", x: 60, y: 120, r: 20 },
+        { id: "boat", x: 400, y: 110, r: 28 , hard: 1 },
+        { id: "crab", x: 70, y: 222, r: 18 , hard: 1 },
+        { id: "star", x: 420, y: 224, r: 18 , hard: 1 },
+        { id: "fish", x: 180, y: 140, r: 16 , hard: 2 },
+        { id: "bucket", x: 300, y: 220, r: 18 , hard: 1 },
+        { id: "bird", x: 90, y: 40, r: 16 , hard: 1 },
+        { id: "umbrella", x: 230, y: 150, r: 28 , hard: 1 },
+        { id: "shellA", x: 150, y: 230, r: 14 , hard: 2 },
+        { id: "kid", x: 340, y: 200, r: 22 , hard: 1 },
+        { id: "ball", x: 50, y: 200, r: 16 , hard: 1 },
+        { id: "claw", x: 200, y: 235, r: 14 , hard: 2 },
+        { id: "sail", x: 60, y: 120, r: 20 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -811,7 +824,7 @@ const SCENES = [
           shell(g, 110, 235);
           if (!has("shellA") || L) shell(g, 150, 230);
           shell(g, 250, 240); shell(g, 450, 215);
-          packRow(g, "shell", 250, 32, [C.pink], (gg, x, yy) => shell(gg, x, yy));
+          packRow(g, "shell", 250, 12, [C.pink], (gg, x, yy) => shell(gg, x, yy));
           if (!has("bucket") || L) bucket(g, 300, 220, C.blue);
           bucket(g, 360, 230, C.orange); bucket(g, 400, 220, C.yellow); bucket(g, 180, 235, C.red);
           rock(g, 40, 240, "#C0B0A0"); rock(g, 470, 245, "#B8A898"); rock(g, 230, 235); rock(g, 340, 238);
@@ -827,7 +840,6 @@ const SCENES = [
           dog(g, 180, 220); dog(g, 420, 215);
           balloon(g, 50, 50, C.red); balloon(g, 320, 45, C.blue); balloon(g, 400, 55, C.yellow);
           bush(g, 40, 210);
-          for (let i = 0; i < 16; i++) miniPerson(g, 20 + i * 29, 252, [C.pink,C.blue,C.yellow,C.mint][i%4], 0.8);
         },
       };
     },
@@ -835,20 +847,20 @@ const SCENES = [
   {
     id: "room", title: "おへや",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "indoor");
+      const crowd = makeSceneCrowd(rng, "indoor");
       const pool = [
-        { id: "cat", x: 400, y: 208, r: 26 },
-        { id: "clock", x: 236, y: 46, r: 18 },
-        { id: "plant", x: 70, y: 200, r: 18 },
-        { id: "book", x: 300, y: 210, r: 14 },
-        { id: "ball", x: 180, y: 230, r: 14 },
-        { id: "frame", x: 412, y: 62, r: 18 },
-        { id: "lamp", x: 150, y: 175, r: 16 },
-        { id: "cupcake", x: 250, y: 175, r: 14 },
-        { id: "butterfly", x: 340, y: 90, r: 12 },
-        { id: "teddy", x: 60, y: 120, r: 18 },
-        { id: "bookHue", x: 280, y: 210, r: 16 },
-        { id: "curtain", x: 48, y: 60, r: 22 },
+        { id: "cat", x: 400, y: 208, r: 26 , hard: 1 },
+        { id: "clock", x: 236, y: 46, r: 18 , hard: 2 },
+        { id: "plant", x: 70, y: 200, r: 18 , hard: 1 },
+        { id: "book", x: 300, y: 210, r: 14 , hard: 2 },
+        { id: "ball", x: 180, y: 230, r: 14 , hard: 1 },
+        { id: "frame", x: 412, y: 62, r: 18 , hard: 1 },
+        { id: "lamp", x: 150, y: 175, r: 16 , hard: 2 },
+        { id: "cupcake", x: 250, y: 175, r: 14 , hard: 1 },
+        { id: "butterfly", x: 340, y: 90, r: 12 , hard: 2 },
+        { id: "teddy", x: 60, y: 120, r: 18 , hard: 1 },
+        { id: "bookHue", x: 280, y: 210, r: 16 , hard: 2 },
+        { id: "curtain", x: 48, y: 60, r: 22 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -906,13 +918,12 @@ const SCENES = [
           for (const [x,y,c] of [[160,100,C.pink],[200,85,C.yellow],[260,95,C.blue],[320,80,C.orange],[360,100,C.red],[420,90,C.mint],[180,70,C.pink],[300,110,C.yellow]]) butterfly(g, x, y, c);
           mushroom(g, 40, 230); mushroom(g, 200, 230); mushroom(g, 300, 235);
           rock(g, 120, 240, "#C8B8A8"); rock(g, 280, 240); rock(g, 400, 242);
-          packRow(g, "flower", 248, 26, [C.pink,C.yellow,C.orange], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          packRow(g, "flower", 248, 12, [C.pink,C.yellow,C.orange], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
           balloon(g, 180, 50, C.blue); balloon(g, 220, 40, C.red); kite(g, 300, 55, C.orange);
           person(g, 330, 195, C.mint); person(g, 280, 200, C.blue); person(g, 370, 195, C.orange, C.pink);
           el("rect", S({ x: 340, y: 100, width: 30, height: 20, rx: 3, fill: C.blue }), g);
           el("rect", S({ x: 20, y: 100, width: 40, height: 28, rx: 3, fill: C.cream }), g);
           bloom(g, 40, 95, C.pink, 5, 5);
-          for (let i = 0; i < 14; i++) miniBook(g, 40 + i * 32, 145, [C.red,C.blue,C.yellow,C.pink][i%4], 0.9);
         },
       };
     },
@@ -920,20 +931,20 @@ const SCENES = [
   {
     id: "farm", title: "のうじょう",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "park");
+      const crowd = makeSceneCrowd(rng, "park");
       const pool = [
-        { id: "cow", x: 120, y: 205, r: 26 },
-        { id: "chicken", x: 220, y: 220, r: 16 },
-        { id: "cropA", x: 420, y: 220, r: 14 },
-        { id: "dog", x: 300, y: 230, r: 20 },
-        { id: "bird", x: 200, y: 40, r: 16 },
-        { id: "tractor", x: 60, y: 200, r: 24 },
-        { id: "pumpkin", x: 380, y: 230, r: 16 },
-        { id: "barnDoor", x: 362, y: 158, r: 14 },
-        { id: "flower", x: 450, y: 200, r: 14 },
-        { id: "bucket", x: 260, y: 210, r: 16 },
-        { id: "spot", x: 118, y: 208, r: 12 },
-        { id: "beak", x: 250, y: 230, r: 12 },
+        { id: "cow", x: 120, y: 205, r: 26 , hard: 1 },
+        { id: "chicken", x: 220, y: 220, r: 16 , hard: 1 },
+        { id: "cropA", x: 420, y: 220, r: 14 , hard: 2 },
+        { id: "dog", x: 300, y: 230, r: 20 , hard: 1 },
+        { id: "bird", x: 200, y: 40, r: 16 , hard: 1 },
+        { id: "tractor", x: 60, y: 200, r: 24 , hard: 1 },
+        { id: "pumpkin", x: 380, y: 230, r: 16 , hard: 1 },
+        { id: "barnDoor", x: 362, y: 158, r: 14 , hard: 2 },
+        { id: "flower", x: 450, y: 200, r: 14 , hard: 1 },
+        { id: "bucket", x: 260, y: 210, r: 16 , hard: 1 },
+        { id: "spot", x: 118, y: 208, r: 12 , hard: 2 },
+        { id: "beak", x: 250, y: 230, r: 12 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1004,12 +1015,11 @@ const SCENES = [
           bush(g, 20, 210, C.leaf); bush(g, 180, 200); bush(g, 400, 205);
           mushroom(g, 200, 240); mushroom(g, 330, 235); mushroom(g, 50, 235);
           rock(g, 140, 240); rock(g, 220, 240); rock(g, 420, 242);
-          packRow(g, "bloom", 248, 30, [C.yellow,C.orange,C.pink,C.red], (gg, x, yy, col) => bloom(gg, x, yy, col, 5, 5));
+          packRow(g, "bloom", 248, 12, [C.yellow,C.orange,C.pink,C.red], (gg, x, yy, col) => bloom(gg, x, yy, col, 5, 5));
           for (const [x,y,c] of [[80,80,C.yellow],[160,70,C.pink],[240,60,C.blue],[320,75,C.orange],[400,65,C.red],[450,85,C.yellow],[120,55,C.mint],[280,90,C.pink]]) butterfly(g, x, y, c);
           person(g, 360, 195, C.pink); person(g, 240, 200, C.blue); person(g, 420, 190, C.orange);
           ball(g, 90, 235, true); kite(g, 240, 50, C.red); balloon(g, 180, 40, C.yellow);
           lantern(g, 250, 140, C.red); lantern(g, 420, 120, C.yellow);
-          for (let i = 0; i < 20; i++) miniPerson(g, 15 + i * 23, 252, [C.pink,C.blue,C.yellow,C.mint][i%4], 0.75);
         },
       };
     },
@@ -1017,20 +1027,20 @@ const SCENES = [
   {
     id: "snow", title: "ゆきのひ",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "snow");
+      const crowd = makeSceneCrowd(rng, "snow");
       const pool = [
-        { id: "flake", x: 60, y: 40, r: 14 },
-        { id: "scarf", x: 240, y: 150, r: 26 },
-        { id: "bird", x: 320, y: 50, r: 18 },
-        { id: "sled", x: 360, y: 230, r: 24 },
-        { id: "dog", x: 140, y: 230, r: 22 },
-        { id: "window", x: 89, y: 157, r: 18 },
-        { id: "treeOrn", x: 390, y: 140, r: 14 },
-        { id: "kid", x: 300, y: 200, r: 24 },
-        { id: "mushroom", x: 50, y: 220, r: 18 },
-        { id: "smoke", x: 132, y: 70, r: 22 },
-        { id: "button", x: 240, y: 185, r: 12 },
-        { id: "ornHue", x: 375, y: 155, r: 12 },
+        { id: "flake", x: 60, y: 40, r: 14 , hard: 2 },
+        { id: "scarf", x: 240, y: 150, r: 26 , hard: 1 },
+        { id: "bird", x: 320, y: 50, r: 18 , hard: 1 },
+        { id: "sled", x: 360, y: 230, r: 24 , hard: 1 },
+        { id: "dog", x: 140, y: 230, r: 22 , hard: 1 },
+        { id: "window", x: 89, y: 157, r: 18 , hard: 2 },
+        { id: "treeOrn", x: 390, y: 140, r: 14 , hard: 2 },
+        { id: "kid", x: 300, y: 200, r: 24 , hard: 1 },
+        { id: "mushroom", x: 50, y: 220, r: 18 , hard: 1 },
+        { id: "smoke", x: 132, y: 70, r: 22 , hard: 1 },
+        { id: "button", x: 240, y: 185, r: 12 , hard: 2 },
+        { id: "ornHue", x: 375, y: 155, r: 12 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1043,7 +1053,7 @@ const SCENES = [
           el("rect", { x: 0, y: 175, width: 480, height: 85, fill: "#F4F7FB" }, g);
           paintCrowd(g, crowd);
           const flakes = [[60,40]];
-          for (let i = 0; i < 48; i++) flakes.push([12 + (i * 37) % 460, 18 + (i * 19) % 110]);
+          for (let i = 0; i < 24; i++) flakes.push([12 + (i * 37) % 460, 18 + (i * 19) % 110]);
           flakes.forEach((p,i)=>{
             if (has("flake") && !L && Math.hypot(p[0] - 60, p[1] - 40) < 6) return;
             el("circle", { cx: p[0], cy: p[1], r: 1.8 + (i % 3) * 0.4, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, g);
@@ -1093,11 +1103,10 @@ const SCENES = [
           flower(g, 420, 235, C.pink, 5); flower(g, 70, 235, C.yellow, 5); flower(g, 330, 240, C.orange, 5);
           balloon(g, 280, 90, C.blue); balloon(g, 110, 70, C.red); balloon(g, 350, 80, C.yellow);
           kite(g, 200, 55, C.pink); ball(g, 400, 235, true); ball(g, 250, 235, true);
-          packRow(g, "flake", 250, 36, [C.white], (gg, x, yy) => el("circle", { cx: x, cy: yy, r: 2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, gg));
+          packRow(g, "flake", 250, 12, [C.white], (gg, x, yy) => el("circle", { cx: x, cy: yy, r: 2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, gg));
           for (const [x,y,c] of [[90,100,C.pink],[170,90,C.yellow],[250,80,C.blue],[330,95,C.orange],[410,85,C.red],[450,100,C.pink],[120,110,C.mint],[300,70,C.yellow]]) butterfly(g, x, y, c);
           cupcake(g, 100, 220); fish(g, 30, 230, C.blue); book(g, 420, 220, C.red);
           lantern(g, 200, 100, C.orange); lantern(g, 300, 90, C.yellow);
-          for (let i = 0; i < 18; i++) miniPerson(g, 18 + i * 26, 252, [C.blue,C.red,C.mint,C.orange][i%4], 0.8);
         },
       };
     },
@@ -1105,20 +1114,20 @@ const SCENES = [
   {
     id: "festival", title: "おまつり",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "night");
+      const crowd = makeSceneCrowd(rng, "night");
       const pool = [
-        { id: "lanternA", x: 80, y: 70, r: 36 },
-        { id: "flag", x: 420, y: 84, r: 32 },
-        { id: "balloon", x: 180, y: 70, r: 24 },
-        { id: "personL", x: 140, y: 210, r: 30 },
-        { id: "mask", x: 320, y: 200, r: 22 },
-        { id: "star", x: 70, y: 58, r: 16 },
-        { id: "taiko", x: 250, y: 200, r: 28 },
-        { id: "food", x: 220, y: 155, r: 18 },
-        { id: "dog", x: 380, y: 230, r: 24 },
-        { id: "banner", x: 240, y: 95, r: 26 },
-        { id: "lanternB", x: 130, y: 55, r: 36 },
-        { id: "star2", x: 250, y: 52, r: 16 },
+        { id: "lanternA", x: 80, y: 70, r: 36 , hard: 1 },
+        { id: "flag", x: 420, y: 84, r: 32 , hard: 1 },
+        { id: "balloon", x: 180, y: 70, r: 24 , hard: 1 },
+        { id: "personL", x: 140, y: 210, r: 30 , hard: 1 },
+        { id: "mask", x: 320, y: 200, r: 22 , hard: 2 },
+        { id: "star", x: 70, y: 58, r: 16 , hard: 2 },
+        { id: "taiko", x: 250, y: 200, r: 28 , hard: 1 },
+        { id: "food", x: 220, y: 155, r: 18 , hard: 1 },
+        { id: "dog", x: 380, y: 230, r: 24 , hard: 1 },
+        { id: "banner", x: 240, y: 95, r: 26 , hard: 1 },
+        { id: "lanternB", x: 130, y: 55, r: 36 , hard: 2 },
+        { id: "star2", x: 250, y: 52, r: 16 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1130,7 +1139,7 @@ const SCENES = [
           el("rect", { x: 0, y: 0, width: 480, height: 260, fill: C.night }, g);
           paintCrowd(g, crowd);
           const stars = [[70,58],[250,52]];
-          for (let i = 0; i < 55; i++) stars.push([10 + (i * 41) % 465, 12 + (i * 17) % 100]);
+          for (let i = 0; i < 28; i++) stars.push([10 + (i * 41) % 465, 12 + (i * 17) % 100]);
           stars.forEach((p,i)=>{
             if (has("star") && !L && Math.hypot(p[0] - 70, p[1] - 58) < 6) return;
             if (has("star2") && !L && Math.hypot(p[0] - 250, p[1] - 52) < 6) return;
@@ -1163,12 +1172,10 @@ const SCENES = [
           person(g, 440, 205, C.yellow); person(g, 60, 210, C.pink); person(g, 200, 210, C.red); person(g, 360, 205, C.mint, C.yellow);
           if (!has("dog") || L) dog(g, 380, 230, "#E8B070");
           dog(g, 420, 230);
-          packRow(g, "flower", 248, 28, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          packRow(g, "flower", 248, 12, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
           mushroom(g, 200, 235); mushroom(g, 360, 235); rock(g, 280, 245, "#5A4A3A"); rock(g, 160, 245); rock(g, 400, 245);
           bush(g, 240, 230); ball(g, 300, 235, true); kite(g, 200, 100, C.pink);
           book(g, 100, 230, C.yellow); fish(g, 40, 100, C.orange); butterfly(g, 160, 120, C.yellow);
-          for (let i = 0; i < 20; i++) miniPerson(g, 12 + i * 24, 252, [C.pink,C.blue,C.yellow,C.mint,C.orange][i%5], 0.78);
-          for (let i = 0; i < 12; i++) miniLantern(g, 30 + i * 38, 130, [C.red,C.yellow,C.orange,C.pink][i%4], 0.85);
         },
       };
     },
@@ -1176,20 +1183,20 @@ const SCENES = [
   {
     id: "kitchen", title: "キッチン",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "indoor");
+      const crowd = makeSceneCrowd(rng, "indoor");
       const pool = [
-        { id: "cupcake", x: 200, y: 175, r: 14 },
-        { id: "apple", x: 380, y: 170, r: 14 },
-        { id: "clock", x: 400, y: 50, r: 18 },
-        { id: "spoon", x: 280, y: 110, r: 16 },
-        { id: "cat", x: 80, y: 220, r: 24 },
-        { id: "cup", x: 100, y: 180, r: 16 },
-        { id: "flame", x: 240, y: 175, r: 14 },
-        { id: "book", x: 320, y: 200, r: 14 },
-        { id: "flower", x: 50, y: 34, r: 18 },
-        { id: "knife", x: 160, y: 200, r: 14 },
-        { id: "banana", x: 400, y: 172, r: 12 },
-        { id: "bottle", x: 40, y: 195, r: 14 },
+        { id: "cupcake", x: 200, y: 175, r: 14 , hard: 1 },
+        { id: "apple", x: 380, y: 170, r: 14 , hard: 1 },
+        { id: "clock", x: 400, y: 50, r: 18 , hard: 2 },
+        { id: "spoon", x: 280, y: 110, r: 16 , hard: 2 },
+        { id: "cat", x: 80, y: 220, r: 24 , hard: 1 },
+        { id: "cup", x: 100, y: 180, r: 16 , hard: 2 },
+        { id: "flame", x: 240, y: 175, r: 14 , hard: 2 },
+        { id: "book", x: 320, y: 200, r: 14 , hard: 1 },
+        { id: "flower", x: 50, y: 34, r: 18 , hard: 1 },
+        { id: "knife", x: 160, y: 200, r: 14 , hard: 1 },
+        { id: "banana", x: 400, y: 172, r: 12 , hard: 2 },
+        { id: "bottle", x: 40, y: 195, r: 14 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1246,9 +1253,7 @@ const SCENES = [
           bush(g, 180, 210); potPlant(g, 360, 200, C.pink); potPlant(g, 40, 200, C.yellow); potPlant(g, 440, 195, C.orange);
           person(g, 280, 195, C.orange); person(g, 340, 195, C.mint); balloon(g, 200, 50, C.blue); kite(g, 300, 45, C.red);
           lantern(g, 440, 120, C.red);
-          packRow(g, "flower", 248, 28, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
-          for (let i = 0; i < 16; i++) miniBook(g, 20 + i * 29, 140, [C.red,C.blue,C.yellow,C.pink,C.mint][i%5], 0.85);
-          for (let i = 0; i < 14; i++) miniPerson(g, 25 + i * 32, 252, [C.orange,C.blue,C.pink][i%3], 0.8);
+          packRow(g, "flower", 248, 12, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
         },
       };
     },
@@ -1256,20 +1261,20 @@ const SCENES = [
   {
     id: "camp", title: "キャンプ",
     build(rng) {
-      const crowd = makeWaldoCrowd(rng, "night");
+      const crowd = makeSceneCrowd(rng, "night");
       const pool = [
-        { id: "owl", x: 70, y: 100, r: 16 },
-        { id: "bag", x: 400, y: 205, r: 16 },
-        { id: "star", x: 36, y: 30, r: 10 },
-        { id: "fire", x: 120, y: 200, r: 22 },
-        { id: "fish", x: 50, y: 230, r: 14 },
-        { id: "lantern", x: 340, y: 160, r: 18 },
-        { id: "dog", x: 300, y: 230, r: 20 },
-        { id: "mushroom", x: 200, y: 230, r: 16 },
-        { id: "flag", x: 250, y: 90, r: 16 },
-        { id: "moon", x: 420, y: 50, r: 34 },
-        { id: "owlEye", x: 74, y: 98, r: 12 },
-        { id: "peg", x: 185, y: 185, r: 16 },
+        { id: "owl", x: 70, y: 100, r: 16 , hard: 1 },
+        { id: "bag", x: 400, y: 205, r: 16 , hard: 1 },
+        { id: "star", x: 36, y: 30, r: 10 , hard: 2 },
+        { id: "fire", x: 120, y: 200, r: 22 , hard: 1 },
+        { id: "fish", x: 50, y: 230, r: 14 , hard: 1 },
+        { id: "lantern", x: 340, y: 160, r: 18 , hard: 1 },
+        { id: "dog", x: 300, y: 230, r: 20 , hard: 1 },
+        { id: "mushroom", x: 200, y: 230, r: 16 , hard: 1 },
+        { id: "flag", x: 250, y: 90, r: 16 , hard: 1 },
+        { id: "moon", x: 420, y: 50, r: 34 , hard: 2 },
+        { id: "owlEye", x: 74, y: 98, r: 12 , hard: 2 },
+        { id: "peg", x: 185, y: 185, r: 16 , hard: 2 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1282,7 +1287,7 @@ const SCENES = [
           el("rect", { x: 0, y: 165, width: 480, height: 95, fill: C.camp }, g);
           paintCrowd(g, crowd);
           const stars = [[36,30]];
-          for (let i = 0; i < 60; i++) stars.push([8 + (i * 43) % 470, 10 + (i * 19) % 105]);
+          for (let i = 0; i < 28; i++) stars.push([8 + (i * 43) % 470, 10 + (i * 19) % 105]);
           stars.forEach((p,i)=>{
             if (has("star") && !L && Math.hypot(p[0] - 36, p[1] - 30) < 6) return;
             el("circle", { cx: p[0], cy: p[1], r: 1.2 + (i % 3) * 0.4, fill: "#FFE9A8" }, g);
@@ -1323,7 +1328,7 @@ const SCENES = [
           dog(g, 420, 230); dog(g, 160, 235, "#C9843E");
           if (!has("mushroom") || L) mushroom(g, 200, 230);
           mushroom(g, 230, 240);
-          packRow(g, "mush", 248, 26, [C.red], (gg, x, yy) => mushroom(gg, x, yy));
+          packRow(g, "mush", 248, 12, [C.red], (gg, x, yy) => mushroom(gg, x, yy));
           if (!has("fish") || L) fish(g, 50, 230, C.orange);
           fish(g, 90, 245, C.yellow); fish(g, 70, 240, C.pink);
           rock(g, 160, 240, "#5A6A4A"); rock(g, 360, 245, "#4A5A3A"); rock(g, 80, 240); rock(g, 240, 245); rock(g, 400, 242);
@@ -1333,7 +1338,6 @@ const SCENES = [
           butterfly(g, 200, 120, C.yellow); ball(g, 150, 235, true);
           flower(g, 440, 235, C.pink, 5); flower(g, 40, 230, C.yellow, 5); flower(g, 100, 235, C.orange, 5); flower(g, 360, 235, C.pink, 5);
           cupcake(g, 180, 220); bucket(g, 260, 220, C.blue); kite(g, 200, 80, C.yellow); book(g, 150, 220, C.red);
-          for (let i = 0; i < 18; i++) miniPerson(g, 15 + i * 26, 252, [C.blue,C.mint,C.orange,C.pink][i%4], 0.78);
         },
       };
     },
