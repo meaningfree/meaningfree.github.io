@@ -66,6 +66,7 @@ h1 a{text-decoration:none}
 .chips span{background:var(--card); border:1.5px solid var(--line); border-radius:999px; padding:2px 10px; font-size:12.5px; font-weight:700}
 
 .actions{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.actions:has(#btnHint[hidden]){grid-template-columns:1fr}
 .btn{
   border:1.5px solid var(--line); background:var(--card); border-radius:16px; min-height:52px;
   font-weight:900; font-size:16px; box-shadow:0 3px 0 var(--line);
@@ -189,9 +190,7 @@ h1 a{text-decoration:none}
   <div class="chips" id="chips"></div>
   <div class="actions" id="actions">
     <button class="btn gold" id="btnHint" type="button">ヒント</button>
-    <button class="btn" id="btnReset" type="button">はじめから</button>
-    <button class="btn primary" id="btnNext" type="button" hidden>つぎの え</button>
-    <button class="btn" id="btnReplay" type="button" hidden>もういちど</button>
+    <button class="btn primary" id="btnNext" type="button" hidden>つぎの もんだいへ</button>
   </div>
 </div>
 
@@ -1503,9 +1502,7 @@ function renderHud() {
   const stars = starCount(misses, hints);
   $("meta").textContent = (done ? starsText(stars) + "　" : "") + "おてつき " + misses + "　ヒント " + hints;
   $("btnHint").hidden = done || !playing;
-  $("btnReset").hidden = done || !playing;
-  $("btnNext").hidden = !done;
-  $("btnReplay").hidden = !done;
+  $("btnNext").hidden = !playing;
   const box = $("chips");
   box.replaceChildren();
   found.forEach((_, i) => {
@@ -1696,19 +1693,14 @@ function openRecord() {
 
 svgL.addEventListener("click", onSvgClick);
 svgR.addEventListener("click", onSvgClick);
-function restartFromScratch() {
-  if (playing && !done && stats.streak) {
+function goNextPuzzle() {
+  if (!playing) return;
+  if (!done && stats.streak) {
     stats.streak = 0;
     saveStats();
   }
-  if (soundOn) unlockAudio();
   const prevScene = puzzle && puzzle.scene;
-  playing = true;
-  document.body.classList.remove("on-start");
-  $("start").hidden = true;
-  round = 0;
   let s = newSeed();
-  // Prefer a different scene so "はじめから" clearly feels like a fresh start.
   for (let i = 0; i < 12 && prevScene; i++) {
     const cand = makePuzzle(s);
     if (cand.scene !== prevScene) break;
@@ -1716,19 +1708,9 @@ function restartFromScratch() {
   }
   loadPuzzle(s, true);
 }
-function replaySame() {
-  if (!puzzle) return;
-  resetAttempt();
-  stopFx();
-  closeSheets();
-  renderAll();
-  say("もういちど！ ちがう ところを タップしてね");
-}
 
 $("btnHint").addEventListener("click", giveHint);
-$("btnReset").addEventListener("click", restartFromScratch);
-$("btnReplay").addEventListener("click", replaySame);
-$("btnNext").addEventListener("click", () => loadPuzzle(newSeed(), true));
+$("btnNext").addEventListener("click", goNextPuzzle);
 $("btnHome").addEventListener("click", showStart);
 $("btnStart").addEventListener("click", () => { if (soundOn) unlockAudio(); beginPlay(); });
 $("btnStartHelp").addEventListener("click", () => { $("sheetHelp").hidden = false; $("closeHelp").focus(); });
