@@ -665,61 +665,51 @@ function packRow(g, kind, y, cols, colors, fn) {
 }
 
 /**
- * Prefer ~4 easy + ~2 hard, and mix difference *kinds* so presence/absence
- * ("gone") is not the majority. Kinds: gone | shift | len | shape | hue | detail
+ * Pick n diffs at random from the pool every seed.
+ * Caps: ~2 hard of 6, ~2 gone; prefers non-gone variety without forcing the
+ * same "preferred" items first. Kinds: gone | shift | len | shape | hue
  */
 function takeDiffs(rng, pool, n) {
-  const easyN = Math.max(1, Math.round(n * 0.65));
-  const hardN = n - easyN;
+  const hardN = Math.max(1, Math.round(n * 0.35));
   const maxGone = Math.max(1, Math.round(n * 0.35));
-  const tagged = pool.map(d => Object.assign({ kind: d.kind || "gone" }, d));
-  const preferred = shuffle(rng, tagged.filter(d => d.kind !== "gone"));
-  const gone = shuffle(rng, tagged.filter(d => d.kind === "gone"));
-  const easy = shuffle(rng, tagged.filter(d => (d.hard || 1) <= 1));
-  const hard = shuffle(rng, tagged.filter(d => (d.hard || 1) >= 2));
-  const rest = shuffle(rng, tagged);
+  const tagged = shuffle(rng, pool.map(d => Object.assign({
+    kind: d.kind || "gone",
+    hard: d.hard || 1,
+  }, d)));
   const chosen = [];
   const fits = d => chosen.every(c => Math.hypot(c.x - d.x, c.y - d.y) >= c.r + d.r + 18);
   const goneCount = () => chosen.filter(c => c.kind === "gone").length;
-  const tryAdd = d => {
+  const hardCount = () => chosen.filter(c => (c.hard || 1) >= 2).length;
+  const tryAdd = (d, relaxHard) => {
     if (chosen.includes(d) || !fits(d)) return false;
     if (d.kind === "gone" && goneCount() >= maxGone) return false;
+    if (!relaxHard && (d.hard || 1) >= 2 && hardCount() >= hardN) return false;
     chosen.push(d);
     return true;
   };
-  // Seed with non-gone variety first (shift / len / shape / hue / detail).
-  for (const d of preferred) {
+  // Pass 1: fully shuffled — locations & kinds vary every seed.
+  for (const d of tagged) {
     if (chosen.length >= n) break;
-    tryAdd(d);
+    tryAdd(d, false);
   }
-  for (const d of easy) {
-    if (chosen.filter(c => (c.hard || 1) <= 1).length >= easyN) break;
-    tryAdd(d);
+  // Pass 2: fill leftovers (still respect gone cap; allow hard if needed).
+  if (chosen.length < n) {
+    for (const d of tagged) {
+      if (chosen.length >= n) break;
+      tryAdd(d, true);
+    }
   }
-  for (const d of hard) {
-    if (chosen.filter(c => (c.hard || 1) >= 2).length >= hardN) break;
-    tryAdd(d);
-  }
-  for (const d of rest) {
-    if (chosen.length >= n) break;
-    tryAdd(d);
-  }
-  // If still short, allow extra gone as last resort.
-  for (const d of gone) {
-    if (chosen.length >= n) break;
-    if (chosen.includes(d) || !fits(d)) continue;
-    chosen.push(d);
-  }
+  // Pass 3: last resort — space only.
   while (chosen.length < Math.min(n, tagged.length)) {
     const d = tagged.find(p => !chosen.includes(p) && chosen.every(c => Math.hypot(c.x - p.x, c.y - p.y) >= 10));
     if (!d) break;
     chosen.push(d);
   }
-  return chosen.map(d => {
+  return shuffle(rng, chosen).map(d => {
     const dx = d.dx || 0, dy = d.dy || 0;
     const kind = d.kind || "gone";
     const hitX = d.x + dx / 2, hitY = d.y + dy / 2;
-    const pad = kind === "shift" ? 4 : kind === "len" ? 14 : kind === "shape" ? 8 : 2;
+    const pad = kind === "shift" ? 8 : kind === "len" ? 22 : kind === "shape" ? 12 : 8;
     const hitR = d.r + Math.hypot(dx, dy) / 2 + pad;
     return {
       id: d.id, x: hitX, y: hitY, r: hitR,
@@ -749,18 +739,22 @@ const SCENES = [
       const petal = [C.pink, C.yellow, C.orange, C.red, C.blue];
       const crowd = makeSceneCrowd(rng, "park");
       const pool = [
-        { id: "birdA", x: 420, y: 40, r: 22, hard: 1, kind: "shift", dx: -18, dy: 10 },
+        { id: "birdA", x: 420, y: 40, r: 24, hard: 1, kind: "shift", dx: -22, dy: 12 },
         { id: "kite", x: 304, y: 85, r: 40, hard: 1, kind: "len" },
-        { id: "ball", x: 70, y: 222, r: 18, hard: 1, kind: "shape" },
-        { id: "dog", x: 170, y: 220, r: 26, hard: 1, kind: "shift", dx: 16, dy: -4 },
+        { id: "ball", x: 70, y: 222, r: 20, hard: 1, kind: "shape" },
+        { id: "dog", x: 170, y: 220, r: 26, hard: 1, kind: "shift", dx: 20, dy: -6 },
         { id: "kid", x: 250, y: 200, r: 26, hard: 1, kind: "gone" },
         { id: "mushroom", x: 40, y: 192, r: 32, hard: 1, kind: "len" },
         { id: "benchC", x: 280, y: 186, r: 28, hard: 1, kind: "hue" },
-        { id: "butterfly", x: 360, y: 150, r: 18, hard: 2, kind: "shift", dx: 12, dy: -14 },
-        { id: "flowerX", x: 430, y: 210, r: 20, hard: 2, kind: "detail" },
-        { id: "apple", x: 118, y: 120, r: 16, hard: 2, kind: "shape" },
-        { id: "sunRay", x: 56, y: 44, r: 30, hard: 2, kind: "detail" },
-        { id: "petalN", x: 90, y: 218, r: 16, hard: 2, kind: "detail" },
+        { id: "butterfly", x: 360, y: 150, r: 22, hard: 1, kind: "shift", dx: 18, dy: -16 },
+        { id: "apple", x: 118, y: 120, r: 20, hard: 2, kind: "shape" },
+        { id: "balloon", x: 50, y: 55, r: 24, hard: 1, kind: "shape" },
+        { id: "cloudA", x: 150, y: 40, r: 30, hard: 1, kind: "gone" },
+        { id: "swing", x: 200, y: 188, r: 28, hard: 1, kind: "hue" },
+        { id: "kite2", x: 180, y: 70, r: 28, hard: 1, kind: "shift", dx: 16, dy: 10 },
+        { id: "flowerBig", x: 430, y: 210, r: 22, hard: 1, kind: "hue" },
+        { id: "bushL", x: 40, y: 190, r: 24, hard: 2, kind: "gone" },
+        { id: "personR", x: 340, y: 198, r: 26, hard: 2, kind: "shift", dx: -18, dy: 0 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -778,47 +772,49 @@ const SCENES = [
           paintCrowd(g, crowd);
           el("polygon", S({ points: "210,260 300,260 280,176 240,176", fill: "#E7C48A" }), g);
           for (let i = 0; i < 5; i++) el("ellipse", { cx: 248 + i * 8, cy: 210 + (i % 2) * 4, rx: 5, ry: 3, fill: "#D2B48C" }, g);
-          sunBody(g, 56, 44, true, alt(has, "sunRay", L) ? 1 : -1);
-          cloud(g, 150, 40, 0.85);
+          sunBody(g, 56, 44, true, -1);
+          if (!has("cloudA") || L) cloud(g, 150, 40, 0.85);
           cloud(g, 250, 58, 0.65);
           cloud(g, 360, 36, 0.75);
+          balloon(g, 50, 55, C.red, alt(has, "balloon", L) ? "square" : "round");
           bird(g, 200, 48);
           bird(g, 330, 56);
           {
-            const p = xyShift(has, "birdA", L, 420, 40, -18, 10);
+            const p = xyShift(has, "birdA", L, 420, 40, -22, 12);
             bird(g, p.x, p.y);
           }
           kite(g, 300, 70, C.red, alt(has, "kite", L));
-          kite(g, 180, 70, C.yellow);
+          {
+            const p = xyShift(has, "kite2", L, 180, 70, 16, 10);
+            kite(g, p.x, p.y, C.yellow);
+          }
           tree(g, 100, 178, C.leaf2, C.leaf);
           tree(g, 380, 182, C.leaf, C.leaf2);
           tree(g, 455, 190, C.leaf2, C.leaf);
-          if (alt(has, "apple", L)) el("rect", S({ x: 113, y: 115, width: 10, height: 10, rx: 1.5, fill: C.red }), g);
-          else el("circle", S({ cx: 118, cy: 120, r: 5, fill: C.red }), g);
-          el("circle", S({ cx: 92, cy: 130, r: 4.5, fill: C.red }), g);
-          el("circle", S({ cx: 390, cy: 128, r: 4.5, fill: C.yellow }), g);
-          bush(g, 40, 190, C.leaf2);
+          if (alt(has, "apple", L)) el("rect", S({ x: 108, y: 110, width: 20, height: 20, rx: 3, fill: C.red }), g);
+          else el("circle", S({ cx: 118, cy: 120, r: 10, fill: C.red }), g);
+          el("circle", S({ cx: 92, cy: 130, r: 6, fill: C.red }), g);
+          el("circle", S({ cx: 390, cy: 128, r: 6, fill: C.yellow }), g);
+          if (!has("bushL") || L) bush(g, 40, 190, C.leaf2);
           bush(g, 440, 200, C.leaf);
           bush(g, 200, 195); bush(g, 320, 198);
           rock(g, 200, 228); rock(g, 320, 232, "#B0A090"); rock(g, 100, 235);
           bench(g, 280, 186, alt(has, "benchC", L) ? C.blue : C.wood);
-          swing(g, 200, 188, C.wood);
+          swing(g, 200, 188, alt(has, "swing", L) ? C.pink : C.wood);
           packRow(g, "flower", 245, 12, petal, (gg, x, yy, col) => flower(gg, x, yy, col, 5));
           [[50,210],[90,218],[140,208],[340,214],[400,220],[430,210],[240,230],[160,236]].forEach((p,i)=>{
-            const col = petal[i % petal.length];
-            if (alt(has, "flowerX", L) && i === 5) flower(g, p[0], p[1], C.yellow, 6);
-            else if (alt(has, "petalN", L) && i === 1) flower(g, p[0], p[1], col, 4);
-            else flower(g, p[0], p[1], col, 5);
+            const col = (alt(has, "flowerBig", L) && i === 5) ? C.blue : petal[i % petal.length];
+            flower(g, p[0], p[1], col, 5);
           });
           ball(g, 70, 222, true, alt(has, "ball", L) ? "square" : "round");
           ball(g, 400, 230, true);
           {
-            const p = xyShift(has, "dog", L, 170, 220, 16, -4);
+            const p = xyShift(has, "dog", L, 170, 220, 20, -6);
             dog(g, p.x, p.y);
           }
           dog(g, 420, 225, "#E8B070");
           {
-            const p = xyShift(has, "butterfly", L, 360, 150, 12, -14);
+            const p = xyShift(has, "butterfly", L, 360, 150, 18, -16);
             butterfly(g, p.x, p.y, C.pink);
           }
           butterfly(g, 120, 150, C.yellow);
@@ -827,7 +823,10 @@ const SCENES = [
           mushroom(g, 40, 200, alt(has, "mushroom", L));
           mushroom(g, 460, 230); mushroom(g, 290, 230);
           if (!has("kid") || L) person(g, 250, 200, C.orange);
-          person(g, 340, 198, C.mint, C.pink);
+          {
+            const p = xyShift(has, "personR", L, 340, 198, -18, 0);
+            person(g, p.x, p.y, C.mint, C.pink);
+          }
           person(g, 80, 205, C.blue);
         },
       };
@@ -838,18 +837,22 @@ const SCENES = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "beach");
       const pool = [
-        { id: "boat", x: 400, y: 110, r: 28, hard: 1, kind: "shift", dx: -20, dy: 8 },
-        { id: "crab", x: 70, y: 222, r: 18, hard: 1, kind: "shift", dx: 14, dy: -6 },
-        { id: "star", x: 420, y: 224, r: 18, hard: 1, kind: "shape" },
-        { id: "fish", x: 180, y: 140, r: 16, hard: 2, kind: "hue" },
+        { id: "boat", x: 400, y: 110, r: 28, hard: 1, kind: "shift", dx: -24, dy: 10 },
+        { id: "crab", x: 70, y: 222, r: 20, hard: 1, kind: "shift", dx: 18, dy: -8 },
+        { id: "star", x: 420, y: 224, r: 20, hard: 1, kind: "shape" },
+        { id: "fish", x: 180, y: 140, r: 20, hard: 1, kind: "hue" },
         { id: "bucket", x: 300, y: 220, r: 18, hard: 1, kind: "gone" },
-        { id: "bird", x: 90, y: 40, r: 16, hard: 1, kind: "shift", dx: 16, dy: 8 },
+        { id: "bird", x: 90, y: 40, r: 18, hard: 1, kind: "shift", dx: 20, dy: 10 },
         { id: "umbrella", x: 230, y: 160, r: 42, hard: 1, kind: "len" },
-        { id: "shellA", x: 150, y: 230, r: 14, hard: 2, kind: "shift", dx: -12, dy: 6 },
-        { id: "kid", x: 340, y: 200, r: 22, hard: 1, kind: "shift", dx: -14, dy: 0 },
-        { id: "ball", x: 50, y: 200, r: 16, hard: 1, kind: "shape" },
-        { id: "claw", x: 200, y: 235, r: 14, hard: 2, kind: "detail" },
-        { id: "sail", x: 60, y: 120, r: 20, hard: 2, kind: "hue" },
+        { id: "shellA", x: 150, y: 230, r: 18, hard: 1, kind: "shift", dx: -16, dy: 8 },
+        { id: "kid", x: 340, y: 200, r: 22, hard: 1, kind: "shift", dx: -18, dy: 0 },
+        { id: "ball", x: 50, y: 200, r: 18, hard: 1, kind: "shape" },
+        { id: "crabB", x: 200, y: 235, r: 20, hard: 1, kind: "gone" },
+        { id: "sail", x: 60, y: 120, r: 24, hard: 1, kind: "hue" },
+        { id: "balloon", x: 320, y: 45, r: 22, hard: 1, kind: "shape" },
+        { id: "dog", x: 180, y: 220, r: 22, hard: 2, kind: "shift", dx: 16, dy: -6 },
+        { id: "umbrella2", x: 140, y: 160, r: 36, hard: 2, kind: "hue" },
+        { id: "kite", x: 250, y: 60, r: 26, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -868,7 +871,7 @@ const SCENES = [
           cloud(g, 380, 30, 0.7);
           cloud(g, 220, 55, 0.45);
           {
-            const p = xyShift(has, "bird", L, 90, 40, 16, 8);
+            const p = xyShift(has, "bird", L, 90, 40, 20, 10);
             bird(g, p.x, p.y);
           }
           bird(g, 200, 50); bird(g, 330, 38); bird(g, 150, 35); bird(g, 400, 45);
@@ -876,30 +879,30 @@ const SCENES = [
           wave(g, 155, "#7EC8F0");
           wave(g, 175, C.sea2);
           fish(g, 100, 145, C.yellow);
-          fish(g, 180, 140, alt(has, "fish", L) ? C.blue : C.orange);
+          fish(g, 180, 140, alt(has, "fish", L) ? C.mint : C.orange);
           fish(g, 260, 150, C.pink); fish(g, 320, 135, C.blue);
           fish(g, 220, 160, C.yellow); fish(g, 300, 155, C.pink); fish(g, 360, 165, C.blue);
           fish(g, 140, 155, C.red); fish(g, 400, 150, C.mint);
           {
-            const p = xyShift(has, "boat", L, 400, 112, -20, 8);
+            const p = xyShift(has, "boat", L, 400, 112, -24, 10);
             boat(g, p.x, p.y, C.white);
           }
-          boat(g, 60, 120, alt(has, "sail", L) ? C.pink : C.yellow);
+          boat(g, 60, 120, alt(has, "sail", L) ? C.blue : C.yellow);
           boat(g, 280, 118, C.mint);
           umbrella(g, 230, 150, C.red, true, alt(has, "umbrella", L));
-          umbrella(g, 140, 160, C.blue, true);
+          umbrella(g, 140, 160, alt(has, "umbrella2", L) ? C.pink : C.blue, true);
           umbrella(g, 340, 155, C.orange, true);
           {
-            const p = xyShift(has, "crab", L, 70, 222, 14, -6);
+            const p = xyShift(has, "crab", L, 70, 222, 18, -8);
             crab(g, p.x, p.y, true);
           }
-          crab(g, 200, 235, !alt(has, "claw", L));
+          if (!has("crabB") || L) crab(g, 200, 235, true);
           crab(g, 320, 240, true); crab(g, 450, 230, true);
           if (alt(has, "star", L)) shell(g, 420, 224); else starfish(g, 420, 224);
           starfish(g, 380, 240); starfish(g, 100, 220); starfish(g, 260, 245);
           shell(g, 110, 235);
           {
-            const p = xyShift(has, "shellA", L, 150, 230, -12, 6);
+            const p = xyShift(has, "shellA", L, 150, 230, -16, 8);
             shell(g, p.x, p.y);
           }
           shell(g, 250, 240); shell(g, 450, 215);
@@ -910,17 +913,24 @@ const SCENES = [
           ball(g, 50, 200, true, alt(has, "ball", L) ? "square" : "round");
           ball(g, 460, 230, true); ball(g, 120, 210, true); ball(g, 280, 220, true);
           {
-            const p = xyShift(has, "kid", L, 340, 200, -14, 0);
+            const p = xyShift(has, "kid", L, 340, 200, -18, 0);
             person(g, p.x, p.y, C.pink, C.yellow);
           }
           person(g, 280, 205, C.mint); person(g, 400, 205, C.orange); person(g, 220, 200, C.blue);
           person(g, 160, 205, C.yellow); person(g, 90, 200, C.red, C.pink);
           for (const [x,y,c] of [[120,100,C.pink],[280,90,C.yellow],[360,110,C.orange],[420,100,C.blue],[200,100,C.yellow],[350,95,C.pink],[80,85,C.red],[240,75,C.mint]]) butterfly(g, x, y, c);
-          kite(g, 250, 60, C.yellow); kite(g, 180, 55, C.red);
+          if (!has("kite") || L) kite(g, 250, 60, C.yellow);
+          kite(g, 180, 55, C.red);
           mushroom(g, 20, 220); mushroom(g, 260, 220);
           flower(g, 320, 240, C.pink, 5); flower(g, 80, 245, C.yellow, 5); flower(g, 440, 245, C.orange, 5); flower(g, 280, 235, C.red, 5); flower(g, 360, 242, C.pink, 5);
-          dog(g, 180, 220); dog(g, 420, 215);
-          balloon(g, 50, 50, C.red); balloon(g, 320, 45, C.blue); balloon(g, 400, 55, C.yellow);
+          {
+            const p = xyShift(has, "dog", L, 180, 220, 16, -6);
+            dog(g, p.x, p.y);
+          }
+          dog(g, 420, 215);
+          balloon(g, 50, 50, C.red);
+          balloon(g, 320, 45, C.blue, alt(has, "balloon", L) ? "square" : "round");
+          balloon(g, 400, 55, C.yellow);
           bush(g, 40, 210);
         },
       };
@@ -931,18 +941,22 @@ const SCENES = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "indoor");
       const pool = [
-        { id: "cat", x: 400, y: 208, r: 26, hard: 1, kind: "shift", dx: -18, dy: 4 },
-        { id: "clock", x: 236, y: 46, r: 18, hard: 2, kind: "detail" },
-        { id: "plant", x: 70, y: 200, r: 18, hard: 1, kind: "shift", dx: 12, dy: -8 },
-        { id: "book", x: 300, y: 210, r: 14, hard: 2, kind: "gone" },
-        { id: "ball", x: 180, y: 230, r: 14, hard: 1, kind: "shape" },
-        { id: "frame", x: 412, y: 62, r: 18, hard: 1, kind: "shape" },
-        { id: "lamp", x: 150, y: 175, r: 16, hard: 2, kind: "detail" },
-        { id: "cupcake", x: 250, y: 175, r: 14, hard: 1, kind: "shift", dx: 14, dy: 0 },
-        { id: "butterfly", x: 340, y: 90, r: 12, hard: 2, kind: "hue" },
-        { id: "teddy", x: 60, y: 120, r: 18, hard: 1, kind: "len" },
-        { id: "bookHue", x: 280, y: 210, r: 18, hard: 2, kind: "shape" },
-        { id: "curtain", x: 48, y: 60, r: 26, hard: 2, kind: "len" },
+        { id: "cat", x: 400, y: 208, r: 26, hard: 1, kind: "shift", dx: -22, dy: 4 },
+        { id: "clock", x: 236, y: 46, r: 22, hard: 1, kind: "hue" },
+        { id: "plant", x: 70, y: 200, r: 20, hard: 1, kind: "shift", dx: 16, dy: -10 },
+        { id: "book", x: 300, y: 210, r: 16, hard: 1, kind: "gone" },
+        { id: "ball", x: 180, y: 230, r: 16, hard: 1, kind: "shape" },
+        { id: "frame", x: 412, y: 62, r: 20, hard: 1, kind: "shape" },
+        { id: "lamp", x: 150, y: 175, r: 24, hard: 1, kind: "hue" },
+        { id: "cupcake", x: 250, y: 175, r: 16, hard: 1, kind: "shift", dx: 16, dy: 0 },
+        { id: "butterfly", x: 340, y: 90, r: 18, hard: 1, kind: "hue" },
+        { id: "teddy", x: 60, y: 120, r: 22, hard: 1, kind: "len" },
+        { id: "bookHue", x: 280, y: 210, r: 20, hard: 2, kind: "shape" },
+        { id: "curtain", x: 48, y: 60, r: 28, hard: 1, kind: "len" },
+        { id: "balloon", x: 180, y: 50, r: 22, hard: 1, kind: "shape" },
+        { id: "dog", x: 240, y: 235, r: 22, hard: 2, kind: "gone" },
+        { id: "person", x: 330, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "kite", x: 300, y: 55, r: 26, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -958,12 +972,20 @@ const SCENES = [
           el("rect", S({ x: 40, y: 30, width: 70, height: 60, rx: 3, fill: "#B7E3FA" }), g);
           el("line", { x1: 75, y1: 30, x2: 75, y2: 90, stroke: INK, "stroke-width": 2 }, g);
           el("line", { x1: 40, y1: 60, x2: 110, y2: 60, stroke: INK, "stroke-width": 2 }, g);
-          el("rect", S({ x: 40, y: 30, width: alt(has, "curtain", L) ? 28 : 16, height: 60, fill: C.pink }), g);
+          el("rect", S({ x: 40, y: 30, width: alt(has, "curtain", L) ? 32 : 16, height: 60, fill: C.pink }), g);
           el("rect", S({ x: 140, y: 40, width: 60, height: 8, fill: C.wood }), g);
           potPlant(g, 155, 30, C.pink);
           potPlant(g, 185, 30, C.yellow);
           potPlant(g, 160, 70, C.orange);
-          clock(g, 236, 46, alt(has, "clock", L) ? 160 : 90);
+          {
+            const face = alt(has, "clock", L) ? C.yellow : C.cream;
+            el("circle", S({ cx: 236, cy: 46, r: 16, fill: face }), g);
+            const a = (90 - 90) * Math.PI / 180;
+            const b = ((alt(has, "clock", L) ? 200 : 90) - 90) * Math.PI / 180;
+            el("line", { x1: 236, y1: 46, x2: 236 + Math.cos(a) * 11, y2: 46 + Math.sin(a) * 11, stroke: INK, "stroke-width": 2, "stroke-linecap": "round" }, g);
+            el("line", { x1: 236, y1: 46, x2: 236 + Math.cos(b) * 10, y2: 46 + Math.sin(b) * 10, stroke: C.red, "stroke-width": 2.4, "stroke-linecap": "round" }, g);
+            el("circle", { cx: 236, cy: 46, r: 1.8, fill: INK }, g);
+          }
           el("rect", S({ x: 280, y: 34, width: 50, height: 40, rx: 4, fill: C.cream }), g);
           bloom(g, 305, 54, C.pink, 6, 5);
           el("rect", S({ x: 384, y: 34, width: 56, height: 48, rx: 4, fill: C.cream }), g);
@@ -971,17 +993,17 @@ const SCENES = [
           else el("circle", S({ cx: 412, cy: 58, r: 12, fill: C.yellow }), g);
           {
             const tall = alt(has, "teddy", L);
-            el("circle", S({ cx: 60, cy: 115, r: tall ? 14 : 12, fill: "#D9924A" }), g);
-            el("circle", S({ cx: 60, cy: tall ? 96 : 100, r: tall ? 11 : 9, fill: "#D9924A" }), g);
-            el("circle", { cx: 56, cy: tall ? 94 : 98, r: 1.2, fill: INK }, g);
-            el("circle", { cx: 64, cy: tall ? 94 : 98, r: 1.2, fill: INK }, g);
+            el("circle", S({ cx: 60, cy: 115, r: tall ? 16 : 12, fill: "#D9924A" }), g);
+            el("circle", S({ cx: 60, cy: tall ? 94 : 100, r: tall ? 12 : 9, fill: "#D9924A" }), g);
+            el("circle", { cx: 56, cy: tall ? 92 : 98, r: 1.2, fill: INK }, g);
+            el("circle", { cx: 64, cy: tall ? 92 : 98, r: 1.2, fill: INK }, g);
           }
           el("circle", S({ cx: 100, cy: 120, r: 10, fill: C.mint }), g);
           el("circle", S({ cx: 120, cy: 110, r: 8, fill: C.pink }), g);
           el("rect", S({ x: 200, y: 185, width: 110, height: 40, rx: 4, fill: "#D7A878" }), g);
           el("rect", S({ x: 210, y: 165, width: 90, height: 24, rx: 4, fill: "#C9843E" }), g);
           {
-            const p = xyShift(has, "cupcake", L, 250, 175, 14, 0);
+            const p = xyShift(has, "cupcake", L, 250, 175, 16, 0);
             cupcake(g, p.x, p.y);
           }
           cupcake(g, 270, 175); cupcake(g, 230, 175); cupcake(g, 290, 190);
@@ -989,11 +1011,11 @@ const SCENES = [
           book(g, 320, 210, C.yellow);
           book(g, 230, 200, C.red); book(g, 250, 200, C.yellow); book(g, 340, 200, C.pink);
           book(g, 260, 220, C.orange); book(g, 360, 210, C.blue);
-          el("rect", S({ x: 130, y: 175, width: 40, height: 50, rx: 4, fill: "#C9843E" }), g);
-          el("ellipse", S({ cx: 150, cy: 170, rx: 22, ry: 10, fill: C.cream }), g);
-          if (!alt(has, "lamp", L)) el("circle", { cx: 150, cy: 168, r: 4, fill: C.yellow }, g);
+          el("rect", S({ x: 130, y: 175, width: 40, height: 50, rx: 4, fill: alt(has, "lamp", L) ? C.blue : "#C9843E" }), g);
+          el("ellipse", S({ cx: 150, cy: 170, rx: 22, ry: 10, fill: alt(has, "lamp", L) ? C.yellow : C.cream }), g);
+          el("circle", { cx: 150, cy: 168, r: 5, fill: C.yellow }, g);
           {
-            const p = xyShift(has, "plant", L, 70, 200, 12, -8);
+            const p = xyShift(has, "plant", L, 70, 200, 16, -10);
             potPlant(g, p.x, p.y, C.orange);
           }
           potPlant(g, 450, 200, C.pink); potPlant(g, 420, 190, C.yellow); potPlant(g, 40, 190, C.pink);
@@ -1001,21 +1023,27 @@ const SCENES = [
           ball(g, 180, 230, true, alt(has, "ball", L) ? "square" : "round");
           ball(g, 360, 235, true); ball(g, 340, 230, true); ball(g, 100, 235, true);
           {
-            const p = xyShift(has, "cat", L, 400, 208, -18, 4);
+            const p = xyShift(has, "cat", L, 400, 208, -22, 4);
             cat(g, p.x, p.y, true);
           }
-          dog(g, 240, 235, "#E8B070"); dog(g, 50, 230);
+          if (!has("dog") || L) dog(g, 240, 235, "#E8B070");
+          dog(g, 50, 230);
           butterfly(g, 340, 90, alt(has, "butterfly", L) ? C.blue : C.pink);
           for (const [x,y,c] of [[160,100,C.pink],[200,85,C.yellow],[260,95,C.blue],[320,80,C.orange],[360,100,C.red],[420,90,C.mint],[180,70,C.pink],[300,110,C.yellow]]) butterfly(g, x, y, c);
           mushroom(g, 40, 230); mushroom(g, 200, 230); mushroom(g, 300, 235);
           rock(g, 120, 240, "#C8B8A8"); rock(g, 280, 240); rock(g, 400, 242);
           packRow(g, "flower", 248, 12, [C.pink,C.yellow,C.orange], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
-          balloon(g, 180, 50, C.blue); balloon(g, 220, 40, C.red); kite(g, 300, 55, C.orange);
-          person(g, 330, 195, C.mint); person(g, 280, 200, C.blue); person(g, 370, 195, C.orange, C.pink);
+          balloon(g, 180, 50, C.blue, alt(has, "balloon", L) ? "square" : "round");
+          balloon(g, 220, 40, C.red);
+          if (!has("kite") || L) kite(g, 300, 55, C.orange);
+          {
+            const p = xyShift(has, "person", L, 330, 195, 16, 0);
+            person(g, p.x, p.y, C.mint);
+          }
+          person(g, 280, 200, C.blue); person(g, 370, 195, C.orange, C.pink);
           el("rect", S({ x: 340, y: 100, width: 30, height: 20, rx: 3, fill: C.blue }), g);
           el("rect", S({ x: 20, y: 100, width: 40, height: 28, rx: 3, fill: C.cream }), g);
           bloom(g, 40, 95, C.pink, 5, 5);
-          // Book shape change drawn last so it isn't covered by clutter.
           if (alt(has, "bookHue", L)) {
             el("rect", S({ x: 268, y: 200, width: 24, height: 20, rx: 1, fill: C.blue }), g);
             el("line", { x1: 280, y1: 200, x2: 280, y2: 220, stroke: C.cream, "stroke-width": 1.6 }, g);
@@ -1031,18 +1059,22 @@ const SCENES = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "park");
       const pool = [
-        { id: "cow", x: 120, y: 205, r: 28, hard: 1, kind: "shift", dx: 16, dy: -4 },
-        { id: "chicken", x: 220, y: 220, r: 16, hard: 1, kind: "shift", dx: -12, dy: 6 },
-        { id: "cropA", x: 420, y: 220, r: 14, hard: 2, kind: "hue" },
+        { id: "cow", x: 120, y: 205, r: 30, hard: 1, kind: "shift", dx: 20, dy: -6 },
+        { id: "chicken", x: 220, y: 220, r: 20, hard: 1, kind: "shift", dx: -16, dy: 8 },
+        { id: "cropA", x: 420, y: 220, r: 22, hard: 1, kind: "hue" },
         { id: "dog", x: 300, y: 230, r: 20, hard: 1, kind: "gone" },
-        { id: "bird", x: 200, y: 40, r: 16, hard: 1, kind: "shift", dx: 18, dy: 6 },
+        { id: "bird", x: 200, y: 40, r: 18, hard: 1, kind: "shift", dx: 20, dy: 8 },
         { id: "tractor", x: 68, y: 200, r: 36, hard: 1, kind: "len" },
-        { id: "pumpkin", x: 380, y: 230, r: 16, hard: 1, kind: "shape" },
-        { id: "barnDoor", x: 362, y: 158, r: 14, hard: 2, kind: "detail" },
-        { id: "flower", x: 450, y: 200, r: 14, hard: 1, kind: "shift", dx: -14, dy: 8 },
-        { id: "bucket", x: 260, y: 210, r: 16, hard: 1, kind: "shape" },
-        { id: "spot", x: 118, y: 208, r: 12, hard: 2, kind: "detail" },
-        { id: "beak", x: 250, y: 230, r: 12, hard: 2, kind: "detail" },
+        { id: "pumpkin", x: 380, y: 230, r: 18, hard: 1, kind: "shape" },
+        { id: "barnDoor", x: 362, y: 158, r: 24, hard: 1, kind: "hue" },
+        { id: "flower", x: 450, y: 200, r: 18, hard: 1, kind: "shift", dx: -18, dy: 10 },
+        { id: "bucket", x: 260, y: 210, r: 18, hard: 1, kind: "shape" },
+        { id: "chickB", x: 250, y: 230, r: 18, hard: 1, kind: "gone" },
+        { id: "balloon", x: 180, y: 40, r: 22, hard: 1, kind: "shape" },
+        { id: "person", x: 360, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "kite", x: 240, y: 50, r: 26, hard: 2, kind: "gone" },
+        { id: "cow2", x: 80, y: 230, r: 22, hard: 2, kind: "shift", dx: 14, dy: -4 },
+        { id: "lantern", x: 250, y: 140, r: 28, hard: 2, kind: "len" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1057,14 +1089,14 @@ const SCENES = [
           sunBody(g, 50, 40, true, -1);
           cloud(g, 140, 40, 0.8); cloud(g, 260, 50, 0.6); cloud(g, 360, 34, 0.7); cloud(g, 200, 55, 0.45);
           {
-            const p = xyShift(has, "bird", L, 200, 40, 18, 6);
+            const p = xyShift(has, "bird", L, 200, 40, 20, 8);
             bird(g, p.x, p.y);
           }
           bird(g, 300, 48); bird(g, 420, 36); bird(g, 100, 45); bird(g, 360, 55);
           el("rect", S({ x: 320, y: 105, width: 95, height: 75, fill: C.red }), g);
           el("polygon", S({ points: "310,105 367,68 425,105", fill: "#A84840" }), g);
-          el("rect", S({ x: 348, y: 132, width: 30, height: 48, fill: C.cream }), g);
-          if (!alt(has, "barnDoor", L)) el("circle", { cx: 362, cy: 158, r: 3, fill: INK }, g);
+          el("rect", S({ x: 348, y: 132, width: 30, height: 48, fill: alt(has, "barnDoor", L) ? C.blue : C.cream }), g);
+          el("circle", { cx: 362, cy: 158, r: 4, fill: INK }, g);
           el("rect", S({ x: 285, y: 90, width: 28, height: 90, rx: 4, fill: "#D8D0C4" }), g);
           el("ellipse", S({ cx: 299, cy: 90, rx: 18, ry: 8, fill: "#B8B0A4" }), g);
           for (let i = 0; i < 8; i++) {
@@ -1074,36 +1106,41 @@ const SCENES = [
           el("line", { x1: 150, y1: 198, x2: 310, y2: 198, stroke: C.trunk, "stroke-width": 2.4 }, g);
           el("line", { x1: 150, y1: 214, x2: 310, y2: 214, stroke: C.trunk, "stroke-width": 2.4 }, g);
           {
-            const p = xyShift(has, "cow", L, 120, 208, 16, -4);
+            const p = xyShift(has, "cow", L, 120, 208, 20, -6);
             el("ellipse", S({ cx: p.x, cy: p.y, rx: 28, ry: 16, fill: C.white }), g);
             el("circle", S({ cx: p.x - 24, cy: p.y - 10, r: 12, fill: C.white }), g);
             el("circle", { cx: p.x - 28, cy: p.y - 12, r: 1.4, fill: INK }, g);
             el("ellipse", { cx: p.x - 2, cy: p.y, rx: 7, ry: 5, fill: "#4A3A2A" }, g);
-            if (!alt(has, "spot", L)) el("ellipse", { cx: p.x + 12, cy: p.y - 6, rx: 5, ry: 4, fill: "#4A3A2A" }, g);
+            el("ellipse", { cx: p.x + 12, cy: p.y - 6, rx: 5, ry: 4, fill: "#4A3A2A" }, g);
           }
-          el("ellipse", S({ cx: 80, cy: 230, rx: 18, ry: 11, fill: C.white }), g);
-          el("circle", S({ cx: 66, cy: 222, r: 8, fill: C.white }), g);
           {
-            const p = xyShift(has, "chicken", L, 220, 222, -12, 6);
+            const p = xyShift(has, "cow2", L, 80, 230, 14, -4);
+            el("ellipse", S({ cx: p.x, cy: p.y, rx: 18, ry: 11, fill: C.white }), g);
+            el("circle", S({ cx: p.x - 14, cy: p.y - 8, r: 8, fill: C.white }), g);
+          }
+          {
+            const p = xyShift(has, "chicken", L, 220, 222, -16, 8);
             el("ellipse", S({ cx: p.x, cy: p.y, rx: 12, ry: 9, fill: C.white }), g);
             el("circle", S({ cx: p.x + 10, cy: p.y - 8, r: 7, fill: C.white }), g);
             el("polygon", S({ points: `${p.x + 16},${p.y - 8} ${p.x + 26},${p.y - 8} ${p.x + 16},${p.y - 4}`, fill: C.orange }), g);
             el("circle", { cx: p.x + 12, cy: p.y - 10, r: 1.2, fill: INK }, g);
           }
-          el("ellipse", S({ cx: 250, cy: 230, rx: 10, ry: 8, fill: C.white }), g);
-          el("circle", S({ cx: 258, cy: 224, r: 6, fill: C.white }), g);
-          if (!alt(has, "beak", L)) el("polygon", S({ points: "262,224 270,224 262,227", fill: C.orange }), g);
+          if (!has("chickB") || L) {
+            el("ellipse", S({ cx: 250, cy: 230, rx: 10, ry: 8, fill: C.white }), g);
+            el("circle", S({ cx: 258, cy: 224, r: 6, fill: C.white }), g);
+            el("polygon", S({ points: "262,224 274,224 262,228", fill: C.orange }), g);
+          }
           el("ellipse", S({ cx: 270, cy: 238, rx: 9, ry: 7, fill: C.white }), g);
           [[400,220,C.yellow],[420,220,C.orange],[440,226,C.pink],[460,218,C.red],[410,235,C.yellow],[450,238,C.orange],[390,242,C.red],[430,245,C.yellow],[415,210,C.pink],[445,210,C.orange]].forEach((p,i)=>{
-            if (alt(has, "cropA", L) && i === 1) bloom(g, p[0], p[1], C.blue, 6, 5);
-            else bloom(g, p[0], p[1], p[2], 6, 5);
+            const col = (alt(has, "cropA", L) && i < 4) ? C.blue : p[2];
+            bloom(g, p[0], p[1], col, 6, 5);
           });
           if (alt(has, "pumpkin", L)) el("rect", S({ x: 368, y: 220, width: 24, height: 20, rx: 4, fill: C.orange }), g);
           else el("ellipse", S({ cx: 380, cy: 230, rx: 14, ry: 11, fill: C.orange }), g);
           el("ellipse", S({ cx: 355, cy: 238, rx: 12, ry: 9, fill: C.orange }), g);
           el("ellipse", S({ cx: 340, cy: 245, rx: 10, ry: 8, fill: C.orange }), g);
           {
-            const p = xyShift(has, "flower", L, 450, 200, -14, 8);
+            const p = xyShift(has, "flower", L, 450, 200, -18, 10);
             flower(g, p.x, p.y, C.pink, 5);
           }
           flower(g, 40, 220, C.yellow, 5); flower(g, 90, 230, C.pink, 5); flower(g, 160, 240, C.orange, 5);
@@ -1127,9 +1164,16 @@ const SCENES = [
           rock(g, 140, 240); rock(g, 220, 240); rock(g, 420, 242);
           packRow(g, "bloom", 248, 12, [C.yellow,C.orange,C.pink,C.red], (gg, x, yy, col) => bloom(gg, x, yy, col, 5, 5));
           for (const [x,y,c] of [[80,80,C.yellow],[160,70,C.pink],[240,60,C.blue],[320,75,C.orange],[400,65,C.red],[450,85,C.yellow],[120,55,C.mint],[280,90,C.pink]]) butterfly(g, x, y, c);
-          person(g, 360, 195, C.pink); person(g, 240, 200, C.blue); person(g, 420, 190, C.orange);
-          ball(g, 90, 235, true); kite(g, 240, 50, C.red); balloon(g, 180, 40, C.yellow);
-          lantern(g, 250, 140, C.red); lantern(g, 420, 120, C.yellow);
+          {
+            const p = xyShift(has, "person", L, 360, 195, 16, 0);
+            person(g, p.x, p.y, C.pink);
+          }
+          person(g, 240, 200, C.blue); person(g, 420, 190, C.orange);
+          ball(g, 90, 235, true);
+          if (!has("kite") || L) kite(g, 240, 50, C.red);
+          balloon(g, 180, 40, C.yellow, alt(has, "balloon", L) ? "square" : "round");
+          lantern(g, 250, 140, C.red, alt(has, "lantern", L));
+          lantern(g, 420, 120, C.yellow);
         },
       };
     },
@@ -1139,18 +1183,22 @@ const SCENES = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "snow");
       const pool = [
-        { id: "flake", x: 60, y: 40, r: 14, hard: 2, kind: "shape" },
+        { id: "flake", x: 60, y: 40, r: 20, hard: 1, kind: "shape" },
         { id: "scarf", x: 240, y: 150, r: 26, hard: 1, kind: "gone" },
-        { id: "bird", x: 320, y: 50, r: 18, hard: 1, kind: "shift", dx: -16, dy: 10 },
+        { id: "bird", x: 320, y: 50, r: 20, hard: 1, kind: "shift", dx: -20, dy: 12 },
         { id: "sled", x: 370, y: 230, r: 36, hard: 1, kind: "len" },
-        { id: "dog", x: 140, y: 230, r: 22, hard: 1, kind: "shift", dx: 16, dy: -4 },
-        { id: "window", x: 89, y: 157, r: 18, hard: 2, kind: "hue" },
-        { id: "treeOrn", x: 390, y: 140, r: 14, hard: 2, kind: "shape" },
-        { id: "kid", x: 300, y: 200, r: 24, hard: 1, kind: "shift", dx: 14, dy: 0 },
+        { id: "dog", x: 140, y: 230, r: 22, hard: 1, kind: "shift", dx: 20, dy: -6 },
+        { id: "window", x: 89, y: 157, r: 20, hard: 1, kind: "hue" },
+        { id: "treeOrn", x: 390, y: 140, r: 18, hard: 1, kind: "shape" },
+        { id: "kid", x: 300, y: 200, r: 24, hard: 1, kind: "shift", dx: 18, dy: 0 },
         { id: "mushroom", x: 50, y: 220, r: 22, hard: 1, kind: "len" },
         { id: "smoke", x: 136, y: 58, r: 34, hard: 1, kind: "len" },
-        { id: "button", x: 240, y: 185, r: 12, hard: 2, kind: "detail" },
-        { id: "ornHue", x: 375, y: 155, r: 12, hard: 2, kind: "hue" },
+        { id: "hat", x: 240, y: 140, r: 22, hard: 1, kind: "gone" },
+        { id: "ornHue", x: 375, y: 155, r: 16, hard: 1, kind: "hue" },
+        { id: "balloon", x: 280, y: 90, r: 22, hard: 1, kind: "shape" },
+        { id: "snowman2", x: 190, y: 220, r: 24, hard: 2, kind: "gone" },
+        { id: "kite", x: 200, y: 55, r: 26, hard: 2, kind: "shift", dx: 16, dy: 8 },
+        { id: "person", x: 100, y: 205, r: 24, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1162,16 +1210,12 @@ const SCENES = [
           el("rect", { x: 0, y: 0, width: 480, height: 175, fill: "#C9DCF2" }, g);
           el("rect", { x: 0, y: 175, width: 480, height: 85, fill: "#F4F7FB" }, g);
           paintCrowd(g, crowd);
-          const flakes = [[60,40]];
-          for (let i = 0; i < 24; i++) flakes.push([12 + (i * 37) % 460, 18 + (i * 19) % 110]);
-          flakes.forEach((p,i)=>{
-            const isMain = Math.hypot(p[0] - 60, p[1] - 40) < 6;
-            if (isMain && alt(has, "flake", L)) {
-              el("rect", { x: p[0] - 2, y: p[1] - 2, width: 4, height: 4, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, g);
-              return;
-            }
-            el("circle", { cx: p[0], cy: p[1], r: 1.8 + (i % 3) * 0.4, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, g);
-          });
+          for (let i = 0; i < 24; i++) {
+            const x = 12 + (i * 37) % 460, y = 18 + (i * 19) % 110;
+            el("circle", { cx: x, cy: y, r: 1.8 + (i % 3) * 0.4, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, g);
+          }
+          if (alt(has, "flake", L)) el("rect", S({ x: 50, y: 30, width: 20, height: 20, rx: 2, fill: C.white }), g);
+          else el("circle", S({ cx: 60, cy: 40, r: 10, fill: C.white }), g);
           el("rect", S({ x: 55, y: 120, width: 85, height: 65, fill: "#E7D2B8" }), g);
           el("polygon", S({ points: "45,120 97,82 150,120", fill: C.red }), g);
           el("rect", S({ x: 118, y: 90, width: 14, height: 30, fill: "#8A6A55" }), g);
@@ -1186,29 +1230,35 @@ const SCENES = [
           el("polygon", S({ points: "390,210 355,120 425,120", fill: "#2E6B45" }), g);
           el("polygon", S({ points: "390,175 365,110 415,110", fill: "#3E8A58" }), g);
           el("rect", S({ x: 384, y: 205, width: 12, height: 22, fill: C.trunk }), g);
-          if (alt(has, "treeOrn", L)) el("rect", S({ x: 385, y: 135, width: 10, height: 10, rx: 1, fill: C.red }), g);
-          else el("circle", S({ cx: 390, cy: 140, r: 5, fill: C.red }), g);
-          el("circle", S({ cx: 375, cy: 155, r: 4, fill: alt(has, "ornHue", L) ? C.blue : C.yellow }), g);
-          el("circle", S({ cx: 405, cy: 160, r: 4, fill: C.blue }), g);
-          el("circle", S({ cx: 385, cy: 170, r: 3.5, fill: C.pink }), g);
-          el("circle", S({ cx: 400, cy: 145, r: 3.5, fill: C.orange }), g);
+          if (alt(has, "treeOrn", L)) el("rect", S({ x: 382, y: 132, width: 16, height: 16, rx: 2, fill: C.red }), g);
+          else el("circle", S({ cx: 390, cy: 140, r: 8, fill: C.red }), g);
+          el("circle", S({ cx: 375, cy: 155, r: 7, fill: alt(has, "ornHue", L) ? C.blue : C.yellow }), g);
+          el("circle", S({ cx: 405, cy: 160, r: 6, fill: C.blue }), g);
+          el("circle", S({ cx: 385, cy: 170, r: 5, fill: C.pink }), g);
+          el("circle", S({ cx: 400, cy: 145, r: 5, fill: C.orange }), g);
           el("polygon", S({ points: "450,220 430,150 470,150", fill: "#2E6B45" }), g);
           el("rect", S({ x: 444, y: 215, width: 10, height: 18, fill: C.trunk }), g);
           el("polygon", S({ points: "40,220 20,150 60,150", fill: "#2E6B45" }), g);
           snowman(g, 240, 175, !alt(has, "scarf", L));
-          el("circle", { cx: 240, cy: 175, r: 2, fill: INK }, g);
-          if (!alt(has, "button", L)) el("circle", { cx: 240, cy: 185, r: 2, fill: INK }, g);
-          el("circle", S({ cx: 190, cy: 230, r: 12, fill: C.white }), g);
-          el("circle", S({ cx: 190, cy: 214, r: 8, fill: C.white }), g);
+          el("circle", { cx: 240, cy: 175, r: 2.5, fill: INK }, g);
+          el("circle", { cx: 240, cy: 185, r: 2.5, fill: INK }, g);
+          if (!has("hat") || L) {
+            el("rect", S({ x: 228, y: 138, width: 24, height: 8, fill: INK }), g);
+            el("rect", S({ x: 234, y: 122, width: 12, height: 18, fill: INK }), g);
+          }
+          if (!has("snowman2") || L) {
+            el("circle", S({ cx: 190, cy: 230, r: 12, fill: C.white }), g);
+            el("circle", S({ cx: 190, cy: 214, r: 8, fill: C.white }), g);
+          }
           el("circle", S({ cx: 160, cy: 240, r: 10, fill: C.white }), g);
           el("circle", S({ cx: 160, cy: 228, r: 7, fill: C.white }), g);
           {
-            const p = xyShift(has, "bird", L, 320, 50, -16, 10);
+            const p = xyShift(has, "bird", L, 320, 50, -20, 12);
             bird(g, p.x, p.y);
           }
           bird(g, 160, 45); bird(g, 250, 40); bird(g, 400, 55);
           {
-            const p = xyShift(has, "dog", L, 140, 230, 16, -4);
+            const p = xyShift(has, "dog", L, 140, 230, 20, -6);
             dog(g, p.x, p.y, "#E8E0D8");
           }
           dog(g, 420, 230, "#E8E0D8");
@@ -1219,17 +1269,23 @@ const SCENES = [
             el("line", { x1: long ? 400 : 385, y1: 236, x2: long ? 400 : 385, y2: 244, stroke: INK, "stroke-width": 2 }, g);
           }
           {
-            const p = xyShift(has, "kid", L, 300, 200, 14, 0);
+            const p = xyShift(has, "kid", L, 300, 200, 18, 0);
             person(g, p.x, p.y, C.blue, C.red);
           }
-          person(g, 430, 205, C.orange); person(g, 360, 200, C.mint); person(g, 100, 205, C.pink);
+          person(g, 430, 205, C.orange); person(g, 360, 200, C.mint);
+          if (!has("person") || L) person(g, 100, 205, C.pink);
           mushroom(g, 50, 220, alt(has, "mushroom", L));
           mushroom(g, 470, 220); mushroom(g, 220, 230); mushroom(g, 340, 235);
           rock(g, 100, 240, "#D0D8E0"); rock(g, 460, 240, "#C8D0D8"); rock(g, 280, 245, "#D8E0E8"); rock(g, 200, 245); rock(g, 300, 248);
           bush(g, 20, 220, "#3E8A58"); bush(g, 160, 215, "#2E6B45"); bush(g, 50, 210);
           flower(g, 420, 235, C.pink, 5); flower(g, 70, 235, C.yellow, 5); flower(g, 330, 240, C.orange, 5);
-          balloon(g, 280, 90, C.blue); balloon(g, 110, 70, C.red); balloon(g, 350, 80, C.yellow);
-          kite(g, 200, 55, C.pink); ball(g, 400, 235, true); ball(g, 250, 235, true);
+          balloon(g, 280, 90, C.blue, alt(has, "balloon", L) ? "square" : "round");
+          balloon(g, 110, 70, C.red); balloon(g, 350, 80, C.yellow);
+          {
+            const p = xyShift(has, "kite", L, 200, 55, 16, 8);
+            kite(g, p.x, p.y, C.pink);
+          }
+          ball(g, 400, 235, true); ball(g, 250, 235, true);
           packRow(g, "flake", 250, 12, [C.white], (gg, x, yy) => el("circle", { cx: x, cy: yy, r: 2, fill: C.white, stroke: "#9BB4D0", "stroke-width": 0.5 }, gg));
           for (const [x,y,c] of [[90,100,C.pink],[170,90,C.yellow],[250,80,C.blue],[330,95,C.orange],[410,85,C.red],[450,100,C.pink],[120,110,C.mint],[300,70,C.yellow]]) butterfly(g, x, y, c);
           cupcake(g, 100, 220); fish(g, 30, 230, C.blue); book(g, 420, 220, C.red);
@@ -1246,15 +1302,19 @@ const SCENES = [
         { id: "lanternA", x: 80, y: 78, r: 44, hard: 1, kind: "len" },
         { id: "flag", x: 420, y: 84, r: 32, hard: 1, kind: "hue" },
         { id: "balloon", x: 180, y: 70, r: 24, hard: 1, kind: "shape" },
-        { id: "personL", x: 140, y: 210, r: 30, hard: 1, kind: "shift", dx: 16, dy: 0 },
-        { id: "mask", x: 320, y: 200, r: 22, hard: 2, kind: "detail" },
-        { id: "star", x: 70, y: 58, r: 16, hard: 2, kind: "shape" },
+        { id: "personL", x: 140, y: 210, r: 30, hard: 1, kind: "shift", dx: 20, dy: 0 },
+        { id: "mask", x: 320, y: 200, r: 26, hard: 1, kind: "hue" },
+        { id: "star", x: 70, y: 50, r: 20, hard: 1, kind: "shape" },
         { id: "taiko", x: 250, y: 205, r: 34, hard: 1, kind: "len" },
-        { id: "food", x: 220, y: 155, r: 18, hard: 1, kind: "shift", dx: 12, dy: -6 },
+        { id: "food", x: 220, y: 155, r: 20, hard: 1, kind: "shift", dx: 16, dy: -8 },
         { id: "dog", x: 380, y: 230, r: 24, hard: 1, kind: "gone" },
         { id: "banner", x: 240, y: 95, r: 28, hard: 1, kind: "len" },
-        { id: "lanternB", x: 130, y: 55, r: 36, hard: 2, kind: "hue" },
-        { id: "star2", x: 250, y: 52, r: 16, hard: 2, kind: "shift", dx: 14, dy: 8 },
+        { id: "lanternB", x: 130, y: 55, r: 36, hard: 1, kind: "hue" },
+        { id: "star2", x: 250, y: 45, r: 20, hard: 1, kind: "shift", dx: 18, dy: 10 },
+        { id: "kite", x: 200, y: 100, r: 26, hard: 2, kind: "gone" },
+        { id: "ball", x: 300, y: 235, r: 18, hard: 2, kind: "shape" },
+        { id: "personR", x: 440, y: 205, r: 24, hard: 2, kind: "shift", dx: -16, dy: 0 },
+        { id: "lanternC", x: 350, y: 60, r: 30, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1265,26 +1325,21 @@ const SCENES = [
           const L = side === "L";
           el("rect", { x: 0, y: 0, width: 480, height: 260, fill: C.night }, g);
           paintCrowd(g, crowd);
-          const stars = [[70,58],[250,52]];
-          for (let i = 0; i < 28; i++) stars.push([10 + (i * 41) % 465, 12 + (i * 17) % 100]);
-          stars.forEach((p,i)=>{
-            const isA = Math.hypot(p[0] - 70, p[1] - 58) < 6;
-            const isB = Math.hypot(p[0] - 250, p[1] - 52) < 6;
-            if (isA && alt(has, "star", L)) {
-              el("rect", { x: p[0] - 2, y: p[1] - 2, width: 4, height: 4, fill: "#FFE9A8" }, g);
-              return;
-            }
-            if (isB) {
-              const q = xyShift(has, "star2", L, p[0], p[1], 14, 8);
-              el("circle", { cx: q.x, cy: q.y, r: 1.3 + (i % 3) * 0.35, fill: "#FFE9A8" }, g);
-              return;
-            }
-            el("circle", { cx: p[0], cy: p[1], r: 1.3 + (i % 3) * 0.35, fill: "#FFE9A8" }, g);
-          });
+          for (let i = 0; i < 28; i++) {
+            const x = 10 + (i * 41) % 465, y = 12 + (i * 17) % 100;
+            el("circle", { cx: x, cy: y, r: 1.3 + (i % 3) * 0.35, fill: "#FFE9A8" }, g);
+          }
+          if (alt(has, "star", L)) el("rect", S({ x: 60, y: 40, width: 20, height: 20, rx: 2, fill: "#FFE9A8" }), g);
+          else el("circle", S({ cx: 70, cy: 50, r: 10, fill: "#FFE9A8" }), g);
+          {
+            const q = xyShift(has, "star2", L, 250, 45, 18, 10);
+            el("circle", S({ cx: q.x, cy: q.y, r: 9, fill: "#FFE9A8" }), g);
+          }
           el("circle", S({ cx: 430, cy: 48, r: 18, fill: "#FFE9A8" }), g);
           lantern(g, 80, 70, C.red, alt(has, "lanternA", L));
           lantern(g, 130, 55, alt(has, "lanternB", L) ? C.blue : C.orange);
-          lantern(g, 350, 60, C.red); lantern(g, 400, 50, C.pink);
+          if (!has("lanternC") || L) lantern(g, 350, 60, C.red);
+          lantern(g, 400, 50, C.pink);
           lantern(g, 50, 40, C.red); lantern(g, 300, 45, C.yellow); lantern(g, 460, 40, C.orange);
           lantern(g, 200, 40, C.pink); lantern(g, 240, 55, C.yellow);
           balloon(g, 180, 70, C.blue, alt(has, "balloon", L) ? "square" : "round");
@@ -1294,7 +1349,7 @@ const SCENES = [
           el("rect", S({ x: 175, y: 118, width: 130, height: 18, fill: C.orange }), g);
           el("rect", S({ x: alt(has, "banner", L) ? 195 : 205, y: 88, width: alt(has, "banner", L) ? 90 : 70, height: 16, rx: 3, fill: C.yellow }), g);
           {
-            const p = xyShift(has, "food", L, 220, 155, 12, -6);
+            const p = xyShift(has, "food", L, 220, 155, 16, -8);
             cupcake(g, p.x, p.y);
           }
           cupcake(g, 250, 155); cupcake(g, 235, 165); cupcake(g, 170, 220);
@@ -1307,17 +1362,24 @@ const SCENES = [
             el("rect", S({ x: long ? 235 : 240, y: 205, width: long ? 30 : 20, height: 18, fill: C.wood }), g);
           }
           {
-            const p = xyShift(has, "personL", L, 140, 210, 16, 0);
+            const p = xyShift(has, "personL", L, 140, 210, 20, 0);
             person(g, p.x, p.y, C.blue, C.red);
           }
-          person(g, 100, 215, C.mint); person(g, 320, 210, C.orange, C.pink);
-          if (!alt(has, "mask", L)) el("circle", S({ cx: 320, cy: 188, r: 6, fill: C.white }), g);
-          person(g, 440, 205, C.yellow); person(g, 60, 210, C.pink); person(g, 200, 210, C.red); person(g, 360, 205, C.mint, C.yellow);
+          person(g, 100, 215, C.mint);
+          person(g, 320, 210, alt(has, "mask", L) ? C.pink : C.orange, C.pink);
+          el("circle", S({ cx: 320, cy: 188, r: 7, fill: alt(has, "mask", L) ? C.yellow : C.white }), g);
+          {
+            const p = xyShift(has, "personR", L, 440, 205, -16, 0);
+            person(g, p.x, p.y, C.yellow);
+          }
+          person(g, 60, 210, C.pink); person(g, 200, 210, C.red); person(g, 360, 205, C.mint, C.yellow);
           if (!has("dog") || L) dog(g, 380, 230, "#E8B070");
           dog(g, 420, 230);
           packRow(g, "flower", 248, 12, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
           mushroom(g, 200, 235); mushroom(g, 360, 235); rock(g, 280, 245, "#5A4A3A"); rock(g, 160, 245); rock(g, 400, 245);
-          bush(g, 240, 230); ball(g, 300, 235, true); kite(g, 200, 100, C.pink);
+          bush(g, 240, 230);
+          ball(g, 300, 235, true, alt(has, "ball", L) ? "square" : "round");
+          if (!has("kite") || L) kite(g, 200, 100, C.pink);
           book(g, 100, 230, C.yellow); fish(g, 40, 100, C.orange); butterfly(g, 160, 120, C.yellow);
         },
       };
@@ -1328,18 +1390,22 @@ const SCENES = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "indoor");
       const pool = [
-        { id: "cupcake", x: 200, y: 175, r: 14, hard: 1, kind: "shift", dx: 14, dy: -4 },
-        { id: "apple", x: 380, y: 170, r: 14, hard: 1, kind: "shape" },
-        { id: "clock", x: 400, y: 50, r: 18, hard: 2, kind: "detail" },
-        { id: "spoon", x: 290, y: 100, r: 28, hard: 2, kind: "len" },
-        { id: "cat", x: 80, y: 220, r: 24, hard: 1, kind: "shift", dx: 16, dy: 0 },
-        { id: "cup", x: 100, y: 180, r: 18, hard: 2, kind: "len" },
-        { id: "flame", x: 240, y: 175, r: 14, hard: 2, kind: "gone" },
-        { id: "book", x: 320, y: 200, r: 14, hard: 1, kind: "shift", dx: -12, dy: 6 },
-        { id: "flower", x: 50, y: 34, r: 18, hard: 1, kind: "hue" },
+        { id: "cupcake", x: 200, y: 175, r: 16, hard: 1, kind: "shift", dx: 18, dy: -6 },
+        { id: "apple", x: 380, y: 170, r: 18, hard: 1, kind: "shape" },
+        { id: "clock", x: 400, y: 50, r: 22, hard: 1, kind: "hue" },
+        { id: "spoon", x: 290, y: 100, r: 32, hard: 1, kind: "len" },
+        { id: "cat", x: 80, y: 220, r: 24, hard: 1, kind: "shift", dx: 20, dy: 0 },
+        { id: "cup", x: 100, y: 180, r: 22, hard: 1, kind: "len" },
+        { id: "flame", x: 240, y: 175, r: 18, hard: 1, kind: "gone" },
+        { id: "book", x: 320, y: 200, r: 16, hard: 1, kind: "shift", dx: -16, dy: 8 },
+        { id: "flower", x: 50, y: 40, r: 20, hard: 1, kind: "hue" },
         { id: "knife", x: 200, y: 165, r: 32, hard: 1, kind: "len" },
-        { id: "banana", x: 400, y: 172, r: 12, hard: 2, kind: "hue" },
-        { id: "bottle", x: 40, y: 195, r: 18, hard: 2, kind: "shape" },
+        { id: "banana", x: 400, y: 172, r: 18, hard: 1, kind: "hue" },
+        { id: "bottle", x: 40, y: 195, r: 20, hard: 1, kind: "shape" },
+        { id: "balloon", x: 200, y: 50, r: 22, hard: 1, kind: "shape" },
+        { id: "dog", x: 200, y: 235, r: 22, hard: 2, kind: "gone" },
+        { id: "person", x: 280, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "kite", x: 300, y: 45, r: 26, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1360,52 +1426,66 @@ const SCENES = [
           potPlant(g, 50, 40, alt(has, "flower", L) ? C.yellow : C.pink);
           potPlant(g, 90, 40, C.orange);
           potPlant(g, 70, 70, C.pink);
-          clock(g, 400, 50, alt(has, "clock", L) ? 160 : 100);
+          {
+            const face = alt(has, "clock", L) ? C.yellow : C.cream;
+            el("circle", S({ cx: 400, cy: 50, r: 16, fill: face }), g);
+            const hour = alt(has, "clock", L) ? 200 : 100;
+            const a0 = (0 - 90) * Math.PI / 180, a1 = (hour - 90) * Math.PI / 180;
+            el("line", { x1: 400, y1: 50, x2: 400 + Math.cos(a0) * 11, y2: 50 + Math.sin(a0) * 11, stroke: INK, "stroke-width": 2, "stroke-linecap": "round" }, g);
+            el("line", { x1: 400, y1: 50, x2: 400 + Math.cos(a1) * 10, y2: 50 + Math.sin(a1) * 10, stroke: C.red, "stroke-width": 2.4, "stroke-linecap": "round" }, g);
+            el("circle", { cx: 400, cy: 50, r: 1.8, fill: INK }, g);
+          }
           el("rect", S({ x: 300, y: 40, width: 50, height: 35, rx: 3, fill: C.cream }), g);
           bloom(g, 325, 58, C.pink, 5, 5);
           el("rect", S({ x: 160, y: 170, width: 160, height: 16, fill: "#8A6A55" }), g);
           el("ellipse", S({ cx: 240, cy: 158, rx: 34, ry: 12, fill: "#6E7F92" }), g);
           el("path", S({ d: "M 208 158 V 128 H 272 V 158", fill: "#6E7F92" }), g);
-          if (alt(has, "spoon", L)) el("line", { x1: 268, y1: 120, x2: 310, y2: 82, stroke: "#C0C8D0", "stroke-width": 3.2, "stroke-linecap": "round" }, g);
-          else el("line", { x1: 268, y1: 120, x2: 295, y2: 95, stroke: "#C0C8D0", "stroke-width": 3.2, "stroke-linecap": "round" }, g);
+          if (alt(has, "spoon", L)) el("line", { x1: 268, y1: 120, x2: 318, y2: 78, stroke: "#C0C8D0", "stroke-width": 3.6, "stroke-linecap": "round" }, g);
+          else el("line", { x1: 268, y1: 120, x2: 292, y2: 98, stroke: "#C0C8D0", "stroke-width": 3.6, "stroke-linecap": "round" }, g);
           if (!has("flame") || L) el("path", { d: "M 232 178 Q 240 162 248 178 Q 240 172 232 178", fill: C.orange }, g);
-          el("rect", S({ x: 86, y: alt(has, "cup", L) ? 158 : 170, width: 28, height: alt(has, "cup", L) ? 46 : 34, rx: 4, fill: C.mint }), g);
-          el("ellipse", S({ cx: 100, cy: alt(has, "cup", L) ? 158 : 170, rx: 16, ry: 5, fill: softHue(C.mint, 10) }), g);
+          el("rect", S({ x: 86, y: alt(has, "cup", L) ? 152 : 170, width: 28, height: alt(has, "cup", L) ? 52 : 34, rx: 4, fill: C.mint }), g);
+          el("ellipse", S({ cx: 100, cy: alt(has, "cup", L) ? 152 : 170, rx: 16, ry: 5, fill: softHue(C.mint, 10) }), g);
           if (alt(has, "bottle", L)) el("ellipse", S({ cx: 49, cy: 195, rx: 12, ry: 22, fill: C.blue }), g);
           else el("rect", S({ x: 40, y: 175, width: 18, height: 40, rx: 3, fill: C.blue }), g);
           el("rect", S({ x: 125, y: 180, width: 16, height: 32, rx: 3, fill: C.yellow }), g);
           el("rect", S({ x: 145, y: 175, width: 14, height: 36, rx: 3, fill: C.pink }), g);
           {
-            const p = xyShift(has, "cupcake", L, 200, 175, 14, -4);
+            const p = xyShift(has, "cupcake", L, 200, 175, 18, -6);
             cupcake(g, p.x, p.y);
           }
           cupcake(g, 230, 200); cupcake(g, 270, 195); cupcake(g, 250, 185); cupcake(g, 180, 200);
           el("ellipse", S({ cx: 390, cy: 185, rx: 34, ry: 10, fill: C.wood }), g);
           if (alt(has, "apple", L)) el("rect", S({ x: 368, y: 158, width: 24, height: 24, rx: 4, fill: C.red }), g);
           else el("circle", S({ cx: 380, cy: 170, r: 12, fill: C.red }), g);
-          el("circle", S({ cx: 400, cy: 172, r: 11, fill: alt(has, "banana", L) ? C.grass2 : C.yellow }), g);
+          el("circle", S({ cx: 400, cy: 172, r: 11, fill: alt(has, "banana", L) ? C.blue : C.yellow }), g);
           el("circle", S({ cx: 415, cy: 178, r: 10, fill: C.orange }), g);
           el("circle", S({ cx: 365, cy: 178, r: 9, fill: C.pink }), g);
           el("circle", S({ cx: 390, cy: 165, r: 8, fill: C.orange }), g);
           {
-            const p = xyShift(has, "book", L, 320, 200, -12, 6);
+            const p = xyShift(has, "book", L, 320, 200, -16, 8);
             book(g, p.x, p.y, C.blue);
           }
           book(g, 340, 200, C.red); book(g, 300, 215, C.yellow); book(g, 220, 210, C.blue); book(g, 360, 210, C.pink);
           {
-            const p = xyShift(has, "cat", L, 80, 220, 16, 0);
+            const p = xyShift(has, "cat", L, 80, 220, 20, 0);
             cat(g, p.x, p.y, true);
           }
-          dog(g, 200, 235, "#C9843E"); dog(g, 160, 230);
+          if (!has("dog") || L) dog(g, 200, 235, "#C9843E");
+          dog(g, 160, 230);
           ball(g, 450, 230, true); ball(g, 420, 230, true); ball(g, 300, 235, true);
           mushroom(g, 430, 210); mushroom(g, 250, 230); mushroom(g, 100, 235);
           for (const [x,y,c] of [[80,70,C.pink],[140,60,C.yellow],[200,75,C.blue],[260,55,C.orange],[320,70,C.red],[380,60,C.mint],[440,75,C.pink],[180,90,C.yellow]]) butterfly(g, x, y, c);
           rock(g, 160, 240, "#C8B8A8"); rock(g, 300, 242); rock(g, 50, 240);
           bush(g, 180, 220); potPlant(g, 360, 200, C.pink); potPlant(g, 40, 200, C.yellow); potPlant(g, 440, 195, C.orange);
-          person(g, 280, 195, C.orange); person(g, 340, 195, C.mint); balloon(g, 200, 50, C.blue); kite(g, 300, 45, C.red);
+          {
+            const p = xyShift(has, "person", L, 280, 195, 16, 0);
+            person(g, p.x, p.y, C.orange);
+          }
+          person(g, 340, 195, C.mint);
+          balloon(g, 200, 50, C.blue, alt(has, "balloon", L) ? "square" : "round");
+          if (!has("kite") || L) kite(g, 300, 45, C.red);
           lantern(g, 440, 120, C.red);
           packRow(g, "flower", 248, 12, [C.pink,C.yellow,C.orange,C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
-          // Knife on the counter, drawn last so length change stays visible.
           {
             const long = alt(has, "knife", L);
             el("line", { x1: 175, y1: 165, x2: long ? 230 : 200, y2: 165, stroke: "#C0C8D0", "stroke-width": 4, "stroke-linecap": "round" }, g);
@@ -1421,18 +1501,22 @@ const SCENES = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "night");
       const pool = [
-        { id: "owl", x: 70, y: 100, r: 16, hard: 1, kind: "shift", dx: 14, dy: -8 },
+        { id: "owl", x: 70, y: 100, r: 20, hard: 1, kind: "shift", dx: 18, dy: -10 },
         { id: "bag", x: 400, y: 205, r: 22, hard: 1, kind: "shape" },
-        { id: "star", x: 36, y: 30, r: 14, hard: 2, kind: "shape" },
+        { id: "star", x: 40, y: 35, r: 20, hard: 1, kind: "shape" },
         { id: "fire", x: 120, y: 185, r: 40, hard: 1, kind: "len" },
-        { id: "fish", x: 50, y: 230, r: 14, hard: 1, kind: "shift", dx: 12, dy: -6 },
+        { id: "fish", x: 50, y: 230, r: 18, hard: 1, kind: "shift", dx: 16, dy: -8 },
         { id: "lantern", x: 340, y: 168, r: 30, hard: 1, kind: "len" },
         { id: "dog", x: 300, y: 230, r: 20, hard: 1, kind: "gone" },
         { id: "mushroom", x: 200, y: 222, r: 28, hard: 1, kind: "len" },
         { id: "flag", x: 260, y: 78, r: 30, hard: 1, kind: "len" },
-        { id: "moon", x: 420, y: 50, r: 36, hard: 2, kind: "detail" },
-        { id: "owlEye", x: 74, y: 98, r: 14, hard: 2, kind: "detail" },
-        { id: "peg", x: 185, y: 185, r: 18, hard: 2, kind: "shape" },
+        { id: "moon", x: 420, y: 50, r: 30, hard: 1, kind: "len" },
+        { id: "owlHue", x: 70, y: 100, r: 20, hard: 2, kind: "hue" },
+        { id: "peg", x: 185, y: 185, r: 18, hard: 1, kind: "shape" },
+        { id: "balloon", x: 100, y: 60, r: 22, hard: 1, kind: "shape" },
+        { id: "person", x: 280, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "kite", x: 200, y: 80, r: 26, hard: 2, kind: "gone" },
+        { id: "bucket", x: 260, y: 220, r: 18, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
@@ -1444,34 +1528,32 @@ const SCENES = [
           el("rect", { x: 0, y: 0, width: 480, height: 165, fill: "#1B2F55" }, g);
           el("rect", { x: 0, y: 165, width: 480, height: 95, fill: C.camp }, g);
           paintCrowd(g, crowd);
-          const stars = [[36,30]];
-          for (let i = 0; i < 28; i++) stars.push([8 + (i * 43) % 470, 10 + (i * 19) % 105]);
-          stars.forEach((p,i)=>{
-            const isMain = Math.hypot(p[0] - 36, p[1] - 30) < 6;
-            if (isMain && alt(has, "star", L)) {
-              el("rect", { x: p[0] - 2, y: p[1] - 2, width: 4, height: 4, fill: "#FFE9A8" }, g);
-              return;
-            }
-            el("circle", { cx: p[0], cy: p[1], r: 1.2 + (i % 3) * 0.4, fill: "#FFE9A8" }, g);
-          });
-          el("circle", S({ cx: 420, cy: 50, r: 18, fill: "#FFE9A8" }), g);
-          if (alt(has, "moon", L)) el("circle", { cx: 428, cy: 44, r: 14, fill: "#1B2F55" }, g);
+          for (let i = 0; i < 28; i++) {
+            const x = 8 + (i * 43) % 470, y = 10 + (i * 19) % 105;
+            el("circle", { cx: x, cy: y, r: 1.2 + (i % 3) * 0.4, fill: "#FFE9A8" }, g);
+          }
+          if (alt(has, "star", L)) el("rect", S({ x: 30, y: 25, width: 20, height: 20, rx: 2, fill: "#FFE9A8" }), g);
+          else el("circle", S({ cx: 40, cy: 35, r: 10, fill: "#FFE9A8" }), g);
+          {
+            const r = alt(has, "moon", L) ? 26 : 18;
+            el("circle", S({ cx: 420, cy: 50, r, fill: "#FFE9A8" }), g);
+          }
           tree(g, 50, 185, "#1F5A38", "#2E7D3A");
           tree(g, 450, 190, "#1F5A38", "#2E7D3A");
           tree(g, 15, 200, "#163D28", "#1F5A38");
           tree(g, 100, 195, "#1F5A38", "#2E7D3A");
           tree(g, 400, 195, "#163D28", "#1F5A38");
           {
-            const p = xyShift(has, "owl", L, 70, 100, 14, -8);
-            el("circle", S({ cx: p.x, cy: p.y, r: 10, fill: "#E8D0A8" }), g);
-            el("circle", { cx: p.x - 4, cy: p.y - 2, r: 2, fill: INK }, g);
-            if (!alt(has, "owlEye", L)) el("circle", { cx: p.x + 4, cy: p.y - 2, r: 2, fill: INK }, g);
+            const p = xyShift(has, "owl", L, 70, 100, 18, -10);
+            el("circle", S({ cx: p.x, cy: p.y, r: 12, fill: alt(has, "owlHue", L) ? C.pink : "#E8D0A8" }), g);
+            el("circle", { cx: p.x - 4, cy: p.y - 2, r: 2.2, fill: INK }, g);
+            el("circle", { cx: p.x + 4, cy: p.y - 2, r: 2.2, fill: INK }, g);
           }
           el("polygon", S({ points: "250,95 185,185 315,185", fill: C.orange }), g);
           el("polygon", S({ points: "250,95 232,185 268,185", fill: "#F7F1E4" }), g);
-          if (alt(has, "peg", L)) el("rect", S({ x: 181, y: 181, width: 8, height: 8, rx: 1, fill: INK }), g);
-          else el("circle", S({ cx: 185, cy: 185, r: 4, fill: INK }), g);
-          el("circle", S({ cx: 315, cy: 185, r: 4, fill: INK }), g);
+          if (alt(has, "peg", L)) el("rect", S({ x: 178, y: 178, width: 14, height: 14, rx: 2, fill: INK }), g);
+          else el("circle", S({ cx: 185, cy: 185, r: 7, fill: INK }), g);
+          el("circle", S({ cx: 315, cy: 185, r: 7, fill: INK }), g);
           el("polygon", S({ points: alt(has, "flag", L) ? "250,55 250,95 290,72" : "250,70 250,95 275,80", fill: C.red }), g);
           el("line", { x1: 250, y1: alt(has, "flag", L) ? 55 : 70, x2: 250, y2: 95, stroke: INK, "stroke-width": 2 }, g);
           el("ellipse", S({ cx: 120, cy: 225, rx: 22, ry: 8, fill: "#6B4A2A" }), g);
@@ -1501,17 +1583,393 @@ const SCENES = [
           mushroom(g, 230, 240);
           packRow(g, "mush", 248, 12, [C.red], (gg, x, yy) => mushroom(gg, x, yy));
           {
-            const p = xyShift(has, "fish", L, 50, 230, 12, -6);
+            const p = xyShift(has, "fish", L, 50, 230, 16, -8);
             fish(g, p.x, p.y, C.orange);
           }
           fish(g, 90, 245, C.yellow); fish(g, 70, 240, C.pink);
           rock(g, 160, 240, "#5A6A4A"); rock(g, 360, 245, "#4A5A3A"); rock(g, 80, 240); rock(g, 240, 245); rock(g, 400, 242);
           bush(g, 470, 220, "#1F5A38"); bush(g, 200, 210); bush(g, 380, 215);
-          person(g, 280, 195, C.blue); person(g, 320, 195, C.mint); person(g, 360, 200, C.orange);
-          for (const [x,y,c] of [[100,60,C.pink],[160,50,C.yellow],[220,65,C.blue],[300,55,C.orange],[360,70,C.red],[430,60,C.pink],[80,80,C.mint],[250,45,C.yellow]]) balloon(g, x, y, c);
+          {
+            const p = xyShift(has, "person", L, 280, 195, 16, 0);
+            person(g, p.x, p.y, C.blue);
+          }
+          person(g, 320, 195, C.mint); person(g, 360, 200, C.orange);
+          balloon(g, 100, 60, C.pink, alt(has, "balloon", L) ? "square" : "round");
+          for (const [x,y,c] of [[160,50,C.yellow],[220,65,C.blue],[300,55,C.orange],[360,70,C.red],[430,60,C.pink],[80,80,C.mint],[250,45,C.yellow]]) balloon(g, x, y, c);
           butterfly(g, 200, 120, C.yellow); ball(g, 150, 235, true);
           flower(g, 440, 235, C.pink, 5); flower(g, 40, 230, C.yellow, 5); flower(g, 100, 235, C.orange, 5); flower(g, 360, 235, C.pink, 5);
-          cupcake(g, 180, 220); bucket(g, 260, 220, C.blue); kite(g, 200, 80, C.yellow); book(g, 150, 220, C.red);
+          cupcake(g, 180, 220);
+          if (!has("bucket") || L) bucket(g, 260, 220, C.blue);
+          if (!has("kite") || L) kite(g, 200, 80, C.yellow);
+          book(g, 150, 220, C.red);
+        },
+      };
+    },
+  },
+  {
+    id: "school", title: "がっこう",
+    build(rng) {
+      const crowd = makeSceneCrowd(rng, "indoor");
+      const pool = [
+        { id: "ball", x: 70, y: 230, r: 18, hard: 1, kind: "shape" },
+        { id: "bag", x: 400, y: 210, r: 22, hard: 1, kind: "shape" },
+        { id: "apple", x: 250, y: 120, r: 18, hard: 1, kind: "shape" },
+        { id: "clock", x: 420, y: 50, r: 22, hard: 1, kind: "hue" },
+        { id: "kid", x: 160, y: 200, r: 26, hard: 1, kind: "shift", dx: 18, dy: 0 },
+        { id: "chalk", x: 200, y: 75, r: 70, hard: 1, kind: "len" },
+        { id: "book", x: 300, y: 200, r: 16, hard: 1, kind: "gone" },
+        { id: "plant", x: 50, y: 180, r: 20, hard: 1, kind: "shift", dx: 14, dy: -8 },
+        { id: "balloon", x: 100, y: 50, r: 22, hard: 1, kind: "shape" },
+        { id: "flag", x: 60, y: 70, r: 28, hard: 1, kind: "hue" },
+        { id: "dog", x: 340, y: 230, r: 22, hard: 1, kind: "gone" },
+        { id: "personR", x: 360, y: 195, r: 24, hard: 2, kind: "shift", dx: -16, dy: 0 },
+        { id: "cupcake", x: 220, y: 175, r: 16, hard: 1, kind: "shift", dx: 14, dy: 0 },
+        { id: "kite", x: 200, y: 45, r: 26, hard: 2, kind: "gone" },
+        { id: "mushroom", x: 450, y: 230, r: 22, hard: 2, kind: "len" },
+        { id: "desk", x: 200, y: 210, r: 30, hard: 2, kind: "hue" },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "がっこう",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 150, fill: "#E8F0E0" }, g);
+          el("rect", { x: 0, y: 150, width: 480, height: 110, fill: "#D4C4A8" }, g);
+          paintCrowd(g, crowd);
+          el("rect", S({ x: 120, y: 30, width: 240, height: 90, rx: 4, fill: "#2E6B45" }), g);
+          el("rect", S({ x: alt(has, "chalk", L) ? 140 : 160, y: 70, width: alt(has, "chalk", L) ? 120 : 80, height: 10, rx: 2, fill: C.white }), g);
+          if (alt(has, "apple", L)) el("rect", S({ x: 238, y: 108, width: 24, height: 24, rx: 3, fill: C.red }), g);
+          else el("circle", S({ cx: 250, cy: 120, r: 12, fill: C.red }), g);
+          el("line", { x1: 60, y1: 30, x2: 60, y2: 100, stroke: INK, "stroke-width": 3 }, g);
+          el("polygon", S({ points: "60,34 95,50 60,66", fill: alt(has, "flag", L) ? C.blue : C.red }), g);
+          balloon(g, 100, 50, C.yellow, alt(has, "balloon", L) ? "square" : "round");
+          if (!has("kite") || L) kite(g, 200, 45, C.pink);
+          {
+            const face = alt(has, "clock", L) ? C.yellow : C.cream;
+            el("circle", S({ cx: 420, cy: 50, r: 16, fill: face }), g);
+            el("line", { x1: 420, y1: 50, x2: 420, y2: 40, stroke: INK, "stroke-width": 2 }, g);
+            el("line", { x1: 420, y1: 50, x2: 430, y2: 55, stroke: C.red, "stroke-width": 2.4 }, g);
+          }
+          el("rect", S({ x: 160, y: 190, width: 80, height: 40, rx: 3, fill: alt(has, "desk", L) ? C.mint : C.wood }), g);
+          el("rect", S({ x: 280, y: 190, width: 80, height: 40, rx: 3, fill: C.wood }), g);
+          {
+            const p = xyShift(has, "cupcake", L, 220, 175, 14, 0);
+            cupcake(g, p.x, p.y);
+          }
+          if (!has("book") || L) book(g, 300, 200, C.blue);
+          book(g, 320, 200, C.yellow); book(g, 180, 200, C.red);
+          {
+            const p = xyShift(has, "plant", L, 50, 180, 14, -8);
+            potPlant(g, p.x, p.y, C.pink);
+          }
+          potPlant(g, 450, 180, C.orange);
+          ball(g, 70, 230, true, alt(has, "ball", L) ? "square" : "round");
+          if (alt(has, "bag", L)) el("rect", S({ x: 388, y: 195, width: 24, height: 30, rx: 3, fill: C.blue }), g);
+          else {
+            el("circle", S({ cx: 400, cy: 205, r: 12, fill: C.blue }), g);
+            el("rect", S({ x: 388, y: 205, width: 24, height: 18, rx: 3, fill: C.blue }), g);
+          }
+          {
+            const p = xyShift(has, "kid", L, 160, 200, 18, 0);
+            person(g, p.x, p.y, C.orange);
+          }
+          {
+            const p = xyShift(has, "personR", L, 360, 195, -16, 0);
+            person(g, p.x, p.y, C.mint);
+          }
+          person(g, 240, 200, C.pink); person(g, 100, 205, C.blue);
+          if (!has("dog") || L) dog(g, 340, 230);
+          dog(g, 50, 230, "#E8B070");
+          mushroom(g, 450, 230, alt(has, "mushroom", L));
+          mushroom(g, 200, 235);
+          packRow(g, "flower", 248, 12, [C.pink, C.yellow, C.orange], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          bush(g, 20, 210); bush(g, 460, 210); rock(g, 140, 245); rock(g, 280, 245);
+          butterfly(g, 150, 80, C.yellow); butterfly(g, 340, 70, C.pink);
+          lantern(g, 380, 120, C.red); balloon(g, 300, 40, C.red); balloon(g, 60, 120, C.blue);
+        },
+      };
+    },
+  },
+  {
+    id: "town", title: "まち",
+    build(rng) {
+      const crowd = makeSceneCrowd(rng, "park");
+      const pool = [
+        { id: "car", x: 105, y: 205, r: 55, hard: 1, kind: "len" },
+        { id: "sign", x: 300, y: 120, r: 24, hard: 1, kind: "hue" },
+        { id: "dog", x: 220, y: 230, r: 22, hard: 1, kind: "shift", dx: 18, dy: -4 },
+        { id: "bird", x: 80, y: 40, r: 18, hard: 1, kind: "shift", dx: 20, dy: 8 },
+        { id: "balloon", x: 400, y: 60, r: 22, hard: 1, kind: "shape" },
+        { id: "person", x: 260, y: 195, r: 26, hard: 1, kind: "gone" },
+        { id: "window", x: 62, y: 109, r: 24, hard: 1, kind: "hue" },
+        { id: "tree", x: 450, y: 160, r: 40, hard: 2, kind: "gone" },
+        { id: "bike", x: 360, y: 220, r: 28, hard: 1, kind: "shift", dx: -16, dy: 0 },
+        { id: "lamp", x: 200, y: 130, r: 55, hard: 1, kind: "len" },
+        { id: "cat", x: 50, y: 230, r: 22, hard: 1, kind: "shift", dx: 14, dy: -6 },
+        { id: "flower", x: 160, y: 235, r: 18, hard: 1, kind: "hue" },
+        { id: "ball", x: 420, y: 235, r: 16, hard: 1, kind: "shape" },
+        { id: "cloud", x: 200, y: 40, r: 28, hard: 2, kind: "gone" },
+        { id: "kite", x: 320, y: 50, r: 26, hard: 2, kind: "shift", dx: 14, dy: 10 },
+        { id: "person2", x: 180, y: 200, r: 24, hard: 2, kind: "shift", dx: -14, dy: 0 },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "まち",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 140, fill: C.sky }, g);
+          el("rect", { x: 0, y: 140, width: 480, height: 50, fill: "#A8B8C8" }, g);
+          el("rect", { x: 0, y: 190, width: 480, height: 70, fill: "#6A6A6A" }, g);
+          paintCrowd(g, crowd);
+          sunBody(g, 50, 40, true, -1);
+          if (!has("cloud") || L) cloud(g, 200, 40, 0.8);
+          cloud(g, 320, 50, 0.6); cloud(g, 400, 30, 0.5);
+          {
+            const p = xyShift(has, "bird", L, 80, 40, 20, 8);
+            bird(g, p.x, p.y);
+          }
+          bird(g, 250, 35); bird(g, 380, 45);
+          el("rect", S({ x: 30, y: 70, width: 90, height: 90, fill: "#E8C4A0" }), g);
+          el("rect", S({ x: 50, y: 95, width: 24, height: 28, fill: alt(has, "window", L) ? "#FFE9A8" : "#B7E3FA" }), g);
+          el("rect", S({ x: 80, y: 95, width: 24, height: 28, fill: "#B7E3FA" }), g);
+          el("rect", S({ x: 55, y: 130, width: 30, height: 30, fill: C.wood }), g);
+          el("rect", S({ x: 150, y: 55, width: 100, height: 105, fill: "#C8D8E8" }), g);
+          el("rect", S({ x: 170, y: 80, width: 26, height: 26, fill: "#B7E3FA" }), g);
+          el("rect", S({ x: 205, y: 80, width: 26, height: 26, fill: "#B7E3FA" }), g);
+          el("rect", S({ x: 170, y: 115, width: 26, height: 26, fill: "#B7E3FA" }), g);
+          el("rect", S({ x: 280, y: 65, width: 80, height: 95, fill: "#E8A890" }), g);
+          el("rect", S({ x: 295, y: 90, width: 22, height: 22, fill: "#B7E3FA" }), g);
+          el("rect", S({ x: 325, y: 90, width: 22, height: 22, fill: "#B7E3FA" }), g);
+          el("rect", S({ x: 300, y: 125, width: 28, height: 35, fill: C.wood }), g);
+          el("circle", S({ cx: 300, cy: 120, r: 14, fill: alt(has, "sign", L) ? C.blue : C.red }), g);
+          {
+            const tall = alt(has, "lamp", L);
+            el("line", { x1: 200, y1: tall ? 70 : 95, x2: 200, y2: 190, stroke: INK, "stroke-width": 3 }, g);
+            el("circle", S({ cx: 200, cy: tall ? 70 : 95, r: 10, fill: C.yellow }), g);
+          }
+          {
+            const long = alt(has, "car", L);
+            el("rect", S({ x: 60, y: 200, width: long ? 90 : 65, height: 24, rx: 4, fill: C.red }), g);
+            el("rect", S({ x: long ? 85 : 75, y: 188, width: 36, height: 16, rx: 3, fill: "#B7E3FA" }), g);
+            el("circle", S({ cx: 78, cy: 224, r: 8, fill: "#333" }), g);
+            el("circle", S({ cx: long ? 130 : 112, cy: 224, r: 8, fill: "#333" }), g);
+          }
+          {
+            const p = xyShift(has, "bike", L, 360, 220, -16, 0);
+            el("circle", S({ cx: p.x - 14, cy: p.y + 8, r: 10, fill: "none", stroke: INK, "stroke-width": 2.4 }), g);
+            el("circle", S({ cx: p.x + 14, cy: p.y + 8, r: 10, fill: "none", stroke: INK, "stroke-width": 2.4 }), g);
+            el("line", { x1: p.x - 14, y1: p.y + 8, x2: p.x + 8, y2: p.y - 8, stroke: INK, "stroke-width": 2 }, g);
+            el("line", { x1: p.x + 14, y1: p.y + 8, x2: p.x - 4, y2: p.y - 2, stroke: INK, "stroke-width": 2 }, g);
+          }
+          balloon(g, 400, 60, C.pink, alt(has, "balloon", L) ? "square" : "round");
+          {
+            const p = xyShift(has, "kite", L, 320, 50, 14, 10);
+            kite(g, p.x, p.y, C.yellow);
+          }
+          if (!has("tree") || L) tree(g, 450, 190, C.leaf2, C.leaf);
+          tree(g, 20, 185, C.leaf, C.leaf2);
+          {
+            const p = xyShift(has, "dog", L, 220, 230, 18, -4);
+            dog(g, p.x, p.y);
+          }
+          {
+            const p = xyShift(has, "cat", L, 50, 230, 14, -6);
+            cat(g, p.x, p.y, true);
+          }
+          if (!has("person") || L) person(g, 260, 195, C.orange);
+          {
+            const p = xyShift(has, "person2", L, 180, 200, -14, 0);
+            person(g, p.x, p.y, C.blue);
+          }
+          person(g, 320, 200, C.mint); person(g, 400, 195, C.pink);
+          flower(g, 160, 235, alt(has, "flower", L) ? C.blue : C.pink, 5);
+          flower(g, 100, 240, C.yellow, 5); flower(g, 280, 240, C.orange, 5);
+          ball(g, 420, 235, true, alt(has, "ball", L) ? "square" : "round");
+          bush(g, 140, 210); bush(g, 380, 210); rock(g, 240, 245); rock(g, 80, 245);
+          packRow(g, "flower", 250, 10, [C.pink, C.yellow], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          mushroom(g, 460, 230); lantern(g, 250, 100, C.orange);
+        },
+      };
+    },
+  },
+  {
+    id: "aquarium", title: "すいぞくかん",
+    build(rng) {
+      const crowd = makeSceneCrowd(rng, "beach");
+      const pool = [
+        { id: "fishA", x: 120, y: 100, r: 20, hard: 1, kind: "shift", dx: 18, dy: 8 },
+        { id: "fishB", x: 280, y: 80, r: 20, hard: 1, kind: "hue" },
+        { id: "crab", x: 80, y: 220, r: 20, hard: 1, kind: "shift", dx: 16, dy: -6 },
+        { id: "star", x: 400, y: 220, r: 20, hard: 1, kind: "shape" },
+        { id: "bubble", x: 205, y: 70, r: 45, hard: 1, kind: "len" },
+        { id: "weed", x: 60, y: 185, r: 50, hard: 1, kind: "len" },
+        { id: "shell", x: 180, y: 230, r: 18, hard: 1, kind: "gone" },
+        { id: "fishC", x: 350, y: 140, r: 18, hard: 1, kind: "gone" },
+        { id: "ball", x: 250, y: 200, r: 16, hard: 1, kind: "shape" },
+        { id: "rock", x: 300, y: 230, r: 20, hard: 1, kind: "shift", dx: -14, dy: 0 },
+        { id: "fishD", x: 420, y: 100, r: 18, hard: 1, kind: "shift", dx: -16, dy: 10 },
+        { id: "person", x: 160, y: 40, r: 28, hard: 2, kind: "gone" },
+        { id: "bucket", x: 450, y: 220, r: 18, hard: 2, kind: "hue" },
+        { id: "weed2", x: 440, y: 185, r: 45, hard: 2, kind: "hue" },
+        { id: "fishE", x: 200, y: 150, r: 18, hard: 1, kind: "hue" },
+        { id: "crab2", x: 320, y: 235, r: 18, hard: 2, kind: "gone" },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "すいぞくかん",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 260, fill: "#1A5A7A" }, g);
+          el("rect", { x: 0, y: 200, width: 480, height: 60, fill: "#C8B070" }, g);
+          paintCrowd(g, crowd);
+          if (!has("person") || L) person(g, 160, 40, C.orange);
+          person(g, 300, 35, C.mint); person(g, 400, 40, C.pink);
+          {
+            const tall = alt(has, "weed", L);
+            el("path", { d: tall ? "M 50 230 Q 40 180 55 140 Q 70 180 60 230" : "M 50 230 Q 42 195 55 170 Q 68 195 60 230", fill: "none", stroke: "#2E8B57", "stroke-width": 6, "stroke-linecap": "round" }, g);
+            el("path", { d: tall ? "M 70 230 Q 80 175 65 145" : "M 70 230 Q 78 195 68 175", fill: "none", stroke: "#3E9B4C", "stroke-width": 5, "stroke-linecap": "round" }, g);
+          }
+          el("path", { d: "M 430 230 Q 420 180 440 150 Q 455 180 445 230", fill: "none", stroke: alt(has, "weed2", L) ? C.pink : "#2E8B57", "stroke-width": 6, "stroke-linecap": "round" }, g);
+          {
+            const big = alt(has, "bubble", L);
+            el("circle", S({ cx: 200, cy: big ? 40 : 60, r: big ? 14 : 8, fill: "rgba(255,255,255,.35)" }), g);
+            el("circle", S({ cx: 215, cy: big ? 70 : 85, r: big ? 10 : 6, fill: "rgba(255,255,255,.3)" }), g);
+            if (big) el("circle", S({ cx: 190, cy: 95, r: 7, fill: "rgba(255,255,255,.25)" }), g);
+          }
+          el("circle", S({ cx: 100, cy: 50, r: 5, fill: "rgba(255,255,255,.3)" }), g);
+          el("circle", S({ cx: 340, cy: 55, r: 6, fill: "rgba(255,255,255,.3)" }), g);
+          {
+            const p = xyShift(has, "fishA", L, 120, 100, 18, 8);
+            fish(g, p.x, p.y, C.orange);
+          }
+          fish(g, 280, 80, alt(has, "fishB", L) ? C.pink : C.yellow);
+          if (!has("fishC") || L) fish(g, 350, 140, C.mint);
+          {
+            const p = xyShift(has, "fishD", L, 420, 100, -16, 10);
+            fish(g, p.x, p.y, C.blue);
+          }
+          fish(g, 200, 150, alt(has, "fishE", L) ? C.red : C.blue);
+          fish(g, 160, 130, C.pink); fish(g, 300, 120, C.orange); fish(g, 80, 150, C.yellow);
+          {
+            const p = xyShift(has, "crab", L, 80, 220, 16, -6);
+            crab(g, p.x, p.y, true);
+          }
+          if (!has("crab2") || L) crab(g, 320, 235, true);
+          if (alt(has, "star", L)) shell(g, 400, 220); else starfish(g, 400, 220);
+          starfish(g, 360, 240); starfish(g, 240, 235);
+          if (!has("shell") || L) shell(g, 180, 230);
+          shell(g, 120, 240); shell(g, 260, 245);
+          {
+            const p = xyShift(has, "rock", L, 300, 230, -14, 0);
+            rock(g, p.x, p.y, "#6A7A6A");
+          }
+          rock(g, 50, 245, "#5A6A5A"); rock(g, 200, 245); rock(g, 420, 245);
+          ball(g, 250, 200, true, alt(has, "ball", L) ? "square" : "round");
+          bucket(g, 450, 220, alt(has, "bucket", L) ? C.yellow : C.blue);
+          mushroom(g, 40, 220); flower(g, 460, 240, C.pink, 5);
+          packRow(g, "shell", 250, 10, [C.pink], (gg, x, yy) => shell(gg, x, yy));
+          butterfly(g, 100, 40, C.yellow); balloon(g, 50, 30, C.red); kite(g, 250, 30, C.orange);
+        },
+      };
+    },
+  },
+  {
+    id: "market", title: "いちば",
+    build(rng) {
+      const crowd = makeSceneCrowd(rng, "park");
+      const pool = [
+        { id: "apple", x: 120, y: 160, r: 18, hard: 1, kind: "shape" },
+        { id: "banana", x: 200, y: 165, r: 18, hard: 1, kind: "hue" },
+        { id: "balloon", x: 80, y: 50, r: 24, hard: 1, kind: "shape" },
+        { id: "awning", x: 120, y: 90, r: 55, hard: 1, kind: "hue" },
+        { id: "person", x: 280, y: 200, r: 26, hard: 1, kind: "shift", dx: 18, dy: 0 },
+        { id: "dog", x: 360, y: 230, r: 22, hard: 1, kind: "gone" },
+        { id: "basket", x: 300, y: 170, r: 22, hard: 1, kind: "shape" },
+        { id: "flag", x: 415, y: 80, r: 45, hard: 1, kind: "len" },
+        { id: "bird", x: 250, y: 40, r: 18, hard: 1, kind: "shift", dx: -18, dy: 8 },
+        { id: "cupcake", x: 180, y: 175, r: 16, hard: 1, kind: "shift", dx: 14, dy: -4 },
+        { id: "flower", x: 50, y: 215, r: 28, hard: 1, kind: "gone" },
+        { id: "ball", x: 440, y: 230, r: 16, hard: 1, kind: "shape" },
+        { id: "cat", x: 60, y: 230, r: 22, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "book", x: 340, y: 200, r: 16, hard: 2, kind: "gone" },
+        { id: "person2", x: 160, y: 205, r: 24, hard: 2, kind: "gone" },
+        { id: "kite", x: 320, y: 55, r: 40, hard: 2, kind: "len" },
+      ];
+      const diffs = takeDiffs(rng, pool, DIFF_COUNT);
+      const has = activeSet(diffs);
+      return {
+        title: "いちば",
+        diffs,
+        draw(g, side) {
+          const L = side === "L";
+          el("rect", { x: 0, y: 0, width: 480, height: 130, fill: C.sky }, g);
+          el("rect", { x: 0, y: 130, width: 480, height: 130, fill: "#E8D0A8" }, g);
+          paintCrowd(g, crowd);
+          sunBody(g, 430, 40, true, -1);
+          cloud(g, 100, 35, 0.7); cloud(g, 220, 50, 0.55);
+          {
+            const p = xyShift(has, "bird", L, 250, 40, -18, 8);
+            bird(g, p.x, p.y);
+          }
+          bird(g, 150, 45); bird(g, 360, 35);
+          balloon(g, 80, 50, C.red, alt(has, "balloon", L) ? "square" : "round");
+          balloon(g, 120, 40, C.blue); balloon(g, 450, 55, C.yellow);
+          kite(g, 320, 45, C.pink, alt(has, "kite", L));
+          el("rect", S({ x: 40, y: 110, width: 160, height: 70, fill: "#F5E6D0" }), g);
+          el("polygon", S({ points: "30,110 120,70 210,110", fill: alt(has, "awning", L) ? C.blue : C.red }), g);
+          el("rect", S({ x: 230, y: 115, width: 140, height: 65, fill: "#F5E6D0" }), g);
+          el("polygon", S({ points: "220,115 300,75 380,115", fill: C.orange }), g);
+          el("rect", S({ x: 390, y: 120, width: 70, height: 60, fill: "#F5E6D0" }), g);
+          el("polygon", S({ points: "380,120 425,85 470,120", fill: C.yellow }), g);
+          {
+            const tall = alt(has, "flag", L);
+            el("line", { x1: 400, y1: tall ? 40 : 55, x2: 400, y2: 120, stroke: INK, "stroke-width": 2.4 }, g);
+            el("polygon", S({ points: tall ? "400,42 435,55 400,68" : "400,55 428,65 400,75", fill: C.pink }), g);
+          }
+          if (alt(has, "apple", L)) el("rect", S({ x: 108, y: 148, width: 24, height: 24, rx: 3, fill: C.red }), g);
+          else el("circle", S({ cx: 120, cy: 160, r: 12, fill: C.red }), g);
+          el("circle", S({ cx: 145, cy: 162, r: 10, fill: C.red }), g);
+          el("circle", S({ cx: 100, cy: 168, r: 9, fill: C.orange }), g);
+          el("circle", S({ cx: 200, cy: 165, r: 11, fill: alt(has, "banana", L) ? C.blue : C.yellow }), g);
+          el("circle", S({ cx: 220, cy: 170, r: 9, fill: C.yellow }), g);
+          {
+            const p = xyShift(has, "cupcake", L, 180, 175, 14, -4);
+            cupcake(g, p.x, p.y);
+          }
+          cupcake(g, 250, 160); cupcake(g, 270, 165);
+          if (alt(has, "basket", L)) {
+            el("rect", S({ x: 288, y: 158, width: 24, height: 24, rx: 2, fill: C.wood }), g);
+          } else {
+            el("ellipse", S({ cx: 300, cy: 170, rx: 16, ry: 10, fill: C.wood }), g);
+            el("path", S({ d: "M 286 168 L 284 182 L 316 182 L 314 168 Z", fill: C.wood }), g);
+          }
+          if (!has("book") || L) book(g, 340, 200, C.blue);
+          book(g, 360, 200, C.red); book(g, 420, 180, C.yellow);
+          if (!has("flower") || L) flower(g, 50, 220, C.pink, 5);
+          flower(g, 90, 235, C.yellow, 5); flower(g, 420, 235, C.orange, 5);
+          {
+            const p = xyShift(has, "person", L, 280, 200, 18, 0);
+            person(g, p.x, p.y, C.mint);
+          }
+          if (!has("person2") || L) person(g, 160, 205, C.orange);
+          person(g, 220, 200, C.pink); person(g, 400, 200, C.blue);
+          if (!has("dog") || L) dog(g, 360, 230);
+          {
+            const p = xyShift(has, "cat", L, 60, 230, 16, 0);
+            cat(g, p.x, p.y, true);
+          }
+          ball(g, 440, 230, true, alt(has, "ball", L) ? "square" : "round");
+          bush(g, 20, 210); bush(g, 460, 210); rock(g, 140, 245); rock(g, 300, 245);
+          mushroom(g, 200, 235); mushroom(g, 320, 235);
+          packRow(g, "flower", 250, 12, [C.pink, C.yellow, C.orange, C.red], (gg, x, yy, col) => flower(gg, x, yy, col, 5));
+          lantern(g, 100, 100, C.red); lantern(g, 340, 95, C.yellow);
+          butterfly(g, 180, 70, C.pink); butterfly(g, 380, 80, C.yellow);
         },
       };
     },
