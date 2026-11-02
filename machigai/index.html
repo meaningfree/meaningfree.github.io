@@ -673,41 +673,55 @@ function packRow(g, kind, y, cols, colors, fn) {
 }
 
 /**
- * Pick n diffs at random from the pool every seed.
- * Caps: ~2 hard of 6, ~2 gone; prefers non-gone variety without forcing the
- * same "preferred" items first. Kinds: gone | shift | len | shape | hue
+ * Pick n diffs at random. Saizeriya-ish mix: ~half should need a careful look
+ * (hard), presence/absence ("gone") stays a minority. Kinds: gone | shift |
+ * len | shape | hue
  */
 function takeDiffs(rng, pool, n) {
-  const hardN = Math.max(1, Math.round(n * 0.35));
-  const maxGone = Math.max(1, Math.round(n * 0.35));
-  const tagged = shuffle(rng, pool.map(d => Object.assign({
-    kind: d.kind || "gone",
-    hard: d.hard || 1,
-  }, d)));
+  const minHard = Math.max(2, Math.round(n * 0.45)); // ~3 of 6
+  const maxHard = Math.max(minHard, Math.round(n * 0.6));
+  const maxGone = Math.max(1, Math.round(n * 0.25)); // ~1–2 of 6
+  const tagged = shuffle(rng, pool.map(d => {
+    const kind = d.kind || "gone";
+    // Promote subtle kinds to hard unless the author forced easy.
+    let hard = d.hard;
+    if (hard == null) {
+      hard = (kind === "hue" || kind === "shift" || kind === "len") ? 2 : 1;
+    }
+    return Object.assign({}, d, { kind, hard });
+  }));
+  const hardPool = shuffle(rng, tagged.filter(d => (d.hard || 1) >= 2));
+  const easyPool = shuffle(rng, tagged.filter(d => (d.hard || 1) <= 1));
   const chosen = [];
-  const fits = d => chosen.every(c => Math.hypot(c.x - d.x, c.y - d.y) >= c.r + d.r + 18);
+  const fits = d => chosen.every(c => Math.hypot(c.x - d.x, c.y - d.y) >= c.r + d.r + 16);
   const goneCount = () => chosen.filter(c => c.kind === "gone").length;
   const hardCount = () => chosen.filter(c => (c.hard || 1) >= 2).length;
-  const tryAdd = (d, relaxHard) => {
+  const tryAdd = (d, opts = {}) => {
     if (chosen.includes(d) || !fits(d)) return false;
     if (d.kind === "gone" && goneCount() >= maxGone) return false;
-    if (!relaxHard && (d.hard || 1) >= 2 && hardCount() >= hardN) return false;
+    const h = (d.hard || 1) >= 2;
+    if (h && !opts.forceHard && hardCount() >= maxHard) return false;
+    if (!h && opts.needHard) return false;
     chosen.push(d);
     return true;
   };
-  // Pass 1: fully shuffled — locations & kinds vary every seed.
-  for (const d of tagged) {
+  // 1) Lock in enough hard diffs first (careful-look items).
+  for (const d of hardPool) {
+    if (hardCount() >= minHard) break;
+    tryAdd(d, { forceHard: true, needHard: true });
+  }
+  // 2) Fill remaining from a shuffled mix, still respecting caps.
+  const rest = shuffle(rng, tagged);
+  for (const d of rest) {
     if (chosen.length >= n) break;
-    tryAdd(d, false);
+    tryAdd(d, {});
   }
-  // Pass 2: fill leftovers (still respect gone cap; allow hard if needed).
-  if (chosen.length < n) {
-    for (const d of tagged) {
-      if (chosen.length >= n) break;
-      tryAdd(d, true);
-    }
+  // 3) Prefer easy fillers if still short on count.
+  for (const d of easyPool) {
+    if (chosen.length >= n) break;
+    tryAdd(d, {});
   }
-  // Pass 3: last resort — space only.
+  // 4) Last resort — any leftover that fits.
   while (chosen.length < Math.min(n, tagged.length)) {
     const d = tagged.find(p => !chosen.includes(p) && chosen.every(c => Math.hypot(c.x - p.x, c.y - p.y) >= 10));
     if (!d) break;
@@ -717,7 +731,7 @@ function takeDiffs(rng, pool, n) {
     const dx = d.dx || 0, dy = d.dy || 0;
     const kind = d.kind || "gone";
     const hitX = d.x + dx / 2, hitY = d.y + dy / 2;
-    const pad = kind === "shift" ? 10 : kind === "len" ? 26 : kind === "shape" ? 14 : 12;
+    const pad = kind === "shift" ? 8 : kind === "len" ? 22 : kind === "shape" ? 12 : 10;
     const hitR = d.r + Math.hypot(dx, dy) / 2 + pad;
     return {
       id: d.id, x: hitX, y: hitY, r: hitR,
@@ -744,25 +758,36 @@ function slot(rng, spots) {
   const s = spots[Math.floor(rng() * spots.length)];
   return Array.isArray(s) ? { x: s[0], y: s[1] } : { x: s.x, y: s.y };
 }
-/** Mildly randomize a shift vector so exact offsets also vary. */
+/** Randomize a shift — keep it subtle/medium so spotting takes a look. */
 function shiftVar(rng, dx, dy) {
-  const s = 0.8 + rng() * 0.55;
-  const flip = rng() < 0.35 ? -1 : 1;
-  return { dx: Math.round(dx * s * flip), dy: Math.round(dy * s * (rng() < 0.25 ? -1 : 1)) };
+  const s = 0.4 + rng() * 0.35; // ~40–75% of the authored offset
+  const flipX = rng() < 0.25 ? -1 : 1;
+  const flipY = rng() < 0.2 ? -1 : 1;
+  const outDx = Math.round(dx * s * flipX);
+  const outDy = Math.round(dy * s * flipY);
+  // Never collapse to "basically no move".
+  const minX = dx === 0 ? 0 : (dx > 0 ? 6 : -6);
+  const minY = dy === 0 ? 0 : (dy > 0 ? 4 : -4);
+  return {
+    dx: outDx === 0 && dx !== 0 ? minX * flipX : outDx,
+    dy: outDy === 0 && dy !== 0 ? minY * flipY : outDy,
+  };
 }
 /** Build a pool entry; optional spots / shift make locations less memorizable. */
 function cand(rng, spec) {
   const p = spec.spots ? slot(rng, spec.spots) : { x: spec.x, y: spec.y };
   const kind = spec.kinds ? pick(rng, spec.kinds) : (spec.kind || "gone");
+  let hard = spec.hard;
+  if (hard == null) hard = (kind === "hue" || kind === "shift" || kind === "len") ? 2 : 1;
   const out = {
     id: spec.id,
     x: p.x, y: p.y,
     r: spec.r || 20,
-    hard: spec.hard || 1,
+    hard,
     kind,
   };
   if (kind === "shift") {
-    const v = shiftVar(rng, spec.dx == null ? 16 : spec.dx, spec.dy == null ? -6 : spec.dy);
+    const v = shiftVar(rng, spec.dx == null ? 11 : spec.dx, spec.dy == null ? -5 : spec.dy);
     out.dx = v.dx; out.dy = v.dy;
   }
   return out;
@@ -783,32 +808,32 @@ const SCENES_RAW = [
       const flowerI = Math.floor(rng() * 8);
       const flowerSpots = [[50,210],[90,218],[140,208],[340,214],[400,220],[430,210],[240,230],[160,236]];
       const flowerP = flowerSpots[flowerI];
-      const svBird = shiftVar(rng, -22, 12);
-      const svDog = shiftVar(rng, 20, -6);
-      const svBut = shiftVar(rng, 18, -16);
-      const svKite2 = shiftVar(rng, 16, 10);
-      const svPerson = shiftVar(rng, -18, 0);
+      const svBird = shiftVar(rng, -12, 6);
+      const svDog = shiftVar(rng, 12, -5);
+      const svBut = shiftVar(rng, 10, -8);
+      const svKite2 = shiftVar(rng, 10, 6);
+      const svPerson = shiftVar(rng, -10, 0);
       const pool = [
-        { id: "birdA", x: birdA.x, y: birdA.y, r: 24, hard: 1, kind: "shift", dx: svBird.dx, dy: svBird.dy },
-        { id: "kite", x: 304, y: 85, r: 40, hard: 1, kind: "len" },
+        { id: "birdA", x: birdA.x, y: birdA.y, r: 24, hard: 2, kind: "shift", dx: svBird.dx, dy: svBird.dy },
+        { id: "kite", x: 304, y: 85, r: 40, hard: 2, kind: "len" },
         { id: "ball", x: ballP.x, y: ballP.y, r: 20, hard: 1, kind: "shape" },
-        { id: "dog", x: dogP.x, y: dogP.y, r: 26, hard: 1, kind: "shift", dx: svDog.dx, dy: svDog.dy },
+        { id: "dog", x: dogP.x, y: dogP.y, r: 26, hard: 2, kind: "shift", dx: svDog.dx, dy: svDog.dy },
         { id: "kid", x: kidP.x, y: kidP.y, r: 26, hard: 1, kind: "gone" },
-        { id: "mushroom", x: mushP.x, y: mushP.y - 8, r: 32, hard: 1, kind: "len" },
-        { id: "benchC", x: 280, y: 186, r: 28, hard: 1, kind: "hue" },
-        { id: "butterfly", x: butP.x, y: butP.y, r: 22, hard: 1, kind: "shift", dx: svBut.dx, dy: svBut.dy },
+        { id: "mushroom", x: mushP.x, y: mushP.y - 8, r: 32, hard: 2, kind: "len" },
+        { id: "benchC", x: 280, y: 186, r: 28, hard: 2, kind: "hue" },
+        { id: "butterfly", x: butP.x, y: butP.y, r: 22, hard: 2, kind: "shift", dx: svBut.dx, dy: svBut.dy },
         { id: "apple", x: 118, y: 120, r: 20, hard: 2, kind: "shape" },
         { id: "balloon", x: 50, y: 55, r: 24, hard: 1, kind: "shape" },
         { id: "cloudA", x: 150, y: 40, r: 30, hard: 1, kind: "gone" },
-        { id: "swing", x: 200, y: 188, r: 28, hard: 1, kind: "hue" },
-        { id: "kite2", x: 180, y: 70, r: 28, hard: 1, kind: "shift", dx: svKite2.dx, dy: svKite2.dy },
-        { id: "flowerBig", x: flowerP[0], y: flowerP[1], r: 22, hard: 1, kind: "hue" },
+        { id: "swing", x: 200, y: 188, r: 28, hard: 2, kind: "hue" },
+        { id: "kite2", x: 180, y: 70, r: 28, hard: 2, kind: "shift", dx: svKite2.dx, dy: svKite2.dy },
+        { id: "flowerBig", x: flowerP[0], y: flowerP[1], r: 22, hard: 2, kind: "hue" },
         { id: "bushL", x: 40, y: 190, r: 24, hard: 2, kind: "gone" },
         { id: "personR", x: 340, y: 198, r: 26, hard: 2, kind: "shift", dx: svPerson.dx, dy: svPerson.dy },
         cand(rng, { id: "birdB", spots: [[200, 48], [220, 40], [180, 55]], r: 20, kind: "gone" }),
         cand(rng, { id: "birdC", spots: [[330, 56], [310, 42], [350, 50]], r: 20, kind: "shift", dx: 14, dy: 8 }),
         cand(rng, { id: "ball2", spots: [[400, 230], [420, 235], [380, 228]], r: 18, kinds: ["shape", "gone"] }),
-        cand(rng, { id: "dog2", spots: [[420, 225], [440, 230]], r: 22, kind: "shift", dx: -16, dy: 4 }),
+        cand(rng, { id: "dog2", spots: [[420, 225], [440, 230]], r: 22, kind: "shift", dx: -10, dy: 4 }),
         cand(rng, { id: "mush2", spots: [[460, 230], [290, 230], [310, 235]], r: 24, kinds: ["len", "gone"] }),
         cand(rng, { id: "bushR", spots: [[440, 200], [420, 205]], r: 24, kind: "gone" }),
         cand(rng, { id: "personL", spots: [[80, 205], [60, 210], [100, 200]], r: 24, kinds: ["gone", "shift"], dx: 14, dy: 0 }),
@@ -816,7 +841,7 @@ const SCENES_RAW = [
         cand(rng, { id: "cloudB", spots: [[250, 58], [360, 36]], r: 28, kind: "gone" }),
         cand(rng, { id: "balloon2", spots: [[100, 45], [70, 70]], r: 22, kinds: ["shape", "hue"] }),
         cand(rng, { id: "apple2", spots: [[92, 130], [390, 128]], r: 16, kind: "shape" }),
-        cand(rng, { id: "but2", spots: [[120, 150], [220, 150], [280, 140]], r: 20, kinds: ["hue", "gone", "shift"], dx: 12, dy: -10 }),
+        cand(rng, { id: "but2", spots: [[120, 150], [220, 150], [280, 140]], r: 20, kinds: ["hue", "gone", "shift"], dx: 12, dy: -6 }),
         cand(rng, { id: "treeFruit", spots: [[118, 120], [390, 128]], r: 18, kind: "gone" }),
         cand(rng, { id: "pathRock", spots: [[248, 210], [264, 214]], r: 16, kind: "gone" }),
       ];
@@ -963,12 +988,13 @@ const SCENES_RAW = [
           mushroom(g, mushP.x, mushP.y, alt(has, "mushroom", L));
           {
             const m2 = dOf("mush2");
-            const spots = [[460, 230], [290, 230]];
+            const spots = [[460, 230], [290, 230], [310, 235]];
+            if (m2 && !(m2.kind === "gone" && has("mush2") && !L)) {
+              mushroom(g, m2.x, m2.y, m2.kind === "len" && alt(has, "mush2", L));
+            }
             spots.forEach(([x, y]) => {
-              if (m2 && Math.hypot(m2.x - x, m2.y - y) < 8) {
-                if (m2.kind === "gone" && has("mush2") && !L) return;
-                mushroom(g, x, y, m2.kind === "len" && alt(has, "mush2", L));
-              } else mushroom(g, x, y);
+              if (m2 && Math.hypot(m2.x - x, m2.y - y) < 14) return;
+              mushroom(g, x, y);
             });
           }
           if (!has("kid") || L) person(g, kidP.x, kidP.y, C.orange);
@@ -996,20 +1022,20 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "beach");
       const pool = [
-        { id: "boat", x: 400, y: 110, r: 28, hard: 1, kind: "shift", dx: -24, dy: 10 },
-        { id: "crab", x: 70, y: 222, r: 20, hard: 1, kind: "shift", dx: 18, dy: -8 },
+        { id: "boat", x: 400, y: 110, r: 28, hard: 2, kind: "shift", dx: -12, dy: 6 },
+        { id: "crab", x: 70, y: 222, r: 20, hard: 2, kind: "shift", dx: 12, dy: -8 },
         { id: "star", x: 420, y: 224, r: 20, hard: 1, kind: "shape" },
-        { id: "fish", x: 180, y: 140, r: 20, hard: 1, kind: "hue" },
+        { id: "fish", x: 180, y: 140, r: 20, hard: 2, kind: "hue" },
         { id: "bucket", x: 300, y: 220, r: 18, hard: 1, kind: "gone" },
-        { id: "bird", x: 90, y: 40, r: 18, hard: 1, kind: "shift", dx: 20, dy: 10 },
-        { id: "umbrella", x: 230, y: 160, r: 42, hard: 1, kind: "len" },
-        { id: "shellA", x: 150, y: 230, r: 18, hard: 1, kind: "shift", dx: -16, dy: 8 },
-        { id: "kid", x: 340, y: 200, r: 22, hard: 1, kind: "shift", dx: -18, dy: 0 },
+        { id: "bird", x: 90, y: 40, r: 18, hard: 2, kind: "shift", dx: 12, dy: 6 },
+        { id: "umbrella", x: 230, y: 160, r: 42, hard: 2, kind: "len" },
+        { id: "shellA", x: 150, y: 230, r: 18, hard: 2, kind: "shift", dx: -10, dy: 8 },
+        { id: "kid", x: 340, y: 200, r: 22, hard: 2, kind: "shift", dx: -12, dy: 0 },
         { id: "ball", x: 50, y: 200, r: 18, hard: 1, kind: "shape" },
         { id: "crabB", x: 200, y: 235, r: 20, hard: 1, kind: "gone" },
-        { id: "sail", x: 60, y: 120, r: 24, hard: 1, kind: "hue" },
+        { id: "sail", x: 60, y: 120, r: 24, hard: 2, kind: "hue" },
         { id: "balloon", x: 320, y: 45, r: 22, hard: 1, kind: "shape" },
-        { id: "dog", x: 180, y: 220, r: 22, hard: 2, kind: "shift", dx: 16, dy: -6 },
+        { id: "dog", x: 180, y: 220, r: 22, hard: 2, kind: "shift", dx: 10, dy: -6 },
         { id: "umbrella2", x: 140, y: 160, r: 36, hard: 2, kind: "hue" },
         { id: "kite", x: 250, y: 60, r: 26, hard: 2, kind: "gone" },
       ];
@@ -1100,21 +1126,21 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "indoor");
       const pool = [
-        { id: "cat", x: 400, y: 208, r: 26, hard: 1, kind: "shift", dx: -22, dy: 4 },
-        { id: "clock", x: 236, y: 46, r: 22, hard: 1, kind: "hue" },
-        { id: "plant", x: 70, y: 200, r: 20, hard: 1, kind: "shift", dx: 16, dy: -10 },
+        { id: "cat", x: 400, y: 208, r: 26, hard: 2, kind: "shift", dx: -12, dy: 4 },
+        { id: "clock", x: 236, y: 46, r: 22, hard: 2, kind: "hue" },
+        { id: "plant", x: 70, y: 200, r: 20, hard: 2, kind: "shift", dx: 10, dy: -6 },
         { id: "book", x: 300, y: 210, r: 16, hard: 1, kind: "gone" },
         { id: "ball", x: 180, y: 230, r: 16, hard: 1, kind: "shape" },
         { id: "frame", x: 412, y: 62, r: 20, hard: 1, kind: "shape" },
-        { id: "lamp", x: 150, y: 175, r: 24, hard: 1, kind: "hue" },
-        { id: "cupcake", x: 250, y: 175, r: 16, hard: 1, kind: "shift", dx: 16, dy: 0 },
-        { id: "butterfly", x: 340, y: 90, r: 18, hard: 1, kind: "hue" },
-        { id: "teddy", x: 60, y: 120, r: 22, hard: 1, kind: "len" },
+        { id: "lamp", x: 150, y: 175, r: 24, hard: 2, kind: "hue" },
+        { id: "cupcake", x: 250, y: 175, r: 16, hard: 2, kind: "shift", dx: 10, dy: 0 },
+        { id: "butterfly", x: 340, y: 90, r: 18, hard: 2, kind: "hue" },
+        { id: "teddy", x: 60, y: 120, r: 22, hard: 2, kind: "len" },
         { id: "bookHue", x: 280, y: 210, r: 20, hard: 2, kind: "shape" },
-        { id: "curtain", x: 48, y: 60, r: 28, hard: 1, kind: "len" },
+        { id: "curtain", x: 48, y: 60, r: 28, hard: 2, kind: "len" },
         { id: "balloon", x: 180, y: 50, r: 22, hard: 1, kind: "shape" },
         { id: "dog", x: 240, y: 235, r: 22, hard: 2, kind: "gone" },
-        { id: "person", x: 330, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "person", x: 330, y: 195, r: 24, hard: 2, kind: "shift", dx: 10, dy: 0 },
         { id: "kite", x: 300, y: 55, r: 26, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
@@ -1218,19 +1244,19 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "park");
       const pool = [
-        { id: "cow", x: 120, y: 205, r: 30, hard: 1, kind: "shift", dx: 20, dy: -6 },
-        { id: "chicken", x: 220, y: 220, r: 20, hard: 1, kind: "shift", dx: -16, dy: 8 },
-        { id: "cropA", x: 420, y: 220, r: 22, hard: 1, kind: "hue" },
+        { id: "cow", x: 120, y: 205, r: 30, hard: 2, kind: "shift", dx: 12, dy: -6 },
+        { id: "chicken", x: 220, y: 220, r: 20, hard: 2, kind: "shift", dx: -10, dy: 8 },
+        { id: "cropA", x: 420, y: 220, r: 22, hard: 2, kind: "hue" },
         { id: "dog", x: 300, y: 230, r: 20, hard: 1, kind: "gone" },
-        { id: "bird", x: 200, y: 40, r: 18, hard: 1, kind: "shift", dx: 20, dy: 8 },
-        { id: "tractor", x: 68, y: 200, r: 36, hard: 1, kind: "len" },
+        { id: "bird", x: 200, y: 40, r: 18, hard: 2, kind: "shift", dx: 12, dy: 8 },
+        { id: "tractor", x: 68, y: 200, r: 36, hard: 2, kind: "len" },
         { id: "pumpkin", x: 380, y: 230, r: 18, hard: 1, kind: "shape" },
-        { id: "barnDoor", x: 362, y: 158, r: 24, hard: 1, kind: "hue" },
-        { id: "flower", x: 450, y: 200, r: 18, hard: 1, kind: "shift", dx: -18, dy: 10 },
+        { id: "barnDoor", x: 362, y: 158, r: 24, hard: 2, kind: "hue" },
+        { id: "flower", x: 450, y: 200, r: 18, hard: 2, kind: "shift", dx: -12, dy: 6 },
         { id: "bucket", x: 260, y: 210, r: 18, hard: 1, kind: "shape" },
         { id: "chickB", x: 250, y: 230, r: 18, hard: 1, kind: "gone" },
         { id: "balloon", x: 180, y: 40, r: 22, hard: 1, kind: "shape" },
-        { id: "person", x: 360, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "person", x: 360, y: 195, r: 24, hard: 2, kind: "shift", dx: 10, dy: 0 },
         { id: "kite", x: 240, y: 50, r: 26, hard: 2, kind: "gone" },
         { id: "cow2", x: 80, y: 230, r: 22, hard: 2, kind: "shift", dx: 14, dy: -4 },
         { id: "lantern", x: 250, y: 140, r: 28, hard: 2, kind: "len" },
@@ -1344,34 +1370,33 @@ const SCENES_RAW = [
       const pool = [
         { id: "flake", x: 60, y: 40, r: 20, hard: 1, kind: "shape" },
         { id: "scarf", x: 240, y: 150, r: 26, hard: 1, kind: "gone" },
-        { id: "bird", x: 320, y: 50, r: 20, hard: 1, kind: "shift", dx: -20, dy: 12 },
-        { id: "sled", x: 370, y: 230, r: 36, hard: 1, kind: "len" },
-        { id: "dog", x: 140, y: 230, r: 22, hard: 1, kind: "shift", dx: 20, dy: -6 },
-        { id: "window", x: 89, y: 157, r: 20, hard: 1, kind: "hue" },
+        { id: "bird", x: 320, y: 50, r: 20, hard: 2, kind: "shift", dx: -12, dy: 6 },
+        { id: "sled", x: 370, y: 230, r: 36, hard: 2, kind: "len" },
+        { id: "dog", x: 140, y: 230, r: 22, hard: 2, kind: "shift", dx: 12, dy: -6 },
+        { id: "window", x: 89, y: 157, r: 20, hard: 2, kind: "hue" },
         { id: "treeOrn", x: 390, y: 140, r: 18, hard: 1, kind: "shape" },
-        { id: "kid", x: 300, y: 200, r: 24, hard: 1, kind: "shift", dx: 18, dy: 0 },
-        { id: "mushroom", x: 50, y: 220, r: 22, hard: 1, kind: "len" },
-        { id: "smoke", x: 136, y: 58, r: 34, hard: 1, kind: "len" },
+        { id: "kid", x: 300, y: 200, r: 24, hard: 2, kind: "shift", dx: 12, dy: 0 },
+        { id: "mushroom", x: 50, y: 220, r: 22, hard: 2, kind: "len" },
+        { id: "smoke", x: 136, y: 58, r: 34, hard: 2, kind: "len" },
         { id: "hat", x: 240, y: 140, r: 22, hard: 1, kind: "gone" },
-        { id: "ornHue", x: 375, y: 155, r: 16, hard: 1, kind: "hue" },
+        { id: "ornHue", x: 375, y: 155, r: 16, hard: 2, kind: "hue" },
         { id: "balloon", x: 280, y: 90, r: 22, hard: 1, kind: "shape" },
         { id: "snowman2", x: 190, y: 220, r: 24, hard: 2, kind: "gone" },
-        { id: "kite", x: 200, y: 55, r: 26, hard: 2, kind: "shift", dx: 16, dy: 8 },
+        { id: "kite", x: 200, y: 55, r: 26, hard: 2, kind: "shift", dx: 10, dy: 8 },
         { id: "person", x: 100, y: 205, r: 24, hard: 2, kind: "gone" },
         { id: "lantern1", x: 200, y: 100, r: 28, hard: 1, kind: "gone" },
-        { id: "lantern2", x: 300, y: 90, r: 28, hard: 1, kind: "len" },
+        { id: "lantern2", x: 300, y: 90, r: 28, hard: 2, kind: "len" },
         { id: "ballS", x: 400, y: 235, r: 16, hard: 1, kind: "shape" },
         { id: "ballS2", x: 250, y: 235, r: 16, hard: 1, kind: "gone" },
         { id: "flowerS", x: 420, y: 235, r: 18, hard: 1, kind: "gone" },
-        { id: "flowerS2", x: 70, y: 235, r: 18, hard: 1, kind: "hue" },
+        { id: "flowerS2", x: 70, y: 235, r: 18, hard: 2, kind: "hue" },
         { id: "bushS", x: 20, y: 220, r: 22, hard: 1, kind: "gone" },
-        { id: "person2s", x: 430, y: 205, r: 24, hard: 1, kind: "shift", dx: -14, dy: 0 },
+        { id: "person2s", x: 430, y: 205, r: 24, hard: 2, kind: "shift", dx: -14, dy: 0 },
         { id: "person3s", x: 360, y: 200, r: 24, hard: 2, kind: "gone" },
-        { id: "cupcakeS", x: 100, y: 220, r: 16, hard: 1, kind: "shift", dx: 12, dy: 0 },
+        { id: "cupcakeS", x: 100, y: 220, r: 16, hard: 2, kind: "shift", dx: 12, dy: 0 },
         { id: "bookS", x: 420, y: 220, r: 16, hard: 2, kind: "gone" },
         { id: "balloonS", x: 110, y: 70, r: 22, hard: 1, kind: "shape" },
-        { id: "cloudS", x: 0, y: 0, r: 1, hard: 2, kind: "gone" }, // placeholder removed below
-      ].filter(d => d.id !== "cloudS");
+      ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
       const has = activeSet(diffs);
       return {
@@ -1486,21 +1511,21 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "night");
       const pool = [
-        { id: "lanternA", x: 80, y: 78, r: 44, hard: 1, kind: "len" },
-        { id: "flag", x: 420, y: 84, r: 32, hard: 1, kind: "hue" },
+        { id: "lanternA", x: 80, y: 78, r: 44, hard: 2, kind: "len" },
+        { id: "flag", x: 420, y: 84, r: 32, hard: 2, kind: "hue" },
         { id: "balloon", x: 180, y: 70, r: 24, hard: 1, kind: "shape" },
-        { id: "personL", x: 140, y: 210, r: 30, hard: 1, kind: "shift", dx: 20, dy: 0 },
-        { id: "mask", x: 320, y: 200, r: 26, hard: 1, kind: "hue" },
+        { id: "personL", x: 140, y: 210, r: 30, hard: 2, kind: "shift", dx: 12, dy: 0 },
+        { id: "mask", x: 320, y: 200, r: 26, hard: 2, kind: "hue" },
         { id: "star", x: 70, y: 50, r: 20, hard: 1, kind: "shape" },
-        { id: "taiko", x: 250, y: 205, r: 34, hard: 1, kind: "len" },
-        { id: "food", x: 220, y: 155, r: 20, hard: 1, kind: "shift", dx: 16, dy: -8 },
+        { id: "taiko", x: 250, y: 205, r: 34, hard: 2, kind: "len" },
+        { id: "food", x: 220, y: 155, r: 20, hard: 2, kind: "shift", dx: 10, dy: -8 },
         { id: "dog", x: 380, y: 230, r: 24, hard: 1, kind: "gone" },
-        { id: "banner", x: 240, y: 95, r: 28, hard: 1, kind: "len" },
-        { id: "lanternB", x: 130, y: 55, r: 36, hard: 1, kind: "hue" },
-        { id: "star2", x: 250, y: 45, r: 20, hard: 1, kind: "shift", dx: 18, dy: 10 },
+        { id: "banner", x: 240, y: 95, r: 28, hard: 2, kind: "len" },
+        { id: "lanternB", x: 130, y: 55, r: 36, hard: 2, kind: "hue" },
+        { id: "star2", x: 250, y: 45, r: 20, hard: 2, kind: "shift", dx: 12, dy: 6 },
         { id: "kite", x: 200, y: 100, r: 26, hard: 2, kind: "gone" },
         { id: "ball", x: 300, y: 235, r: 18, hard: 2, kind: "shape" },
-        { id: "personR", x: 440, y: 205, r: 24, hard: 2, kind: "shift", dx: -16, dy: 0 },
+        { id: "personR", x: 440, y: 205, r: 24, hard: 2, kind: "shift", dx: -10, dy: 0 },
         { id: "lanternC", x: 350, y: 60, r: 30, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
@@ -1577,21 +1602,21 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "indoor");
       const pool = [
-        { id: "cupcake", x: 200, y: 175, r: 16, hard: 1, kind: "shift", dx: 18, dy: -6 },
+        { id: "cupcake", x: 200, y: 175, r: 16, hard: 2, kind: "shift", dx: 12, dy: -6 },
         { id: "apple", x: 380, y: 170, r: 18, hard: 1, kind: "shape" },
-        { id: "clock", x: 400, y: 50, r: 22, hard: 1, kind: "hue" },
-        { id: "spoon", x: 290, y: 100, r: 32, hard: 1, kind: "len" },
-        { id: "cat", x: 80, y: 220, r: 24, hard: 1, kind: "shift", dx: 20, dy: 0 },
-        { id: "cup", x: 100, y: 180, r: 22, hard: 1, kind: "len" },
+        { id: "clock", x: 400, y: 50, r: 22, hard: 2, kind: "hue" },
+        { id: "spoon", x: 290, y: 100, r: 32, hard: 2, kind: "len" },
+        { id: "cat", x: 80, y: 220, r: 24, hard: 2, kind: "shift", dx: 12, dy: 0 },
+        { id: "cup", x: 100, y: 180, r: 22, hard: 2, kind: "len" },
         { id: "flame", x: 240, y: 175, r: 18, hard: 1, kind: "gone" },
-        { id: "book", x: 320, y: 200, r: 16, hard: 1, kind: "shift", dx: -16, dy: 8 },
-        { id: "flower", x: 50, y: 40, r: 20, hard: 1, kind: "hue" },
-        { id: "knife", x: 200, y: 165, r: 32, hard: 1, kind: "len" },
-        { id: "banana", x: 400, y: 172, r: 18, hard: 1, kind: "hue" },
+        { id: "book", x: 320, y: 200, r: 16, hard: 2, kind: "shift", dx: -10, dy: 8 },
+        { id: "flower", x: 50, y: 40, r: 20, hard: 2, kind: "hue" },
+        { id: "knife", x: 200, y: 165, r: 32, hard: 2, kind: "len" },
+        { id: "banana", x: 400, y: 172, r: 18, hard: 2, kind: "hue" },
         { id: "bottle", x: 40, y: 195, r: 20, hard: 1, kind: "shape" },
         { id: "balloon", x: 200, y: 50, r: 22, hard: 1, kind: "shape" },
         { id: "dog", x: 200, y: 235, r: 22, hard: 2, kind: "gone" },
-        { id: "person", x: 280, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "person", x: 280, y: 195, r: 24, hard: 2, kind: "shift", dx: 10, dy: 0 },
         { id: "kite", x: 300, y: 45, r: 26, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
@@ -1688,20 +1713,20 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "night");
       const pool = [
-        { id: "owl", x: 70, y: 100, r: 20, hard: 1, kind: "shift", dx: 18, dy: -10 },
+        { id: "owl", x: 70, y: 100, r: 20, hard: 2, kind: "shift", dx: 12, dy: -6 },
         { id: "bag", x: 400, y: 205, r: 22, hard: 1, kind: "shape" },
         { id: "star", x: 40, y: 35, r: 20, hard: 1, kind: "shape" },
-        { id: "fire", x: 120, y: 185, r: 40, hard: 1, kind: "len" },
-        { id: "fish", x: 50, y: 230, r: 18, hard: 1, kind: "shift", dx: 16, dy: -8 },
-        { id: "lantern", x: 340, y: 168, r: 30, hard: 1, kind: "len" },
+        { id: "fire", x: 120, y: 185, r: 40, hard: 2, kind: "len" },
+        { id: "fish", x: 50, y: 230, r: 18, hard: 2, kind: "shift", dx: 10, dy: -8 },
+        { id: "lantern", x: 340, y: 168, r: 30, hard: 2, kind: "len" },
         { id: "dog", x: 300, y: 230, r: 20, hard: 1, kind: "gone" },
-        { id: "mushroom", x: 200, y: 222, r: 28, hard: 1, kind: "len" },
-        { id: "flag", x: 260, y: 78, r: 30, hard: 1, kind: "len" },
-        { id: "moon", x: 420, y: 50, r: 30, hard: 1, kind: "len" },
+        { id: "mushroom", x: 200, y: 222, r: 28, hard: 2, kind: "len" },
+        { id: "flag", x: 260, y: 78, r: 30, hard: 2, kind: "len" },
+        { id: "moon", x: 420, y: 50, r: 30, hard: 2, kind: "len" },
         { id: "owlHue", x: 70, y: 100, r: 20, hard: 2, kind: "hue" },
         { id: "peg", x: 185, y: 185, r: 18, hard: 1, kind: "shape" },
         { id: "balloon", x: 100, y: 60, r: 22, hard: 1, kind: "shape" },
-        { id: "person", x: 280, y: 195, r: 24, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "person", x: 280, y: 195, r: 24, hard: 2, kind: "shift", dx: 10, dy: 0 },
         { id: "kite", x: 200, y: 80, r: 26, hard: 2, kind: "gone" },
         { id: "bucket", x: 260, y: 220, r: 18, hard: 2, kind: "gone" },
       ];
@@ -1801,16 +1826,16 @@ const SCENES_RAW = [
         { id: "ball", x: 70, y: 230, r: 18, hard: 1, kind: "shape" },
         { id: "bag", x: 400, y: 210, r: 22, hard: 1, kind: "shape" },
         { id: "apple", x: 250, y: 120, r: 18, hard: 1, kind: "shape" },
-        { id: "clock", x: 420, y: 50, r: 22, hard: 1, kind: "hue" },
-        { id: "kid", x: 160, y: 200, r: 26, hard: 1, kind: "shift", dx: 18, dy: 0 },
-        { id: "chalk", x: 200, y: 75, r: 70, hard: 1, kind: "len" },
+        { id: "clock", x: 420, y: 50, r: 22, hard: 2, kind: "hue" },
+        { id: "kid", x: 160, y: 200, r: 26, hard: 2, kind: "shift", dx: 12, dy: 0 },
+        { id: "chalk", x: 200, y: 75, r: 70, hard: 2, kind: "len" },
         { id: "book", x: 300, y: 200, r: 16, hard: 1, kind: "gone" },
-        { id: "plant", x: 50, y: 180, r: 20, hard: 1, kind: "shift", dx: 14, dy: -8 },
+        { id: "plant", x: 50, y: 180, r: 20, hard: 2, kind: "shift", dx: 14, dy: -8 },
         { id: "balloon", x: 100, y: 50, r: 22, hard: 1, kind: "shape" },
-        { id: "flag", x: 60, y: 70, r: 28, hard: 1, kind: "hue" },
+        { id: "flag", x: 60, y: 70, r: 28, hard: 2, kind: "hue" },
         { id: "dog", x: 340, y: 230, r: 22, hard: 1, kind: "gone" },
-        { id: "personR", x: 360, y: 195, r: 24, hard: 2, kind: "shift", dx: -16, dy: 0 },
-        { id: "cupcake", x: 220, y: 175, r: 16, hard: 1, kind: "shift", dx: 14, dy: 0 },
+        { id: "personR", x: 360, y: 195, r: 24, hard: 2, kind: "shift", dx: -10, dy: 0 },
+        { id: "cupcake", x: 220, y: 175, r: 16, hard: 2, kind: "shift", dx: 14, dy: 0 },
         { id: "kite", x: 200, y: 45, r: 26, hard: 2, kind: "gone" },
         { id: "mushroom", x: 450, y: 230, r: 22, hard: 2, kind: "len" },
         { id: "desk", x: 200, y: 210, r: 30, hard: 2, kind: "hue" },
@@ -1884,21 +1909,21 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "park");
       const pool = [
-        { id: "car", x: 105, y: 205, r: 55, hard: 1, kind: "len" },
-        { id: "sign", x: 300, y: 120, r: 24, hard: 1, kind: "hue" },
-        { id: "dog", x: 220, y: 230, r: 22, hard: 1, kind: "shift", dx: 18, dy: -4 },
-        { id: "bird", x: 80, y: 40, r: 18, hard: 1, kind: "shift", dx: 20, dy: 8 },
+        { id: "car", x: 105, y: 205, r: 55, hard: 2, kind: "len" },
+        { id: "sign", x: 300, y: 120, r: 24, hard: 2, kind: "hue" },
+        { id: "dog", x: 220, y: 230, r: 22, hard: 2, kind: "shift", dx: 12, dy: -4 },
+        { id: "bird", x: 80, y: 40, r: 18, hard: 2, kind: "shift", dx: 12, dy: 8 },
         { id: "balloon", x: 400, y: 60, r: 22, hard: 1, kind: "shape" },
         { id: "person", x: 260, y: 195, r: 26, hard: 1, kind: "gone" },
-        { id: "window", x: 62, y: 109, r: 24, hard: 1, kind: "hue" },
+        { id: "window", x: 62, y: 109, r: 24, hard: 2, kind: "hue" },
         { id: "tree", x: 450, y: 160, r: 40, hard: 2, kind: "gone" },
-        { id: "bike", x: 360, y: 220, r: 28, hard: 1, kind: "shift", dx: -16, dy: 0 },
-        { id: "lamp", x: 200, y: 130, r: 55, hard: 1, kind: "len" },
-        { id: "cat", x: 50, y: 230, r: 22, hard: 1, kind: "shift", dx: 14, dy: -6 },
-        { id: "flower", x: 160, y: 235, r: 18, hard: 1, kind: "hue" },
+        { id: "bike", x: 360, y: 220, r: 28, hard: 2, kind: "shift", dx: -10, dy: 0 },
+        { id: "lamp", x: 200, y: 130, r: 55, hard: 2, kind: "len" },
+        { id: "cat", x: 50, y: 230, r: 22, hard: 2, kind: "shift", dx: 14, dy: -6 },
+        { id: "flower", x: 160, y: 235, r: 18, hard: 2, kind: "hue" },
         { id: "ball", x: 420, y: 235, r: 16, hard: 1, kind: "shape" },
         { id: "cloud", x: 200, y: 40, r: 28, hard: 2, kind: "gone" },
-        { id: "kite", x: 320, y: 50, r: 26, hard: 2, kind: "shift", dx: 14, dy: 10 },
+        { id: "kite", x: 320, y: 50, r: 26, hard: 2, kind: "shift", dx: 14, dy: 6 },
         { id: "person2", x: 180, y: 200, r: 24, hard: 2, kind: "shift", dx: -14, dy: 0 },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
@@ -1988,21 +2013,21 @@ const SCENES_RAW = [
     build(rng) {
       const crowd = makeSceneCrowd(rng, "beach");
       const pool = [
-        { id: "fishA", x: 120, y: 100, r: 20, hard: 1, kind: "shift", dx: 18, dy: 8 },
-        { id: "fishB", x: 280, y: 80, r: 20, hard: 1, kind: "hue" },
-        { id: "crab", x: 80, y: 220, r: 20, hard: 1, kind: "shift", dx: 16, dy: -6 },
+        { id: "fishA", x: 120, y: 100, r: 20, hard: 2, kind: "shift", dx: 12, dy: 8 },
+        { id: "fishB", x: 280, y: 80, r: 20, hard: 2, kind: "hue" },
+        { id: "crab", x: 80, y: 220, r: 20, hard: 2, kind: "shift", dx: 10, dy: -6 },
         { id: "star", x: 400, y: 220, r: 20, hard: 1, kind: "shape" },
-        { id: "bubble", x: 205, y: 70, r: 45, hard: 1, kind: "len" },
-        { id: "weed", x: 60, y: 185, r: 50, hard: 1, kind: "len" },
+        { id: "bubble", x: 205, y: 70, r: 45, hard: 2, kind: "len" },
+        { id: "weed", x: 60, y: 185, r: 50, hard: 2, kind: "len" },
         { id: "shell", x: 180, y: 230, r: 18, hard: 1, kind: "gone" },
         { id: "fishC", x: 350, y: 140, r: 18, hard: 1, kind: "gone" },
         { id: "ball", x: 250, y: 200, r: 16, hard: 1, kind: "shape" },
-        { id: "rock", x: 300, y: 230, r: 20, hard: 1, kind: "shift", dx: -14, dy: 0 },
-        { id: "fishD", x: 420, y: 100, r: 18, hard: 1, kind: "shift", dx: -16, dy: 10 },
+        { id: "rock", x: 300, y: 230, r: 20, hard: 2, kind: "shift", dx: -14, dy: 0 },
+        { id: "fishD", x: 420, y: 100, r: 18, hard: 2, kind: "shift", dx: -10, dy: 6 },
         { id: "person", x: 160, y: 40, r: 28, hard: 2, kind: "gone" },
         { id: "bucket", x: 450, y: 220, r: 18, hard: 2, kind: "hue" },
         { id: "weed2", x: 440, y: 185, r: 45, hard: 2, kind: "hue" },
-        { id: "fishE", x: 200, y: 150, r: 18, hard: 1, kind: "hue" },
+        { id: "fishE", x: 200, y: 150, r: 18, hard: 2, kind: "hue" },
         { id: "crab2", x: 320, y: 235, r: 18, hard: 2, kind: "gone" },
       ];
       const diffs = takeDiffs(rng, pool, DIFF_COUNT);
@@ -2072,18 +2097,18 @@ const SCENES_RAW = [
       const crowd = makeSceneCrowd(rng, "park");
       const pool = [
         { id: "apple", x: 120, y: 160, r: 18, hard: 1, kind: "shape" },
-        { id: "banana", x: 200, y: 165, r: 18, hard: 1, kind: "hue" },
+        { id: "banana", x: 200, y: 165, r: 18, hard: 2, kind: "hue" },
         { id: "balloon", x: 80, y: 50, r: 24, hard: 1, kind: "shape" },
-        { id: "awning", x: 120, y: 90, r: 55, hard: 1, kind: "hue" },
-        { id: "person", x: 280, y: 200, r: 26, hard: 1, kind: "shift", dx: 18, dy: 0 },
+        { id: "awning", x: 120, y: 90, r: 55, hard: 2, kind: "hue" },
+        { id: "person", x: 280, y: 200, r: 26, hard: 2, kind: "shift", dx: 12, dy: 0 },
         { id: "dog", x: 360, y: 230, r: 22, hard: 1, kind: "gone" },
         { id: "basket", x: 300, y: 170, r: 22, hard: 1, kind: "shape" },
-        { id: "flag", x: 415, y: 80, r: 45, hard: 1, kind: "len" },
-        { id: "bird", x: 250, y: 40, r: 18, hard: 1, kind: "shift", dx: -18, dy: 8 },
-        { id: "cupcake", x: 180, y: 175, r: 16, hard: 1, kind: "shift", dx: 14, dy: -4 },
+        { id: "flag", x: 415, y: 80, r: 45, hard: 2, kind: "len" },
+        { id: "bird", x: 250, y: 40, r: 18, hard: 2, kind: "shift", dx: -12, dy: 8 },
+        { id: "cupcake", x: 180, y: 175, r: 16, hard: 2, kind: "shift", dx: 14, dy: -4 },
         { id: "flower", x: 50, y: 215, r: 28, hard: 1, kind: "gone" },
         { id: "ball", x: 440, y: 230, r: 16, hard: 1, kind: "shape" },
-        { id: "cat", x: 60, y: 230, r: 22, hard: 2, kind: "shift", dx: 16, dy: 0 },
+        { id: "cat", x: 60, y: 230, r: 22, hard: 2, kind: "shift", dx: 10, dy: 0 },
         { id: "book", x: 340, y: 200, r: 16, hard: 2, kind: "gone" },
         { id: "person2", x: 160, y: 205, r: 24, hard: 2, kind: "gone" },
         { id: "kite", x: 320, y: 55, r: 40, hard: 2, kind: "len" },
@@ -2168,18 +2193,18 @@ const SCENES_RAW = [
       const deer = slot(rng, [[120, 210], [100, 220], [140, 205]]);
       const owl = slot(rng, [[70, 90], [90, 80], [55, 100]]);
       const fox = slot(rng, [[300, 220], [320, 230], [280, 225]]);
-      const svDeer = shiftVar(rng, 18, -6);
-      const svOwl = shiftVar(rng, 14, -10);
-      const svFox = shiftVar(rng, -16, 4);
+      const svDeer = shiftVar(rng, 11, -5);
+      const svOwl = shiftVar(rng, 10, -6);
+      const svFox = shiftVar(rng, -10, 4);
       const pool = [
-        { id: "deer", x: deer.x, y: deer.y, r: 28, hard: 1, kind: "shift", dx: svDeer.dx, dy: svDeer.dy },
-        { id: "owl", x: owl.x, y: owl.y, r: 22, hard: 1, kind: "shift", dx: svOwl.dx, dy: svOwl.dy },
-        { id: "fox", x: fox.x, y: fox.y, r: 24, hard: 1, kind: "shift", dx: svFox.dx, dy: svFox.dy },
+        { id: "deer", x: deer.x, y: deer.y, r: 28, hard: 2, kind: "shift", dx: svDeer.dx, dy: svDeer.dy },
+        { id: "owl", x: owl.x, y: owl.y, r: 22, hard: 2, kind: "shift", dx: svOwl.dx, dy: svOwl.dy },
+        { id: "fox", x: fox.x, y: fox.y, r: 24, hard: 2, kind: "shift", dx: svFox.dx, dy: svFox.dy },
         cand(rng, { id: "mush", spots: [[200, 230], [220, 235], [180, 225]], r: 28, kind: "len" }),
         cand(rng, { id: "ball", spots: [[50, 230], [400, 235]], r: 18, kind: "shape" }),
-        cand(rng, { id: "bird", spots: [[200, 40], [300, 50], [150, 35]], r: 20, kind: "shift", dx: 16, dy: 8 }),
+        cand(rng, { id: "bird", spots: [[200, 40], [300, 50], [150, 35]], r: 20, kind: "shift", dx: 10, dy: 8 }),
         cand(rng, { id: "flower", spots: [[420, 220], [60, 220], [250, 240]], r: 24, kind: "gone" }),
-        cand(rng, { id: "butterfly", spots: [[180, 120], [260, 100], [340, 110]], r: 20, kinds: ["shift", "hue", "gone"], dx: 14, dy: -12 }),
+        cand(rng, { id: "butterfly", spots: [[180, 120], [260, 100], [340, 110]], r: 20, kinds: ["shift", "hue", "gone"], dx: 14, dy: -6 }),
         cand(rng, { id: "bucket", spots: [[360, 210], [380, 220]], r: 18, kinds: ["gone", "shape"] }),
         cand(rng, { id: "person", spots: [[240, 195], [260, 200]], r: 24, kind: "gone" }),
         cand(rng, { id: "kite", spots: [[280, 55], [200, 60]], r: 28, kinds: ["len", "gone"] }),
@@ -2366,11 +2391,11 @@ const SCENES_RAW = [
       add({ id: "train", spots: [[200, 170], [180, 175]], r: 55, kind: "len" });
       add({ id: "sign", spots: [[80, 60], [100, 55]], r: 28, kind: "hue" });
       add({ id: "clock", spots: [[400, 50], [380, 55]], r: 22, kind: "hue" });
-      add({ id: "person", spots: [[120, 200], [140, 205], [100, 198]], r: 24, kinds: ["gone", "shift"], dx: 16, dy: 0 });
+      add({ id: "person", spots: [[120, 200], [140, 205], [100, 198]], r: 24, kinds: ["gone", "shift"], dx: 10, dy: 0 });
       add({ id: "person2", spots: [[300, 200], [320, 195]], r: 24, kind: "shift", dx: -14, dy: 0 });
       add({ id: "bag", spots: [[250, 210], [270, 215]], r: 20, kind: "shape" });
       add({ id: "dog", spots: [[360, 230], [380, 225]], r: 22, kind: "gone" });
-      add({ id: "bird", spots: [[200, 40], [250, 35]], r: 18, kind: "shift", dx: 16, dy: 8 });
+      add({ id: "bird", spots: [[200, 40], [250, 35]], r: 18, kind: "shift", dx: 10, dy: 8 });
       add({ id: "balloon", spots: [[50, 50], [70, 60]], r: 22, kind: "shape" });
       add({ id: "bench", spots: [[60, 210], [80, 215]], r: 28, kind: "hue" });
       add({ id: "light", spots: [[200, 80], [280, 75]], r: 24, kind: "gone" });
@@ -2531,7 +2556,7 @@ const SCENES_RAW = [
       add({ id: "cupcake", spots: [[280, 160], [300, 165], [260, 170]], r: 18, kind: "shift", dx: 14, dy: -4 });
       add({ id: "cupcake2", spots: [[320, 175], [340, 170]], r: 16, kind: "gone" });
       add({ id: "sign", spots: [[240, 50], [220, 55]], r: 36, kind: "hue" });
-      add({ id: "cat", spots: [[60, 220], [80, 225]], r: 24, kind: "shift", dx: 16, dy: 0 });
+      add({ id: "cat", spots: [[60, 220], [80, 225]], r: 24, kind: "shift", dx: 10, dy: 0 });
       add({ id: "dog", spots: [[400, 230], [420, 225]], r: 22, kind: "gone" });
       add({ id: "person", spots: [[180, 200], [200, 195]], r: 24, kind: "shift", dx: -14, dy: 0 });
       add({ id: "person2", spots: [[360, 200], [380, 195]], r: 24, kind: "gone" });
@@ -2688,8 +2713,8 @@ const SCENES_RAW = [
       add({ id: "planet", spots: [[100, 80], [120, 90]], r: 30, kind: "shape" });
       add({ id: "moon", spots: [[400, 50], [420, 55]], r: 28, kind: "len" });
       add({ id: "star", spots: [[60, 40], [80, 50], [50, 60]], r: 20, kind: "shape" });
-      add({ id: "star2", spots: [[300, 40], [320, 55]], r: 18, kind: "shift", dx: 14, dy: 10 });
-      add({ id: "alien", spots: [[180, 200], [200, 210]], r: 24, kind: "shift", dx: 16, dy: 0 });
+      add({ id: "star2", spots: [[300, 40], [320, 55]], r: 18, kind: "shift", dx: 14, dy: 6 });
+      add({ id: "alien", spots: [[180, 200], [200, 210]], r: 24, kind: "shift", dx: 10, dy: 0 });
       add({ id: "alien2", spots: [[340, 210], [360, 200]], r: 22, kind: "gone" });
       add({ id: "ufo", spots: [[350, 100], [370, 110]], r: 32, kind: "hue" });
       add({ id: "satellite", spots: [[150, 50], [170, 60]], r: 24, kind: "shift", dx: -14, dy: 8 });
