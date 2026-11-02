@@ -12,6 +12,7 @@
 | `sukima/index.html` | <https://meaningfree.github.io/sukima/> |
 | `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
 | `hakoniwa/index.html` | <https://meaningfree.github.io/hakoniwa/> |
+| `machigai/index.html` | <https://meaningfree.github.io/machigai/> |
 
 ## むげんワードル
 
@@ -143,6 +144,28 @@ python3 tools/make-manmaru.py manmaru/index.html
 
 ```sh
 python3 tools/make-hakoniwa.py hakoniwa/index.html
+```
+
+## まちがいさがし
+
+スタート画面から始めるたびに、SVGをその場で組み立てたランダムな絵がつくられる（固定画像ファイルは使わない）。場面はこうえん・うみ・おへや・のうじょう・ゆきのひ・おまつり・キッチン・キャンプなどから選ばれ、サイゼリヤのまちがいさがしくらいの情報量でちがうところを6つ隠す。
+
+- スマホでは上と下、広い画面では左と右に並ぶ。どちらの絵をタップしてもよい
+- ちがいは見つけやすいもの（物の有無など）と、こまかいもの（色・小さなパーツ）がまざる
+- ヒントは場所のあいまいな手がかりだけ（物体名は出さない）
+- 星はおてつきとヒントの回数で 3 / 2 / 1。クリア数や連続記録は端末に保存
+- 効果音つき（Web Audio）。「音」ボタンで切りかえ
+
+### ファイル
+
+- `src/machigai.html` — 生成元（Artifact 用の断片形式）
+- `machigai/index.html` — 公開用のスタンドアロン版
+- `tools/make-machigai.py` — 変換スクリプト
+
+`src/machigai.html` を編集したら、公開版を作り直す:
+
+```sh
+python3 tools/make-machigai.py machigai/index.html
 ```
 
 ## GitHub Pages
