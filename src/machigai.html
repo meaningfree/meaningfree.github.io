@@ -18,7 +18,7 @@ body{
   padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
   -webkit-tap-highlight-color:transparent; -webkit-user-select:none; user-select:none;
 }
-button{font:inherit; color:inherit; cursor:pointer}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation}
 :focus-visible{outline:3px solid var(--accent); outline-offset:2px}
 a{color:inherit}
 
@@ -1486,16 +1486,16 @@ function say(text, kind) {
   m.className = "msg" + (kind ? " " + kind : "");
 }
 function renderHud() {
-  $("levelNo").textContent = "ラウンド " + round;
-  $("levelName").textContent = puzzle.title;
-  $("foundCount").textContent = found.length + " / " + puzzle.diffs.length;
+  $("levelNo").textContent = "ラウンド " + Math.max(1, round);
+  $("levelName").textContent = puzzle ? puzzle.title : "まちがいさがし";
+  $("foundCount").textContent = puzzle ? (found.length + " / " + puzzle.diffs.length) : "0 / 0";
   $("starCount").textContent = String(stats.stars);
   $("btnSound").textContent = soundOn ? "音 ON" : "音 OFF";
   $("startNote").textContent = "クリア " + stats.cleared + "　いちばんの れんぞく " + stats.best;
   const stars = starCount(misses, hints);
   $("meta").textContent = (done ? starsText(stars) + "　" : "") + "おてつき " + misses + "　ヒント " + hints;
-  $("btnHint").hidden = done;
-  $("btnReset").hidden = done;
+  $("btnHint").hidden = done || !playing;
+  $("btnReset").hidden = done || !playing;
   $("btnNext").hidden = !done;
   $("btnReplay").hidden = !done;
   const box = $("chips");
@@ -1688,9 +1688,38 @@ function openRecord() {
 
 svgL.addEventListener("click", onSvgClick);
 svgR.addEventListener("click", onSvgClick);
+function restartFromScratch() {
+  if (playing && !done && stats.streak) {
+    stats.streak = 0;
+    saveStats();
+  }
+  if (soundOn) unlockAudio();
+  const prevScene = puzzle && puzzle.scene;
+  playing = true;
+  document.body.classList.remove("on-start");
+  $("start").hidden = true;
+  round = 0;
+  let s = newSeed();
+  // Prefer a different scene so "はじめから" clearly feels like a fresh start.
+  for (let i = 0; i < 12 && prevScene; i++) {
+    const cand = makePuzzle(s);
+    if (cand.scene !== prevScene) break;
+    s = newSeed();
+  }
+  loadPuzzle(s, true);
+}
+function replaySame() {
+  if (!puzzle) return;
+  resetAttempt();
+  stopFx();
+  closeSheets();
+  renderAll();
+  say("もういちど！ ちがう ところを タップしてね");
+}
+
 $("btnHint").addEventListener("click", giveHint);
-$("btnReset").addEventListener("click", () => { resetAttempt(); stopFx(); renderAll(); });
-$("btnReplay").addEventListener("click", () => { resetAttempt(); stopFx(); renderAll(); });
+$("btnReset").addEventListener("click", restartFromScratch);
+$("btnReplay").addEventListener("click", replaySame);
 $("btnNext").addEventListener("click", () => loadPuzzle(newSeed(), true));
 $("btnHome").addEventListener("click", showStart);
 $("btnStart").addEventListener("click", () => { if (soundOn) unlockAudio(); beginPlay(); });
