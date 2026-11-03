@@ -91,7 +91,20 @@ h1 a{text-decoration:none}
 .sheet-top h2{margin:0; font-size:20px; font-weight:900; margin-right:auto}
 .sheet-card ol{margin:0 0 16px; padding-left:1.3em; font-weight:700; color:var(--ink)}
 .sheet-card li{margin:8px 0}
-.review-card{max-height:92vh}
+#sheetReview{
+  align-items:flex-end;
+  padding:
+    max(18px, env(safe-area-inset-top))
+    14px
+    max(18px, env(safe-area-inset-bottom));
+}
+.review-card{
+  max-height:min(84vh, calc(100% - 12px));
+  width:100%;
+  border-radius:24px;
+  padding:18px 16px 18px;
+  box-shadow:0 10px 40px rgba(40,24,16,.2);
+}
 .review-lead{margin:0 0 14px; font-weight:700; color:var(--muted); font-size:14px; text-align:center}
 .review-list{display:flex; flex-direction:column; gap:14px; margin-bottom:16px}
 .review-item{padding-bottom:12px; border-bottom:1.5px solid var(--line)}
@@ -2985,7 +2998,7 @@ let round = 0;
 let seed = 0;
 let puzzle = null;
 let found = [], misses = 0, hints = 0, hintId = null, hintStep = 0, done = false;
-let reviewed = false, reviewTimer = 0;
+let reviewed = false, reviewTimer = 0, reviewMode = null;
 const hinted = new Set();
 const KIND_LABEL = {
   gone: "ない／ある",
@@ -3053,6 +3066,7 @@ function saveStats() { store.set("stats", stats); }
 function resetAttempt() {
   found = []; misses = 0; hints = 0; hintId = null; hintStep = 0; done = false;
   reviewed = false;
+  reviewMode = null;
   if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = 0; }
   hinted.clear();
 }
@@ -3077,6 +3091,7 @@ function openAnswerReview(mode) {
   if (!puzzle || !playing) return;
   if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = 0; }
   reviewed = true;
+  reviewMode = mode;
   closeSheets();
   const missed = puzzle.diffs.filter(d => !found.includes(d.id));
   const list = mode === "skip" ? (missed.length ? missed : puzzle.diffs) : puzzle.diffs;
@@ -3139,8 +3154,16 @@ function openAnswerReview(mode) {
   $("sheetReview").querySelector(".sheet-card").scrollTop = 0;
   if (!reduce) $("reviewTitle").scrollIntoView({ block: "nearest" });
 }
+function dismissAnswerReview() {
+  if ($("sheetReview").hidden) return;
+  $("sheetReview").hidden = true;
+  // 未クリアで閉じた場合は、また探せる／次で答え合わせを出せるよう戻す
+  if (reviewMode === "skip" && !done) reviewed = false;
+  reviewMode = null;
+}
 function finishAnswerReview() {
   $("sheetReview").hidden = true;
+  reviewMode = null;
   goNextPuzzle();
 }
 function mount(svg, side) {
@@ -3372,6 +3395,7 @@ function loadPuzzle(nextSeed, bumpRound) {
   resetAttempt();
   stopFx();
   closeSheets();
+  $("sheetReview").hidden = true;
   renderAll();
 }
 function showStart() {
@@ -3444,6 +3468,7 @@ function requestNext() {
 $("btnHint").addEventListener("click", giveHint);
 $("btnNext").addEventListener("click", requestNext);
 $("btnReviewNext").addEventListener("click", finishAnswerReview);
+$("sheetReview").addEventListener("click", e => { if (e.target === $("sheetReview")) dismissAnswerReview(); });
 $("btnHome").addEventListener("click", showStart);
 $("btnStart").addEventListener("click", () => { if (soundOn) unlockAudio(); beginPlay(); });
 $("btnStartHelp").addEventListener("click", () => { $("sheetHelp").hidden = false; $("closeHelp").focus(); });
@@ -3468,7 +3493,10 @@ $("btnWipe").addEventListener("click", () => {
 });
 document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
-  if (!$("sheetReview").hidden) return;
+  if (!$("sheetReview").hidden) {
+    dismissAnswerReview();
+    return;
+  }
   closeSheets();
 });
 $("homeLink").addEventListener("click", e => {
