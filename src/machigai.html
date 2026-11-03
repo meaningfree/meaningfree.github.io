@@ -85,6 +85,27 @@ h1 a{text-decoration:none}
 .sheet-top h2{margin:0; font-size:20px; font-weight:900; margin-right:auto}
 .sheet-card ol{margin:0 0 16px; padding-left:1.3em; font-weight:700; color:var(--ink)}
 .sheet-card li{margin:8px 0}
+.review-card{max-height:92vh}
+.review-lead{margin:0 0 14px; font-weight:700; color:var(--muted); font-size:14px; text-align:center}
+.review-list{display:flex; flex-direction:column; gap:14px; margin-bottom:16px}
+.review-item{padding-bottom:12px; border-bottom:1.5px solid var(--line)}
+.review-item:last-child{border-bottom:0; padding-bottom:0}
+.review-item-top{display:flex; flex-wrap:wrap; align-items:center; gap:6px 8px; margin-bottom:8px; font-weight:700; font-size:13px}
+.review-n{
+  width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center;
+  background:var(--accent); color:#fff; font-weight:900; font-size:13px;
+}
+.review-zone{color:var(--ink)}
+.review-kind{color:var(--muted)}
+.review-status{margin-left:auto; font-size:12.5px}
+.review-status.ok{color:var(--ok)}
+.review-status.miss{color:var(--accent)}
+.review-pair{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.review-pic{
+  background:var(--card); border:2.5px solid #E7D3C1; border-radius:14px; overflow:hidden;
+}
+.review-pic svg{display:block; width:100%; height:auto; background:#FFFCF7}
+.review-pic .cap{margin:0; text-align:center; font-weight:700; font-size:12px; color:var(--muted); padding:4px 0 6px}
 .stats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px}
 .stat{
   background:var(--card); border:1.5px solid var(--line); border-radius:16px; padding:12px;
@@ -213,7 +234,19 @@ h1 a{text-decoration:none}
       <li>2まいを見くらべて、ちがうところを探す。スマホは上下、ひろい画面は左右。</li>
       <li>ちがいは、ものが無い・位置がズレる・長い短い・まる／しかく・色などいろいろ。ヒントは場所だけ（最初はことば、つぎでうすい範囲）。</li>
       <li>おてつきとヒントが少ないほど星が多い。</li>
+      <li>ぜんぶ見つかったときや、つぎの問題へ進む前に、ちがうところを拡大して見くらべる答え合わせがある。</li>
     </ol>
+  </div>
+</div>
+
+<div class="sheet" id="sheetReview" hidden>
+  <div class="sheet-card review-card" role="dialog" aria-labelledby="reviewTitle">
+    <div class="sheet-top">
+      <h2 id="reviewTitle">こたえあわせ</h2>
+    </div>
+    <p class="review-lead" id="reviewLead">ちがうところを 拡大して 見くらべてね</p>
+    <div class="review-list" id="reviewList"></div>
+    <button class="btn primary" id="btnReviewNext" type="button">つぎの もんだいへ</button>
   </div>
 </div>
 
@@ -2944,7 +2977,15 @@ let round = 0;
 let seed = 0;
 let puzzle = null;
 let found = [], misses = 0, hints = 0, hintId = null, hintStep = 0, done = false;
+let reviewed = false, reviewTimer = 0;
 const hinted = new Set();
+const KIND_LABEL = {
+  gone: "ない／ある",
+  shift: "いちが ズレてる",
+  len: "ながい／みじかい",
+  shape: "かたちが ちがう",
+  hue: "いろが ちがう",
+};
 
 const SILENT_WAV = 'data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YSADAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgA==';
 let AC = null, OUTPUT = null, silentEl = null;
@@ -3003,7 +3044,96 @@ function starsText(n) {
 function saveStats() { store.set("stats", stats); }
 function resetAttempt() {
   found = []; misses = 0; hints = 0; hintId = null; hintStep = 0; done = false;
+  reviewed = false;
+  if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = 0; }
   hinted.clear();
+}
+function paintZoomSvg(svg, side, d) {
+  const pad = Math.max(56, Math.round(d.r * 2.35));
+  let size = pad * 2;
+  size = Math.min(size, VW, VH);
+  const vx = Math.max(0, Math.min(VW - size, d.x - size / 2));
+  const vy = Math.max(0, Math.min(VH - size, d.y - size / 2));
+  svg.setAttribute("viewBox", `${vx} ${vy} ${size} ${size}`);
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+  svg.replaceChildren();
+  const art = el("g", { class: "art" }, svg);
+  puzzle.draw(art, side);
+  const markR = Math.max(14, Math.min(d.r * 0.85, size * 0.28));
+  const sw = Math.max(2.2, size / 48);
+  el("circle", { cx: d.x, cy: d.y, r: markR, fill: "none", stroke: "#fff", "stroke-width": sw * 1.8 }, svg);
+  el("circle", { cx: d.x, cy: d.y, r: markR, fill: "none", stroke: "#E23B4A", "stroke-width": sw }, svg);
+}
+function openAnswerReview(mode) {
+  if (!puzzle || !playing) return;
+  if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = 0; }
+  reviewed = true;
+  closeSheets();
+  const missed = puzzle.diffs.filter(d => !found.includes(d.id));
+  const list = mode === "skip" ? (missed.length ? missed : puzzle.diffs) : puzzle.diffs;
+  const lead = $("reviewLead");
+  if (mode === "clear") {
+    lead.textContent = "ぜんぶ 見つかった！ ちがうところを 拡大して 見くらべてね";
+  } else if (missed.length) {
+    lead.textContent = "みつからなかった " + missed.length + "つを 拡大して 見くらべてね";
+  } else {
+    lead.textContent = "ちがうところを 拡大して 見くらべてね";
+  }
+  const box = $("reviewList");
+  box.replaceChildren();
+  list.forEach((d, i) => {
+    const item = document.createElement("div");
+    item.className = "review-item";
+    const top = document.createElement("div");
+    top.className = "review-item-top";
+    const n = document.createElement("span");
+    n.className = "review-n";
+    n.textContent = String(i + 1);
+    const zone = document.createElement("span");
+    zone.className = "review-zone";
+    zone.textContent = d.zone;
+    const kind = document.createElement("span");
+    kind.className = "review-kind";
+    kind.textContent = KIND_LABEL[d.kind] || "ちがう";
+    const status = document.createElement("span");
+    const ok = found.includes(d.id);
+    status.className = "review-status " + (ok ? "ok" : "miss");
+    status.textContent = ok ? "みつけた" : "みつけてない";
+    top.append(n, zone, kind, status);
+    const pair = document.createElement("div");
+    pair.className = "review-pair";
+    ["L", "R"].forEach(side => {
+      const pic = document.createElement("div");
+      pic.className = "review-pic";
+      const svg = document.createElementNS(NS, "svg");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", (side === "L" ? "1まいめ" : "2まいめ") + "の拡大");
+      paintZoomSvg(svg, side, d);
+      const cap = document.createElement("p");
+      cap.className = "cap";
+      const narrow = document.createElement("span");
+      narrow.className = "when-narrow";
+      narrow.textContent = side === "L" ? "上の絵" : "下の絵";
+      const wide = document.createElement("span");
+      wide.className = "when-wide";
+      wide.textContent = side === "L" ? "左の絵" : "右の絵";
+      cap.append(narrow, wide);
+      pic.append(svg, cap);
+      pair.appendChild(pic);
+    });
+    item.append(top, pair);
+    box.appendChild(item);
+  });
+  $("sheetReview").hidden = false;
+  $("btnReviewNext").focus();
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $("sheetReview").querySelector(".sheet-card").scrollTop = 0;
+  if (!reduce) $("reviewTitle").scrollIntoView({ block: "nearest" });
+}
+function finishAnswerReview() {
+  $("sheetReview").hidden = true;
+  goNextPuzzle();
 }
 function mount(svg, side) {
   svg.setAttribute("viewBox", `0 0 ${VW} ${VH}`);
@@ -3165,6 +3295,11 @@ function finish() {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("actions").scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "nearest" });
   renderHud();
+  if (reviewTimer) clearTimeout(reviewTimer);
+  reviewTimer = setTimeout(() => {
+    reviewTimer = 0;
+    openAnswerReview("clear");
+  }, reduce ? 120 : 700);
 }
 function onSvgClick(ev) {
   if (!playing || done) return;
@@ -3229,6 +3364,7 @@ function loadPuzzle(nextSeed, bumpRound) {
   resetAttempt();
   stopFx();
   closeSheets();
+  $("sheetReview").hidden = true;
   renderAll();
 }
 function showStart() {
@@ -3237,6 +3373,7 @@ function showStart() {
     saveStats();
   }
   playing = false;
+  if (reviewTimer) { clearTimeout(reviewTimer); reviewTimer = 0; }
   document.body.classList.add("on-start");
   $("start").hidden = false;
   stopFx();
@@ -3260,6 +3397,7 @@ function beginPlay() {
 function closeSheets() {
   $("sheetRecord").hidden = true;
   $("sheetHelp").hidden = true;
+  // 答え合わせはとじるだけでは進めない（つぎへボタン専用）
 }
 function openRecord() {
   renderHud();
@@ -3271,6 +3409,7 @@ svgL.addEventListener("click", onSvgClick);
 svgR.addEventListener("click", onSvgClick);
 function goNextPuzzle() {
   if (!playing) return;
+  $("sheetReview").hidden = true;
   if (!done && stats.streak) {
     stats.streak = 0;
     saveStats();
@@ -3286,9 +3425,18 @@ function goNextPuzzle() {
   }
   loadPuzzle(s, true);
 }
+function requestNext() {
+  if (!playing) return;
+  if (!reviewed) {
+    openAnswerReview(done ? "clear" : "skip");
+    return;
+  }
+  goNextPuzzle();
+}
 
 $("btnHint").addEventListener("click", giveHint);
-$("btnNext").addEventListener("click", goNextPuzzle);
+$("btnNext").addEventListener("click", requestNext);
+$("btnReviewNext").addEventListener("click", finishAnswerReview);
 $("btnHome").addEventListener("click", showStart);
 $("btnStart").addEventListener("click", () => { if (soundOn) unlockAudio(); beginPlay(); });
 $("btnStartHelp").addEventListener("click", () => { $("sheetHelp").hidden = false; $("closeHelp").focus(); });
@@ -3311,7 +3459,11 @@ $("btnWipe").addEventListener("click", () => {
   renderHud();
   closeSheets();
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeSheets(); });
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (!$("sheetReview").hidden) return;
+  closeSheets();
+});
 $("homeLink").addEventListener("click", e => {
   if (playing) {
     e.preventDefault();
