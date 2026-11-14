@@ -12,7 +12,7 @@ HEAD = '''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="description" content="数字のヒントからシルエットをぬりあげる、イラストロジック（ピクロス）。100以上のもようとむげんモード。">
+<meta name="description" content="数字のヒントからシルエットをぬりあげる、イラストロジック（ピクロス）。わかりやすいもようとむげんモード。">
 <meta name="theme-color" content="#F3E8D4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
