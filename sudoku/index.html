@@ -154,10 +154,37 @@
   .board .c.win{animation:pop .35s ease}
 
   .notes{
-    position:absolute; inset:2px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
-    pointer-events:none; font-size:clamp(7px, 2.2cqmin, 11px); font-weight:500; color:var(--ink-soft); line-height:1;
+    position:absolute; inset:1px; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr);
+    pointer-events:none; font-size:clamp(9px, 2.8cqmin, 13px); font-weight:700; color:var(--ink-soft); line-height:1;
   }
   .notes span{display:grid; place-items:center}
+  .board .c.has-notes{color:transparent}
+  body.note-mode .board .c.sel{outline-color:var(--gold); background:color-mix(in srgb, var(--gold) 18%, var(--cell))}
+  body.note-mode .pad button[data-n]{
+    background:color-mix(in srgb, var(--gold) 22%, var(--key));
+    box-shadow:inset 0 0 0 1.5px color-mix(in srgb, var(--gold) 55%, transparent);
+  }
+  body.note-mode .pad button[data-n].on-note{
+    background:var(--gold); color:var(--gold-ink);
+  }
+  .pad button[data-n].on-note{position:relative}
+  .input-bar{
+    flex:none; display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .input-bar .modes{flex:1; min-width:160px}
+  .input-bar .modes button{flex:1; padding:8px 10px; font-size:13px}
+  .input-bar .hintish{
+    flex:none; border:1px solid var(--line); background:var(--panel); border-radius:11px;
+    min-height:36px; padding:6px 10px; font-weight:700; font-size:12.5px; color:var(--ink);
+  }
+  .input-bar .hintish:active{transform:translateY(1px)}
+  body.note-mode .input-bar .modes button[aria-pressed="true"]{
+    background:var(--gold); color:var(--gold-ink);
+  }
+  .mode-tip{
+    flex:none; text-align:center; font-size:12px; font-weight:700; color:var(--ink-soft); min-height:1.2em;
+  }
+  body.note-mode .mode-tip{color:var(--gold-ink); background:color-mix(in srgb, var(--gold) 18%, transparent); border-radius:8px; padding:4px 8px}
 
   #toast{
     position:absolute; top:8px; left:50%; transform:translateX(-50%);
@@ -251,10 +278,6 @@
   <header>
     <h1 class="wordmark"><a href="/">むげん<em>数独</em></a></h1>
     <div class="spacer"></div>
-    <div class="modes" role="group" aria-label="入力モード">
-      <button id="mode-play" type="button" aria-pressed="true">記入</button>
-      <button id="mode-note" type="button" aria-pressed="false">メモ</button>
-    </div>
     <button class="icon-btn" id="btn-sound" type="button" aria-label="おと" aria-pressed="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg>
     </button>
@@ -291,6 +314,15 @@
   </div>
 
   <p class="msg" id="msg" aria-live="polite"></p>
+
+  <div class="input-bar">
+    <div class="modes" role="group" aria-label="入力モード">
+      <button id="mode-play" type="button" aria-pressed="true">記入</button>
+      <button id="mode-note" type="button" aria-pressed="false">メモ</button>
+    </div>
+    <button class="hintish" type="button" id="btn-auto-notes" title="選んだマスに入る候補をメモ">候補メモ</button>
+  </div>
+  <p class="mode-tip" id="mode-tip" aria-live="polite">数字を入れてマスを埋める</p>
 
   <div class="pad" id="pad">
     <button type="button" data-n="1">1</button>
@@ -707,6 +739,43 @@
     render();
   }
 
+  function setNoteMode(on, quiet) {
+    state.noteMode = !!on;
+    document.body.classList.toggle("note-mode", state.noteMode);
+    var tip = document.getElementById("mode-tip");
+    if (tip) {
+      tip.textContent = state.noteMode
+        ? "メモ：候補の数字を複数つけはずしできる"
+        : "数字を入れてマスを埋める";
+    }
+    if (!quiet) {
+      toast(state.noteMode ? "メモモード" : "記入モード");
+      sfx("click");
+    }
+    render();
+  }
+
+  /** Fill pencil marks with numbers still legal for the selected cell. */
+  function autoNotesSelected() {
+    if (state.won) return;
+    var i = state.selected;
+    if (i < 0) { toast("マスを選んでください"); return; }
+    if (state.given[i]) { toast("このマスはかえられません"); return; }
+    startTimer();
+    if (state.grid[i]) {
+      state.grid[i] = 0;
+      state.hinted[i] = false;
+    }
+    var cans = candidates(state.grid, i);
+    for (var v = 1; v <= 9; v++) state.notes[i][v] = false;
+    for (var k = 0; k < cans.length; k++) state.notes[i][cans[k]] = true;
+    setNoteMode(true, true);
+    setMsg("候補 " + (cans.length ? cans.join("・") : "なし") + " をメモしました");
+    toast(cans.length ? "候補をメモした" : "候補なし", cans.length ? "ok" : "bad");
+    sfx(cans.length ? "place" : "bad");
+    render();
+  }
+
   function doCheck() {
     if (state.won) return;
     var wrong = [], empty = 0;
@@ -818,7 +887,6 @@
       var v = state.grid[i];
       if (v) {
         cell.textContent = String(v);
-        // mark wrong filled cells lightly when same as selection? skip
       } else {
         var hasNote = false;
         var notes = document.createElement("div");
@@ -828,16 +896,27 @@
           if (state.notes[i][n]) { sp.textContent = String(n); hasNote = true; }
           notes.appendChild(sp);
         }
-        if (hasNote) cell.appendChild(notes);
+        if (hasNote) {
+          cell.classList.add("has-notes");
+          cell.appendChild(notes);
+        }
       }
 
       board.appendChild(cell);
     }
 
+    document.body.classList.toggle("note-mode", state.noteMode);
     document.getElementById("mode-play").setAttribute("aria-pressed", String(!state.noteMode));
     document.getElementById("mode-note").setAttribute("aria-pressed", String(state.noteMode));
     document.getElementById("btn-sound").setAttribute("aria-pressed", String(store.sound));
     document.getElementById("btn-sound").style.opacity = store.sound ? "1" : ".45";
+
+    // Highlight pad digits that are already memo'd on the selected empty cell
+    var padNotes = (sel >= 0 && !state.grid[sel] && !state.given[sel]) ? state.notes[sel] : null;
+    document.querySelectorAll("#pad button[data-n]").forEach(function (btn) {
+      var n = +btn.dataset.n;
+      btn.classList.toggle("on-note", !!(padNotes && padNotes[n]));
+    });
   }
 
   /* ---------- panels ---------- */
@@ -871,10 +950,11 @@
       var ul = document.createElement("ul");
       [
         "マスをタップして、下の数字パッドで 1〜9 を入れる。",
-        "「メモ」モードでは候補の数字を小さく書ける。",
+        "「メモ」に切り替えると、1マスに候補の数字を複数小さく書きこめる（もう一度押すと外れる）。",
+        "「候補メモ」は、いま選んでいるマスにまだ入る数字を自動でメモする。",
         "かんたん / ふつう / むずかしい でヒント（最初から埋まっているマス）の数がかわる。",
         "「チェック」でまちがいを確認。「ヒント」で1マス正解が埋まる。",
-        "「はじめから」は同じ問題をやりなおし。「つぎの問題」は新しい盤面。"
+        "「はじめから」は同じ問題をやりなおし。「つぎの問題」は新しい盤面。キーボードは N / M でメモ切替。"
       ].forEach(function (t) {
         var li = document.createElement("li"); li.textContent = t; ul.appendChild(li);
       });
@@ -931,11 +1011,12 @@
   });
 
   document.getElementById("mode-play").addEventListener("click", function () {
-    state.noteMode = false; render();
+    setNoteMode(false);
   });
   document.getElementById("mode-note").addEventListener("click", function () {
-    state.noteMode = true; render();
+    setNoteMode(true);
   });
+  document.getElementById("btn-auto-notes").addEventListener("click", autoNotesSelected);
 
   ["easy", "normal", "hard"].forEach(function (d) {
     document.getElementById("diff-" + d).addEventListener("click", function () {
@@ -980,7 +1061,11 @@
     if (e.key >= "1" && e.key <= "9") { placeNumber(+e.key); e.preventDefault(); }
     else if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") { eraseCell(); e.preventDefault(); }
     else if (e.key === "n" || e.key === "N" || e.key === "m" || e.key === "M") {
-      state.noteMode = !state.noteMode; render();
+      setNoteMode(!state.noteMode);
+      e.preventDefault();
+    } else if (e.key === "c" || e.key === "C") {
+      autoNotesSelected();
+      e.preventDefault();
     } else if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === "ArrowDown") {
       var i = state.selected < 0 ? 0 : state.selected;
       var r = (i / 9) | 0, c = i % 9;
@@ -998,6 +1083,7 @@
   applyTheme();
   updateDiffChips();
   newGame(store.difficulty);
+  setNoteMode(false, true);
   setInterval(tickUI, 250);
 })();
 </script>
