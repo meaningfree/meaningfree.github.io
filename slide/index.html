@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="数字タイルをすべらせてそろえるスライドパズル。3×3・4×4・5×5。">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#E8F2F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E1C1A" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="スライドパズル">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2064%2064%27%3E%3Crect%20width=%2764%27%20height=%2764%27%20rx=%2714%27%20fill=%27%230F3D38%27/%3E%3Crect%20x=%278%27%20y=%278%27%20width=%2720%27%20height=%2720%27%20rx=%274%27%20fill=%27%232FA89B%27/%3E%3Crect%20x=%2736%27%20y=%278%27%20width=%2720%27%20height=%2720%27%20rx=%274%27%20fill=%27%232FA89B%27/%3E%3Crect%20x=%278%27%20y=%2736%27%20width=%2720%27%20height=%2720%27%20rx=%274%27%20fill=%27%232FA89B%27/%3E%3Crect%20x=%2736%27%20y=%2736%27%20width=%2720%27%20height=%2720%27%20rx=%274%27%20fill=%27%23C5DDD8%27%20opacity=%27.5%27/%3E%3C/svg%3E">
+<title>スライドパズル</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700;900&display=swap">
+<style>
+:root{
+  --bg:#E8F2F0;
+  --bg-2:#F4FAF8;
+  --ink:#1A3A36;
+  --muted:#5A7A74;
+  --line:rgba(26,58,54,.14);
+  --panel:#FFFFFF;
+  --tile:#1F6B63;
+  --tile-ink:#F7FFFD;
+  --tile-hi:#2A8A80;
+  --empty:#C5DDD8;
+  --accent:#E35D3B;
+  --accent-deep:#B84428;
+  --accent-ink:#FFF8F5;
+  --gold:#D4A017;
+  --ok:#1F8A5B;
+  --board:#0F3D38;
+  --board-edge:#0A2C28;
+  --shadow:rgba(15,61,56,.18);
+  --font-display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --font-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0E1C1A;
+    --bg-2:#142624;
+    --ink:#E6F4F1;
+    --muted:#9BB8B2;
+    --line:rgba(230,244,241,.14);
+    --panel:#1A302C;
+    --tile:#2FA89B;
+    --tile-ink:#061614;
+    --tile-hi:#45C4B5;
+    --empty:#1E3A36;
+    --accent:#F07855;
+    --accent-deep:#C45535;
+    --accent-ink:#1A0C08;
+    --gold:#E8C04A;
+    --ok:#3DBF84;
+    --board:#071A17;
+    --board-edge:#04110F;
+    --shadow:rgba(0,0,0,.45);
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+html,body{min-height:100%}
+body{
+  margin:0;
+  color:var(--ink);
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -10%, rgba(47,168,155,.22), transparent 55%),
+    radial-gradient(ellipse 70% 40% at 100% 100%, rgba(227,93,59,.12), transparent 50%),
+    linear-gradient(180deg,var(--bg-2),var(--bg));
+  font-family:var(--font-body); font-size:15px; line-height:1.55;
+  padding:
+    max(10px,env(safe-area-inset-top,0px))
+    max(14px,env(safe-area-inset-right,0px))
+    max(16px,env(safe-area-inset-bottom,0px))
+    max(14px,env(safe-area-inset-left,0px));
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none;
+}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation}
+:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+a{color:inherit}
+
+.app{max-width:440px; margin:0 auto; display:flex; flex-direction:column; gap:12px}
+
+.top{display:flex; align-items:center; gap:8px}
+.top h1{
+  margin:0; flex:1; min-width:0;
+  font-family:var(--font-display); font-weight:400;
+  font-size:clamp(20px,6vw,28px); letter-spacing:.06em; line-height:1.15;
+}
+.top h1 a{text-decoration:none}
+.chip{
+  flex:none; display:inline-flex; align-items:center; justify-content:center; gap:4px;
+  border:1.5px solid var(--line); background:var(--panel); border-radius:999px;
+  padding:6px 11px; font-weight:700; font-size:13px; min-height:38px;
+}
+.chip:active{transform:translateY(1px)}
+
+.sizes{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
+.size-btn{
+  border:1.5px solid var(--line); background:var(--panel); border-radius:14px;
+  min-height:44px; font-weight:900; font-size:14px; letter-spacing:.02em;
+  box-shadow:0 2px 0 var(--line);
+}
+.size-btn:active{transform:translateY(1px); box-shadow:0 1px 0 var(--line)}
+.size-btn.on{
+  background:var(--tile); color:var(--tile-ink); border-color:transparent;
+  box-shadow:0 3px 0 color-mix(in srgb, var(--tile) 70%, #000);
+}
+.size-btn small{display:block; font-size:10px; font-weight:700; opacity:.75; letter-spacing:.04em}
+
+.hud{
+  display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;
+  padding:10px 12px; border-radius:16px; background:var(--panel);
+  box-shadow:inset 0 0 0 1.5px var(--line), 0 6px 18px var(--shadow);
+}
+.stat{display:flex; flex-direction:column; align-items:center; gap:2px; min-width:0}
+.stat small{font-weight:900; font-size:10px; letter-spacing:.1em; color:var(--muted)}
+.stat b{
+  font-family:var(--font-display); font-weight:400;
+  font-size:clamp(18px,5vw,22px); font-variant-numeric:tabular-nums; letter-spacing:.02em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.stat .best-line{font-size:11px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums}
+
+.board-wrap{
+  position:relative; aspect-ratio:1; width:100%;
+  border-radius:22px; padding:10px;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--board) 88%, #fff), var(--board));
+  box-shadow:
+    0 0 0 3px var(--board-edge),
+    0 14px 32px var(--shadow),
+    inset 0 1px 0 rgba(255,255,255,.08);
+}
+#board{
+  position:relative; width:100%; height:100%;
+  display:grid; gap:6px; touch-action:none;
+}
+.tile{
+  position:relative; border:0; border-radius:14px;
+  background:linear-gradient(160deg, var(--tile-hi), var(--tile));
+  color:var(--tile-ink);
+  font-family:var(--font-display); font-weight:400;
+  font-size:clamp(22px,9vw,42px); letter-spacing:.02em;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.28),
+    0 3px 0 color-mix(in srgb, var(--tile) 55%, #000);
+  display:flex; align-items:center; justify-content:center;
+  transition:transform .12s ease, box-shadow .12s ease, opacity .2s ease;
+  will-change:transform;
+}
+.tile:active{transform:translateY(2px); box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 1px 0 color-mix(in srgb, var(--tile) 55%, #000)}
+.tile.movable{cursor:pointer}
+.tile.movable::after{
+  content:""; position:absolute; inset:0; border-radius:inherit;
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);
+  pointer-events:none;
+}
+.tile.sliding{transition:transform .16s cubic-bezier(.2,.8,.2,1)}
+.tile.correct{background:linear-gradient(160deg, color-mix(in srgb, var(--tile-hi) 70%, var(--gold)), color-mix(in srgb, var(--tile) 75%, var(--gold)))}
+.slot-empty{
+  border-radius:14px;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(255,255,255,.06), transparent 55%),
+    var(--empty);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.18);
+}
+
+.actions{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.btn{
+  border:0; border-radius:16px; min-height:52px;
+  font-weight:900; font-size:16px; letter-spacing:.04em;
+  background:var(--accent); color:var(--accent-ink);
+  box-shadow:0 4px 0 var(--accent-deep);
+}
+.btn:active{transform:translateY(2px); box-shadow:0 2px 0 var(--accent-deep)}
+.btn.sub{
+  background:var(--panel); color:var(--ink);
+  box-shadow:inset 0 0 0 1.5px var(--line), 0 3px 0 var(--line);
+}
+.btn.sub:active{box-shadow:inset 0 0 0 1.5px var(--line), 0 1px 0 var(--line)}
+
+.hint{margin:0; text-align:center; font-size:12.5px; font-weight:700; color:var(--muted)}
+
+.overlay{
+  position:absolute; inset:0; z-index:5;
+  display:flex; align-items:center; justify-content:center; padding:16px;
+  background:rgba(10,44,40,.55); border-radius:18px;
+  animation:fadeIn .25s ease;
+}
+.card{
+  background:var(--panel); color:var(--ink); border-radius:20px;
+  padding:22px 18px 16px; max-width:300px; width:100%; text-align:center;
+  box-shadow:0 16px 40px rgba(0,0,0,.35);
+  animation:popIn .45s cubic-bezier(.2,1.3,.4,1);
+}
+.card h2{
+  margin:0 0 6px; font-family:var(--font-display); font-weight:400;
+  font-size:28px; letter-spacing:.06em; color:var(--accent);
+}
+.card p{margin:4px 0; font-size:14px; font-weight:700}
+.card .big{
+  font-family:var(--font-display); font-weight:400;
+  font-size:34px; line-height:1.2; margin:8px 0 4px;
+  font-variant-numeric:tabular-nums;
+}
+.card .record{
+  display:inline-block; margin-top:4px; padding:2px 10px; border-radius:999px;
+  background:var(--gold); color:#3A2A00; font-weight:900; font-size:12px;
+}
+.card .btns{display:flex; flex-direction:column; gap:8px; margin-top:14px}
+.confetti{position:absolute; inset:0; overflow:hidden; pointer-events:none; border-radius:18px}
+
+@keyframes fadeIn{from{opacity:0}}
+@keyframes popIn{from{transform:scale(.82); opacity:0}}
+@keyframes celebrate{
+  0%,100%{transform:scale(1)}
+  40%{transform:scale(1.06)}
+  70%{transform:scale(.98)}
+}
+.board-wrap.won #board .tile{animation:celebrate .55s ease}
+@media (max-width:360px){
+  .tile{border-radius:10px; font-size:clamp(18px,8vw,32px)}
+  .board-wrap{padding:8px; border-radius:18px}
+  #board{gap:4px}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="top">
+    <h1><a href="../">スライドパズル</a></h1>
+    <button class="chip" id="themeBtn" type="button" aria-label="表示モード">あかるい</button>
+  </div>
+
+  <div class="sizes" role="group" aria-label="盤面の大きさ">
+    <button class="size-btn" type="button" data-size="3">3×3<small>8パズル</small></button>
+    <button class="size-btn on" type="button" data-size="4">4×4<small>15パズル</small></button>
+    <button class="size-btn" type="button" data-size="5">5×5<small>24パズル</small></button>
+  </div>
+
+  <div class="hud" aria-live="polite">
+    <div class="stat">
+      <small>てすう</small>
+      <b id="moves">0</b>
+      <span class="best-line" id="bestMoves">ベスト —</span>
+    </div>
+    <div class="stat">
+      <small>じかん</small>
+      <b id="time">0:00</b>
+      <span class="best-line" id="bestTime">ベスト —</span>
+    </div>
+    <div class="stat">
+      <small>サイズ</small>
+      <b id="sizeLabel">4×4</b>
+      <span class="best-line" id="sizeSub">15パズル</span>
+    </div>
+  </div>
+
+  <div class="board-wrap" id="boardWrap">
+    <div id="board" role="grid" aria-label="パズル盤面"></div>
+    <div class="overlay" id="overlay" hidden>
+      <div class="confetti" id="confetti" aria-hidden="true"></div>
+      <div class="card" role="dialog" aria-live="polite">
+        <h2 id="ovTitle">かんせい！</h2>
+        <div id="ovBody"></div>
+        <div class="btns" id="ovBtns"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="shuffleBtn" type="button">シャッフル</button>
+    <button class="btn sub" id="resetBtn" type="button">はじめから</button>
+  </div>
+  <p class="hint">空きマスのとなりをタップ（またはスワイプ）してうごかそう</p>
+</div>
+
+<script>
+(function(){
+  const LS_KEY = "slide-puzzle-v1";
+  const SIZE_NAMES = {3:"8パズル", 4:"15パズル", 5:"24パズル"};
+  const SHUFFLE_MOVES = {3:80, 4:160, 5:280};
+
+  const boardEl = document.getElementById("board");
+  const boardWrap = document.getElementById("boardWrap");
+  const overlay = document.getElementById("overlay");
+  const ovTitle = document.getElementById("ovTitle");
+  const ovBody = document.getElementById("ovBody");
+  const ovBtns = document.getElementById("ovBtns");
+  const confettiEl = document.getElementById("confetti");
+  const movesEl = document.getElementById("moves");
+  const timeEl = document.getElementById("time");
+  const bestMovesEl = document.getElementById("bestMoves");
+  const bestTimeEl = document.getElementById("bestTime");
+  const sizeLabel = document.getElementById("sizeLabel");
+  const sizeSub = document.getElementById("sizeSub");
+  const themeBtn = document.getElementById("themeBtn");
+
+  let size = 4;
+  let grid = [];
+  let initialGrid = [];
+  let empty = 0;
+  let moves = 0;
+  let startedAt = 0;
+  let timerId = null;
+  let playing = false;
+  let won = false;
+  let animating = false;
+  let records = loadRecords();
+
+  /* Theme override (optional manual toggle) */
+  let themeMode = localStorage.getItem("slide-theme") || "auto";
+  applyTheme();
+
+  themeBtn.addEventListener("click", () => {
+    const order = ["auto", "light", "dark"];
+    themeMode = order[(order.indexOf(themeMode) + 1) % order.length];
+    localStorage.setItem("slide-theme", themeMode);
+    applyTheme();
+  });
+
+  function applyTheme(){
+    const root = document.documentElement;
+    if (themeMode === "light") {
+      root.style.colorScheme = "light";
+      root.classList.remove("force-dark");
+      root.classList.add("force-light");
+      themeBtn.textContent = "あかるい";
+    } else if (themeMode === "dark") {
+      root.style.colorScheme = "dark";
+      root.classList.remove("force-light");
+      root.classList.add("force-dark");
+      themeBtn.textContent = "くらい";
+    } else {
+      root.style.colorScheme = "";
+      root.classList.remove("force-light", "force-dark");
+      themeBtn.textContent = "じどう";
+    }
+  }
+
+  /* Force light/dark via class when user overrides */
+  const forceStyle = document.createElement("style");
+  forceStyle.textContent = `
+    html.force-light{
+      --bg:#E8F2F0; --bg-2:#F4FAF8; --ink:#1A3A36; --muted:#5A7A74;
+      --line:rgba(26,58,54,.14); --panel:#FFFFFF; --tile:#1F6B63; --tile-ink:#F7FFFD;
+      --tile-hi:#2A8A80; --empty:#C5DDD8; --accent:#E35D3B; --accent-deep:#B84428;
+      --accent-ink:#FFF8F5; --gold:#D4A017; --ok:#1F8A5B; --board:#0F3D38;
+      --board-edge:#0A2C28; --shadow:rgba(15,61,56,.18); color-scheme:light;
+    }
+    html.force-dark{
+      --bg:#0E1C1A; --bg-2:#142624; --ink:#E6F4F1; --muted:#9BB8B2;
+      --line:rgba(230,244,241,.14); --panel:#1A302C; --tile:#2FA89B; --tile-ink:#061614;
+      --tile-hi:#45C4B5; --empty:#1E3A36; --accent:#F07855; --accent-deep:#C45535;
+      --accent-ink:#1A0C08; --gold:#E8C04A; --ok:#3DBF84; --board:#071A17;
+      --board-edge:#04110F; --shadow:rgba(0,0,0,.45); color-scheme:dark;
+    }
+  `;
+  document.head.appendChild(forceStyle);
+
+  function loadRecords(){
+    try {
+      return JSON.parse(localStorage.getItem(LS_KEY) || "{}") || {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function saveRecords(){
+    localStorage.setItem(LS_KEY, JSON.stringify(records));
+  }
+
+  function solved(n){
+    const a = [];
+    for (let i = 1; i < n * n; i++) a.push(i);
+    a.push(0);
+    return a;
+  }
+
+  function idxRC(i){ return [Math.floor(i / size), i % size]; }
+  function rcIdx(r, c){ return r * size + c; }
+
+  function neighbors(i){
+    const [r, c] = idxRC(i);
+    const out = [];
+    if (r > 0) out.push(rcIdx(r - 1, c));
+    if (r < size - 1) out.push(rcIdx(r + 1, c));
+    if (c > 0) out.push(rcIdx(r, c - 1));
+    if (c < size - 1) out.push(rcIdx(r, c + 1));
+    return out;
+  }
+
+  function shuffleBoard(){
+    grid = solved(size);
+    empty = size * size - 1;
+    let last = -1;
+    const steps = SHUFFLE_MOVES[size] || 160;
+    for (let s = 0; s < steps; s++) {
+      const opts = neighbors(empty).filter(i => i !== last);
+      const pick = opts[Math.floor(Math.random() * opts.length)];
+      grid[empty] = grid[pick];
+      grid[pick] = 0;
+      last = empty;
+      empty = pick;
+    }
+    // Extremely unlikely, but avoid starting already solved
+    if (isSolved()) {
+      shuffleBoard();
+      return;
+    }
+    initialGrid = grid.slice();
+  }
+
+  function restoreInitial(){
+    if (!initialGrid.length) {
+      shuffleBoard();
+      return;
+    }
+    grid = initialGrid.slice();
+    empty = grid.indexOf(0);
+  }
+
+  function isSolved(){
+    const n = size * size;
+    for (let i = 0; i < n - 1; i++) if (grid[i] !== i + 1) return false;
+    return grid[n - 1] === 0;
+  }
+
+  function formatTime(ms){
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    const r = s % 60;
+    return m + ":" + String(r).padStart(2, "0");
+  }
+
+  function stopTimer(){
+    if (timerId) { clearInterval(timerId); timerId = null; }
+  }
+
+  function startTimer(){
+    if (timerId || won) return;
+    if (!startedAt) startedAt = Date.now();
+    timerId = setInterval(() => {
+      timeEl.textContent = formatTime(Date.now() - startedAt);
+    }, 200);
+  }
+
+  function elapsed(){
+    if (!startedAt) return 0;
+    return Date.now() - startedAt;
+  }
+
+  function showBest(){
+    const rec = records[String(size)] || {};
+    bestMovesEl.textContent = rec.moves != null ? "ベスト " + rec.moves : "ベスト —";
+    bestTimeEl.textContent = rec.time != null ? "ベスト " + formatTime(rec.time) : "ベスト —";
+  }
+
+  function updateHud(){
+    movesEl.textContent = String(moves);
+    if (!playing || !startedAt) timeEl.textContent = "0:00";
+    sizeLabel.textContent = size + "×" + size;
+    sizeSub.textContent = SIZE_NAMES[size] || "";
+    showBest();
+  }
+
+  function render(slideFrom){
+    boardEl.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+    boardEl.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+    boardEl.innerHTML = "";
+    const movable = new Set(neighbors(empty));
+
+    for (let i = 0; i < grid.length; i++) {
+      const v = grid[i];
+      if (v === 0) {
+        const slot = document.createElement("div");
+        slot.className = "slot-empty";
+        slot.setAttribute("role", "gridcell");
+        slot.setAttribute("aria-label", "空きマス");
+        boardEl.appendChild(slot);
+        continue;
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "tile";
+      btn.textContent = String(v);
+      btn.setAttribute("role", "gridcell");
+      btn.setAttribute("aria-label", v + "のタイル");
+      if (v === i + 1) btn.classList.add("correct");
+      if (movable.has(i) && !won) btn.classList.add("movable");
+      btn.dataset.index = String(i);
+
+      if (slideFrom != null && i === slideFrom.to) {
+        // Tile that just slid here — animate from its previous cell
+        const from = slideFrom.from;
+        const [fr, fc] = idxRC(from);
+        const [tr, tc] = idxRC(i);
+        const dx = (fc - tc) * 100;
+        const dy = (fr - tr) * 100;
+        btn.classList.add("sliding");
+        btn.style.transform = `translate(${dx}%, ${dy}%)`;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => { btn.style.transform = ""; });
+        });
+        setTimeout(() => { btn.classList.remove("sliding"); btn.style.transform = ""; }, 180);
+      }
+
+      btn.addEventListener("click", () => tryMove(i));
+      boardEl.appendChild(btn);
+    }
+  }
+
+  function tryMove(i){
+    if (won || animating) return;
+    if (!neighbors(empty).includes(i)) return;
+    if (!playing) {
+      playing = true;
+      startTimer();
+    }
+    const from = i;
+    const to = empty;
+    grid[empty] = grid[i];
+    grid[i] = 0;
+    empty = i;
+    moves++;
+    updateHud();
+    animating = true;
+    render({ from, to });
+    setTimeout(() => {
+      animating = false;
+      if (isSolved()) onWin();
+    }, 170);
+  }
+
+  function onWin(){
+    won = true;
+    playing = false;
+    stopTimer();
+    const t = elapsed();
+    boardWrap.classList.add("won");
+    const key = String(size);
+    const prev = records[key] || {};
+    let newMoves = false, newTime = false;
+    if (prev.moves == null || moves < prev.moves) { prev.moves = moves; newMoves = true; }
+    if (prev.time == null || t < prev.time) { prev.time = t; newTime = true; }
+    records[key] = prev;
+    saveRecords();
+    showBest();
+
+    ovTitle.textContent = "かんせい！";
+    ovBody.innerHTML =
+      `<p class="big">${moves} て / ${formatTime(t)}</p>` +
+      `<p>${SIZE_NAMES[size]} をそろえました</p>` +
+      (newMoves || newTime ? `<span class="record">新記録！</span>` : "");
+    ovBtns.innerHTML = "";
+    const again = document.createElement("button");
+    again.className = "btn";
+    again.type = "button";
+    again.textContent = "もういちど";
+    again.addEventListener("click", () => { hideOverlay(); newGame("shuffle"); });
+    const keep = document.createElement("button");
+    keep.className = "btn sub";
+    keep.type = "button";
+    keep.textContent = "とじる";
+    keep.addEventListener("click", hideOverlay);
+    ovBtns.append(again, keep);
+    spawnConfetti();
+    overlay.hidden = false;
+  }
+
+  function hideOverlay(){
+    overlay.hidden = true;
+    confettiEl.innerHTML = "";
+  }
+
+  function spawnConfetti(){
+    confettiEl.innerHTML = "";
+    const colors = ["#E35D3B", "#2FA89B", "#D4A017", "#F07855", "#45C4B5", "#E8C04A"];
+    for (let i = 0; i < 36; i++) {
+      const p = document.createElement("i");
+      p.style.cssText = `
+        position:absolute; width:${6 + Math.random()*8}px; height:${6 + Math.random()*8}px;
+        left:${Math.random()*100}%; top:${-10 - Math.random()*20}%;
+        background:${colors[i % colors.length]}; border-radius:${Math.random() > .5 ? "2px" : "50%"};
+        opacity:.9; animation:fall ${1.2 + Math.random()*1.4}s linear ${Math.random()*0.5}s forwards;
+      `;
+      confettiEl.appendChild(p);
+    }
+    if (!document.getElementById("fallKey")) {
+      const s = document.createElement("style");
+      s.id = "fallKey";
+      s.textContent = `@keyframes fall{to{transform:translateY(120vh) rotate(${720}deg); opacity:0}}`;
+      document.head.appendChild(s);
+    }
+  }
+
+  function newGame(mode){
+    stopTimer();
+    hideOverlay();
+    boardWrap.classList.remove("won");
+    moves = 0;
+    startedAt = 0;
+    playing = false;
+    won = false;
+    animating = false;
+    if (mode === "restart") restoreInitial();
+    else shuffleBoard();
+    updateHud();
+    render();
+  }
+
+  /* Size buttons */
+  document.querySelectorAll(".size-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const n = Number(btn.dataset.size);
+      if (n === size) return;
+      document.querySelectorAll(".size-btn").forEach(b => b.classList.toggle("on", b === btn));
+      size = n;
+      newGame("shuffle");
+    });
+  });
+
+  document.getElementById("shuffleBtn").addEventListener("click", () => newGame("shuffle"));
+  document.getElementById("resetBtn").addEventListener("click", () => newGame("restart"));
+
+  /* Swipe support: swipe toward empty from a tile, or swipe empty direction */
+  let touchStart = null;
+  boardEl.addEventListener("touchstart", (e) => {
+    if (e.touches.length !== 1 || won) return;
+    const t = e.touches[0];
+    touchStart = { x: t.clientX, y: t.clientY, t: Date.now() };
+  }, { passive: true });
+
+  boardEl.addEventListener("touchend", (e) => {
+    if (!touchStart || won) { touchStart = null; return; }
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    touchStart = null;
+    if (Math.max(adx, ady) < 28) return;
+    // Direction of swipe = direction the tile should move (toward empty)
+    let dr = 0, dc = 0;
+    if (adx > ady) dc = dx > 0 ? 1 : -1;
+    else dr = dy > 0 ? 1 : -1;
+    // Find tile adjacent to empty that would move in that direction into empty
+    const [er, ec] = idxRC(empty);
+    const sr = er - dr, sc = ec - dc;
+    if (sr < 0 || sc < 0 || sr >= size || sc >= size) return;
+    tryMove(rcIdx(sr, sc));
+  }, { passive: true });
+
+  /* Keyboard: arrow / WASD moves the tile into the empty cell */
+  window.addEventListener("keydown", (e) => {
+    if (!overlay.hidden || won) return;
+    const [er, ec] = idxRC(empty);
+    let r = er, c = ec;
+    if (e.key === "ArrowUp" || e.key === "w" || e.key === "W") r++;
+    else if (e.key === "ArrowDown" || e.key === "s" || e.key === "S") r--;
+    else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") c++;
+    else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") c--;
+    else return;
+    e.preventDefault();
+    if (r < 0 || c < 0 || r >= size || c >= size) return;
+    tryMove(rcIdx(r, c));
+  });
+
+  newGame("shuffle");
+})();
+</script>
+
+</body>
+</html>

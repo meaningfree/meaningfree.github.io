@@ -13,6 +13,10 @@
 | `manmaru/index.html` | <https://meaningfree.github.io/manmaru/> |
 | `hakoniwa/index.html` | <https://meaningfree.github.io/hakoniwa/> |
 | `machigai/index.html` | <https://meaningfree.github.io/machigai/> |
+| `sudoku/index.html` | <https://meaningfree.github.io/sudoku/> |
+| `logic/index.html` | <https://meaningfree.github.io/logic/> |
+| `mine/index.html` | <https://meaningfree.github.io/mine/> |
+| `slide/index.html` | <https://meaningfree.github.io/slide/> |
 
 ## むげんワードル
 
@@ -166,6 +170,79 @@ python3 tools/make-hakoniwa.py hakoniwa/index.html
 
 ```sh
 python3 tools/make-machigai.py machigai/index.html
+```
+
+## むげん数独
+
+ランダムに無限に問題を生成する数独。
+
+- かんたん / ふつう / むずかしい（初期ヒント数のちがい）。解が一意になるよう掘り下げて生成
+- 記入とメモ、チェック、ヒント、タイマー。ベストタイムは難易度ごとに端末に保存
+- 操作: マスを選んで数字パッド、またはキーボード
+
+### ファイル
+
+- `src/sudoku.html` — 生成元（Artifact 用の断片形式）
+- `sudoku/index.html` — 公開用のスタンドアロン版
+- `tools/make-sudoku.py` — 変換スクリプト
+
+```sh
+python3 tools/make-sudoku.py sudoku/index.html
+```
+
+## イラストロジック
+
+数字のヒント（各行・列の連続マス数）からシルエットをぬりあげる、いわゆるピクロス／ののぐらむ。
+
+- **もようモード**: 名前つきパターン 250問（5×5 / 8×8 / 10×10 / 15×15）。ハート・ねこ・ほしなど
+- **むげんモード**: その場でランダムな盤面を生成し、行論理ソルバーで解けることを確認して出題（5 / 10 / 15）
+- ぬる / × / けす、ドラッグ塗り、チェック・こたえ表示。クリア記録は端末に保存
+
+無限生成は可能です。シルエットの「かわいさ」は固定もようのほうが安定し、むげんは毎回ちがうロジックパズル向きです。
+
+### ファイル
+
+- `src/logic.html` — 生成元（Artifact 用の断片形式）
+- `logic/index.html` — 公開用のスタンドアロン版
+- `tools/make-logic.py` — 変換スクリプト
+
+```sh
+python3 tools/make-logic.py logic/index.html
+```
+
+## マインスイーパー
+
+地雷をよけてマスをひらいていく定番。
+
+- かんたん 9×9/10、ふつう 12×12/20、むずかしい 16×16/40。初手は必ず安全（そのあと地雷配置）
+- タップで開く、長押し or はたモードで旗。数字マスのコード開き対応
+- タイマーとベストタイム（難易度ごと）を端末に保存
+
+### ファイル
+
+- `src/mine.html` — 生成元（Artifact 用の断片形式）
+- `mine/index.html` — 公開用のスタンドアロン版
+- `tools/make-mine.py` — 変換スクリプト
+
+```sh
+python3 tools/make-mine.py mine/index.html
+```
+
+## スライドパズル
+
+空きマスに隣接するタイルをずらして、数字を順番どおりにそろえる。
+
+- 3×3（8パズル）/ 4×4（15パズル）/ 5×5。合法手のシャッフルで必ず解ける配置
+- タップとスワイプ、手数とタイマー。サイズごとのベストを端末に保存
+
+### ファイル
+
+- `src/slide.html` — 生成元（Artifact 用の断片形式）
+- `slide/index.html` — 公開用のスタンドアロン版
+- `tools/make-slide.py` — 変換スクリプト
+
+```sh
+python3 tools/make-slide.py slide/index.html
 ```
 
 ## GitHub Pages
