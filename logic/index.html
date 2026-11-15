@@ -122,7 +122,8 @@ h1 a{text-decoration:none}
 .mode.on{background:var(--ink); color:var(--paper); border-color:transparent; box-shadow:0 2px 0 color-mix(in srgb,var(--ink) 60%,black)}
 .mode:active{transform:translateY(1px); box-shadow:0 1px 0 var(--line)}
 
-.actions{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px}
+.actions{display:grid; grid-template-columns:1fr 1fr 1fr 1.15fr; gap:8px}
+.actions .btn:disabled{opacity:.4; box-shadow:none; cursor:default}
 .btn{
   border:1.5px solid var(--line); background:var(--card); border-radius:14px; min-height:48px;
   font-weight:900; font-size:14px; box-shadow:0 3px 0 var(--line);
@@ -263,6 +264,7 @@ h1 a{text-decoration:none}
   </div>
 
   <div class="actions">
+    <button class="btn" type="button" id="btnUndo" disabled>もどす</button>
     <button class="btn" type="button" id="btnCheck">チェック</button>
     <button class="btn" type="button" id="btnReveal">こたえ</button>
     <button class="btn primary" type="button" id="btnNext">つぎへ</button>
@@ -314,7 +316,9 @@ h1 a{text-decoration:none}
     </div>
     <ol style="margin:0;padding-left:1.3em;font-weight:700;display:flex;flex-direction:column;gap:8px">
       <li>上と左の数字は、その行・列でぬるマスの連続数です。</li>
-      <li>「ぬる」で黒くぬり、「×」であきマス印、「けす」で消します。ドラッグでもぬれます。</li>
+      <li>「ぬる」で黒くぬり、「×」であきマス印、「けす」で消します。ドラッグは同じ行か列だけにぬれます。</li>
+      <li>ぬるときは×の上を塗りつぶさず、×のときはぬったマスを上書きしません。</li>
+      <li>「もどす」でひとつ前の操作に戻せます（キーボードの Z でも可）。</li>
       <li>数字どおりにぬりおわると、その行・列のヒントが緑色になります。</li>
       <li>「チェック」でまちがいを確認。「こたえ」で答えを表示。</li>
       <li>「むげん」は毎回あたらしいパズルを自動生成します。</li>
@@ -512,10 +516,33 @@ function generateMugen(n, maxTries=80){
 let mode="fill";
 let puzzleIndex=0;
 let state=null; // {id,name,size,solution,player,rows,cols,mugen}
-let painting=false, paintValue=null;
+let painting=false, paintValue=null, paintAxis=null, paintStart=null, strokeChanged=false;
+let undoStack=[];
+const UNDO_MAX=80;
 let filterSize="all";
 let mugenSize=5;
 let won=false;
+
+function snapshotPlayer(){ return state.player.map(r=>r.slice()); }
+function clearUndo(){ undoStack=[]; updateUndoBtn(); }
+function pushUndo(){
+  if(!state || won) return;
+  undoStack.push(snapshotPlayer());
+  if(undoStack.length>UNDO_MAX) undoStack.shift();
+  updateUndoBtn();
+}
+function updateUndoBtn(){
+  const b=document.getElementById("btnUndo");
+  if(b) b.disabled = !undoStack.length || won;
+}
+function undoOnce(){
+  if(!undoStack.length || !state || won) return;
+  state.player=undoStack.pop();
+  updateUndoBtn();
+  renderBoard();
+  const msg=document.getElementById("msg");
+  msg.textContent="ひとつもどした"; msg.className="msg";
+}
 
 function loadPattern(p){
   const solution=parseRows(p.rows);
@@ -617,7 +644,9 @@ function updateClueHighlights(){
 
 function setCell(x,y,val){
   if(won) return;
+  if(state.player[y][x]===val) return;
   state.player[y][x]=val;
+  strokeChanged=true;
   const c=document.querySelector('.cell[data-x="'+x+'"][data-y="'+y+'"]');
   if(c){
     c.classList.toggle("fill", val===1);
@@ -628,11 +657,34 @@ function setCell(x,y,val){
   if(checkWinSilent()) onWin();
 }
 function paintAt(x,y){
+  if(!state || won) return;
+  // Lock drag to a single row or column once movement leaves the start cell
+  if(painting && paintStart){
+    if(paintAxis==null && (x!==paintStart.x || y!==paintStart.y)){
+      const dx=Math.abs(x-paintStart.x), dy=Math.abs(y-paintStart.y);
+      paintAxis = dx>=dy ? "h" : "v";
+    }
+    if(paintAxis==="h") y=paintStart.y;
+    else if(paintAxis==="v") x=paintStart.x;
+  }
+  if(x<0||y<0||x>=state.size||y>=state.size) return;
+
   if(paintValue==null){
     const cur=state.player[y][x];
     if(mode==="fill") paintValue = cur===1 ? 0 : 1;
     else if(mode==="mark") paintValue = cur===2 ? 0 : 2;
     else paintValue = 0;
+  }
+
+  const cur=state.player[y][x];
+  if(mode==="fill"){
+    // ぬる: don't overwrite ×; clearing only removes fills
+    if(paintValue===1 && cur!==0) return;
+    if(paintValue===0 && cur!==1) return;
+  } else if(mode==="mark"){
+    // ×: don't overwrite fills; clearing only removes marks
+    if(paintValue===2 && cur!==0) return;
+    if(paintValue===0 && cur!==2) return;
   }
   setCell(x,y,paintValue);
 }
@@ -665,6 +717,7 @@ function onWin(){
   if(!state.mugen) store.markCleared(state.id);
   else { const s=store.get(); s.streak=(s.streak||0)+1; s.bestStreak=Math.max(s.bestStreak||0,s.streak); s.total=(s.total||0)+1; store.set(s); }
   updateStatsUI();
+  updateUndoBtn();
   const cv=document.getElementById("winCanvas");
   cv.width=cv.height=200;
   drawSilhouette(cv, state.solution);
@@ -708,6 +761,7 @@ function doReveal(){
 function setPuzzleFromPatternIndex(i){
   puzzleIndex=((i%PATTERNS.length)+PATTERNS.length)%PATTERNS.length;
   state=loadPattern(PATTERNS[puzzleIndex]);
+  clearUndo();
   won=false; document.getElementById("win").hidden=true;
   document.getElementById("msg").textContent=""; document.getElementById("msg").className="msg";
   document.getElementById("puzzleNo").textContent="#"+(puzzleIndex+1);
@@ -716,7 +770,7 @@ function setPuzzleFromPatternIndex(i){
   renderBoard();
 }
 function nextPuzzle(){
-  if(state && state.mugen){ state=loadMugen(state.size); won=false; document.getElementById("win").hidden=true;
+  if(state && state.mugen){ state=loadMugen(state.size); clearUndo(); won=false; document.getElementById("win").hidden=true;
     document.getElementById("msg").textContent=""; document.getElementById("msg").className="msg";
     document.getElementById("puzzleNo").textContent="∞";
     document.getElementById("puzzleName").textContent=state.name;
@@ -782,8 +836,10 @@ function posFromEvent(e){
   return {x:+el.dataset.x, y:+el.dataset.y};
 }
 board.addEventListener("pointerdown",e=>{
-  const p=posFromEvent(e); if(!p) return;
-  painting=true; paintValue=null; paintAt(p.x,p.y);
+  const p=posFromEvent(e); if(!p || won) return;
+  pushUndo();
+  painting=true; paintValue=null; paintAxis=null; paintStart={x:p.x,y:p.y}; strokeChanged=false;
+  paintAt(p.x,p.y);
   board.setPointerCapture?.(e.pointerId);
   e.preventDefault();
 });
@@ -792,20 +848,37 @@ board.addEventListener("pointermove",e=>{
   const p=posFromEvent(e); if(p) paintAt(p.x,p.y);
   e.preventDefault();
 });
-const endPaint=()=>{ painting=false; paintValue=null; };
+const endPaint=()=>{
+  if(painting && !strokeChanged && undoStack.length){
+    undoStack.pop();
+    updateUndoBtn();
+  }
+  painting=false; paintValue=null; paintAxis=null; paintStart=null; strokeChanged=false;
+};
 board.addEventListener("pointerup",endPaint);
 board.addEventListener("pointercancel",endPaint);
 board.addEventListener("pointerleave",e=>{ if(e.pressure===0) endPaint(); });
 
+document.getElementById("btnUndo").onclick=undoOnce;
 document.getElementById("btnCheck").onclick=doCheck;
-document.getElementById("btnReveal").onclick=doReveal;
+document.getElementById("btnReveal").onclick=()=>{ pushUndo(); doReveal(); };
 document.getElementById("btnNext").onclick=nextPuzzle;
 document.getElementById("btnReset").onclick=()=>{
+  pushUndo();
   state.player=Array.from({length:state.size},()=>Array(state.size).fill(0));
   won=false; document.getElementById("win").hidden=true;
   document.getElementById("msg").textContent=""; document.getElementById("msg").className="msg";
   renderBoard();
+  updateUndoBtn();
 };
+document.addEventListener("keydown",e=>{
+  if(e.key!=="z" && e.key!=="Z") return;
+  if(document.querySelector(".sheet:not([hidden])")) return;
+  if(!document.getElementById("start").hidden) return;
+  if(!document.getElementById("win").hidden) return;
+  undoOnce();
+  e.preventDefault();
+});
 document.getElementById("btnMenu").onclick=()=>{ renderList(); document.getElementById("sheetMenu").hidden=false; };
 document.getElementById("btnMugen").onclick=()=>{ document.getElementById("sheetMugen").hidden=false; };
 document.getElementById("btnHelp").onclick=()=>{ document.getElementById("sheetHelp").hidden=false; };
@@ -825,7 +898,7 @@ document.getElementById("btnGenMugen").onclick=()=>{
   document.getElementById("sheetMugen").hidden=true;
   // yield so UI updates
   setTimeout(()=>{
-    state=loadMugen(mugenSize); won=false; document.getElementById("win").hidden=true;
+    state=loadMugen(mugenSize); clearUndo(); won=false; document.getElementById("win").hidden=true;
     document.getElementById("puzzleNo").textContent="∞";
     document.getElementById("puzzleName").textContent=state.name;
     document.getElementById("puzzleSize").textContent=state.size+"×"+state.size;
