@@ -196,6 +196,7 @@ python3 tools/make-sudoku.py sudoku/index.html
 数字のヒント（各行・列の連続マス数）からシルエットをぬりあげる、いわゆるピクロス／ののぐらむ。
 
 - **もようモード**: 名前つきシルエット 123問（5×5 / 8×8 / 10×10 / 15×15）。ハート・ねこ・おしろなど、見た目が名前どおりのものだけ
+  - 全問、1行・1列ずつの論理だけで推測なしに解け、答えは1つ（`node tools/check-logic.js` で確認）
 - **むげんモード**: その場でランダムな盤面を生成し、行論理ソルバーで解けることを確認して出題（5 / 10 / 15）
 - ぬる / × / けす、ドラッグは行か列だけ。ぬると×は互いのマスを上書きしない。「もどす」で操作をひとつ戻せる
 - チェック・こたえ表示。盤面は5マスごとに太めのガイド線。クリア記録は端末に保存
@@ -207,8 +208,10 @@ python3 tools/make-sudoku.py sudoku/index.html
 - `src/logic.html` — 生成元（Artifact 用の断片形式）
 - `logic/index.html` — 公開用のスタンドアロン版
 - `tools/make-logic.py` — 変換スクリプト
+- `tools/check-logic.js` — もようの解きやすさチェック（行論理ソルバー）
 
 ```sh
+node tools/check-logic.js          # もようが全部ロジックで解けるか確認
 python3 tools/make-logic.py logic/index.html
 ```
 
